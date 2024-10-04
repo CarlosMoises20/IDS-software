@@ -71,6 +71,6 @@ for data in data_all:
             i += 1
             sensors_tmst_last_msg[data['dev_eui']] = data['time']
             cursor.execute("INSERT INTO sensors (devaddr, tmst, message) VALUES (?, ?, ?)", (message['devaddr'], message['tmst'], message['message']))
-print(i)
-
+            
+print(i)        # 'i' represents the number of messages processed and inserted into the sensors table, effectively sending the data to the sensors
 cursor.close()
