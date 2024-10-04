@@ -1,7 +1,6 @@
 from constants import *
 import os
 from crate.client import connect
-
 from tkinter.constants import CENTER
 import PySimpleGUI as sg
 import dateutil.parser as dp

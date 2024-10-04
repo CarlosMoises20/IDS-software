@@ -16,11 +16,11 @@ def get_bw(s):
 
 NODEURL = "http://localhost:4200/"
 #DATASET = 'dataset_1&2_original.log'
-DATASET = 'dataset_3_original.log'
+DATASET = 'out.log'
 #DATASET = 'dataset_intrusion.log'
-#TABLE = "sensors"
+TABLE = "sensors"
 #TABLE = 'intrusions'
-TABLE = 'sensors_2'
+#TABLE = 'sensors_2'
 
 dfile = open(DATASET, 'r')
 data = dfile.readlines()

@@ -27,7 +27,7 @@ for line in data:
     message = json.dumps({"rxpk":[
         {
                 "time": json_line["time"],
-                "latitute": json_line["latitute"],
+                "latitude": json_line["latitude"],
                 "longitude": json_line["longitude"],
                 "chan": json_line["chan"],
                 "datr": json_line["datr"],
