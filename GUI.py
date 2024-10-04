@@ -166,9 +166,11 @@ wind = False
 while True:
     event, values = window.read()               # Read the event that happened and the values dictionary
     #print(event, values)
+    
     if event == None or event == 'Exit':        # If user closed window with X or if user clicked "Exit" button then exit
         window.close()
         break
+
     if event == '-BUTTON1-':
         out, tmst, total = get_data(cursor)
         window["-LIST-"].update(out)
@@ -202,7 +204,8 @@ while True:
 
                 time.sleep(1)
                 sg.popup_notify("DONE")
+
     if event == '-BUTTON4-':
         dev = values["-LIST-"][0][0 : 8]
-        os.system(f"python 3_train_model.py {dev}")
+        os.system(f"python train_model.py {dev}")
 
