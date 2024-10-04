@@ -1,7 +1,7 @@
 import json
 import socket
 
-DATASET = '2_dev_3.log'
+DATASET = 'out.log'
 NODEURL = "http://localhost:4200/"
 HOST, PORT = "172.20.10.10", 9999
 
@@ -21,7 +21,7 @@ for line in data:
     #print(line)
     json_line = json.loads(line)
  
-    payload = json_line["payload "]
+    payload = json_line["payload"]
     lenpayload = len(payload)
 
     message = json.dumps({"rxpk":[
@@ -29,7 +29,7 @@ for line in data:
                 "time": json_line["time"],
                 "latitude": json_line["latitude"],
                 "longitude": json_line["longitude"],
-                "chan": json_line["chan"],
+                #"chan": json_line["chan"],
                 "datr": json_line["datr"],
                 "lsnr": json_line["lsnr"],
                 "rssi": json_line["rssi"],
