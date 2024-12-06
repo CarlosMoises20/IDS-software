@@ -1,7 +1,7 @@
 
 # Datasets and outputs
 dataset/*
-#dataset_test/*
+dataset_test/*
 output/*
 artifacts/*
-
+__pycache__/*
