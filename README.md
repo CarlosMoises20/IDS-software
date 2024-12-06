@@ -11,3 +11,8 @@ pip install -r ./requirements.txt
 ```python3
 python .\main.py
 ```
+
+### Run some experiences to play with spark functionalities
+```python3
+python .\test.py
+```
