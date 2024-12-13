@@ -1,86 +1,91 @@
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, count, explode
 import os
 from utils import *
 
 
-# Dataset directory
-dataset_directory = os.fsencode('.\dataset_test')
+def process_dataset(dataset, process_type):
 
-# Initialize Spark Session
-spark = SparkSession.builder.appName("LoRaWAN Anomaly Detection").master("local[*]").getOrCreate()
+    # object where all the summaries of the results will be stored
+    final_summary = None
 
-# Output directory to store the results
-output_path = "./output"
+    # for each file inside the directory, process the messages 
+    # inside it according to the parameters on 'schema'
+    for file in os.listdir(dataset):
+        
+        # absolute path
+        filename = os.path.join(os.fsdecode(dataset), os.fsdecode(file))
+        
+        # Load the data from the dataset file
+        df = spark.read.json(filename)
 
-# object where all the summaries of the results will be stored
-final_summary = None
+        ## the process of the file parameters depends if it has messages of type 'rxpk', 'stat' or 'txpk'
+        ## so, considering each type of messages inside a file, a different function is called
+        if file.decode().startswith("rxpk"):        # 'rxpk'
+            summary = process_rxpk_dataset(df, process_type)
+        #elif file.decode().startswith("stats"):     # 'stat'
+        #    summary = process_stat_dataset(df, process_type)
+        #else:                                       # 'txpk'
+        #    summary = process_txpk_dataset(df, process_type)
+
+        # Concatenate summaries
+        if final_summary is None:
+            final_summary = summary
+        else:
+            final_summary = final_summary.union(summary)
+
+        print(f"File '{filename}' has been processed")
+
+    return final_summary
 
 
-# for each file inside the directory, process the messages 
-# inside it according to the parameters on 'schema'
-for file in os.listdir(dataset_directory):
 
-    # absolute path
-    filename = os.path.join(os.fsdecode(dataset_directory), os.fsdecode(file))
+if __name__ == '__main__':
+
+    # Initialize Spark Session
+    spark = SparkSession.builder.appName("LoRaWAN Anomaly Detection").master("local[*]").getOrCreate()
+
+
+    ## Train the model
+
+    # Output directory to store the training results
+    #output_path_train = "./output_train"
+
+    # Dataset test directory
+    #dataset_train = os.fsencode('.\dataset_train')
+
+    # Process the training dataset
+    #final_summary_train = process_dataset(dataset_train, 'train')
     
-    # Load the data from the dataset file
-    df = spark.read.json(filename)
+    # Save the final summary in a CSV file
+    #final_summary_train.write.mode("overwrite").csv(output_path_train)
 
-    ## the process of the file parameters depends if it is 'rxpk', 'stats' or 'txpk'
+    # Print the results
+    #final_summary_train.show()
 
-    # Explode the 'rxpk' array
-    df = df.withColumn("rxpk", explode(col("rxpk")))
-
-    # Extract individual fields from 'rxpk', including 'rsig'
-    for field in df.schema["rxpk"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rxpk.{field.name}"))
-
-    # Drop the 'rxpk' column as it's now flattened
-    df = df.drop("rxpk")
-
-    # Explode the 'rsig' array
-    df = df.withColumn("rsig", explode(col("rsig")))
-
-    # Extract individual fields from 'rsig'
-    for field in df.schema["rsig"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rsig.{field.name}"))
-
-    # Drop the 'rsig' column as it's now flattened
-    df = df.drop("rsig")
-
-    # Add anomaly detection columns
-    df = df.withColumn("Anomaly_SNR", when(col("lsnr") < -10, 1).otherwise(0)) \
-        .withColumn("Anomaly_RSSI", when(col("rssi") < -120, 1).otherwise(0)) \
-        .withColumn("Anomaly_MIC", when(col("MIC").isNull(), 1).otherwise(0)) \
-        .withColumn("Anomaly_Size", when(col("size") < 10, 1).otherwise(0))
-
-    # Combine anomaly indicators
-    df = df.withColumn("Anomaly", (col("Anomaly_SNR") + col("Anomaly_RSSI") + col("Anomaly_MIC") + col("Anomaly_Size")) > 0)
-
-    # Group data for analysis
-    summary = df.groupBy("Anomaly").agg(
-        count("*").alias("MessageCount"),
-        count(when(col("Anomaly_SNR") == 1, 1)).alias("SNR_Anomalies"),
-        count(when(col("Anomaly_RSSI") == 1, 1)).alias("RSSI_Anomalies"),
-        count(when(col("Anomaly_MIC") == 1, 1)).alias("MIC_Anomalies"),
-        count(when(col("Anomaly_Size") == 1, 1)).alias("Size_Anomalies")
-    )
-
-    # Concatenate summaries
-    if final_summary is None:
-        final_summary = summary
-    else:
-        final_summary = final_summary.union(summary)
-
-    print(f"File '{filename}' has been processed")
+    # Print the name of the output directory
+    #print(f"Training -> Anomaly summary saved to: {output_path_train}")
 
 
-final_summary.show(truncate=False)
+    ## Test the model
 
-# Save the final summary
-final_summary.write.mode("overwrite").csv(output_path)
+    # Output directory to store the testing results
+    output_path_test = "./output_test"
 
-print(f"Anomaly summary saved to: {output_path}")
+    # Dataset test directory
+    dataset_test = os.fsencode('.\dataset_test')
 
-spark.stop()
+    # Process the testing dataset
+    final_summary_test = process_dataset(dataset_test, 'test')
+
+    # Save the final summary in a CSV file
+    final_summary_test.write.mode("overwrite").csv(output_path_test)
+
+    # Print the results
+    final_summary_test.show()
+
+    # Print the name of the output directory
+    print(f"Testing -> Anomaly summary saved to: {output_path_test}")
+    
+
+    # Stop the Spark Session
+    spark.stop()

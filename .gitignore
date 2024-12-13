@@ -1,9 +1,12 @@
 
-# Datasets and outputs
-dataset/*
-dataset_test/*
-dataset_train/*
-output/*
-output_csv/*
+# Datasets
+dataset*/*
+
+# Outputs
+output*/*
+
+# Artifacts
 artifacts/*
+
+# Python cache
 __pycache__/*
