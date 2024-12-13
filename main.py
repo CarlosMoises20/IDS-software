@@ -27,6 +27,8 @@ for file in os.listdir(dataset_directory):
     # Load the data from the dataset file
     df = spark.read.json(filename)
 
+    ## the process of the file parameters depends if it is 'rxpk', 'stats' or 'txpk'
+
     # Explode the 'rxpk' array
     df = df.withColumn("rxpk", explode(col("rxpk")))
 

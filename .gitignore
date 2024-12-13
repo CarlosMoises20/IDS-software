@@ -2,6 +2,7 @@
 # Datasets and outputs
 dataset/*
 dataset_test/*
+dataset_train/*
 output/*
 output_csv/*
 artifacts/*
