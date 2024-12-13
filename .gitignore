@@ -3,5 +3,6 @@
 dataset/*
 dataset_test/*
 output/*
+output_csv/*
 artifacts/*
 __pycache__/*

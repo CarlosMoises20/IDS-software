@@ -1,8 +1,7 @@
-
 from pyspark.sql import SparkSession
-from pyspark.sql.functions import col, when, count
-from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+from pyspark.sql.functions import col, when, count, explode
 import os
+from utils import *
 
 
 # Dataset directory
@@ -11,51 +10,42 @@ dataset_directory = os.fsencode('.\dataset_test')
 # Initialize Spark Session
 spark = SparkSession.builder.appName("LoRaWAN Anomaly Detection").master("local[*]").getOrCreate()
 
-# Define the schema for the JSON messages
-schema = StructType([
-    StructField("tmst", IntegerType(), False),
-    StructField("time", StringType(), False),
-    StructField("chan", IntegerType(), False),
-    StructField("rfch", IntegerType(), False),
-    StructField("freq", DoubleType(), False),
-    StructField("stat", IntegerType(), False),
-    StructField("modu", StringType(), False),
-    StructField("datr", StringType(), False),
-    StructField("codr", StringType(), False),
-    StructField("lsnr", DoubleType(), False),
-    StructField("rssi", IntegerType(), False),
-    StructField("size", IntegerType(), False),
-    StructField("data", StringType(), False),
-    StructField("MessageType", StringType(), False),
-    StructField("PHYPayload", StringType(), False),
-    StructField("MHDR", StringType(), False),
-    StructField("MACPayload", StringType(), False),
-    StructField("MIC", StringType(), False),
-    StructField("FHDR", StringType(), False),
-    StructField("FPort", StringType(), False),
-    StructField("FRMPayload", StringType(), False),
-    StructField("DevAddr", StringType(), False),
-    StructField("FCtrl", StringType(), False),
-    StructField("FCnt", StringType(), False),
-    StructField("FOpts", StringType(), False),
-    StructField("Direction", StringType(), False),
-    StructField("FCtrlACK", StringType(), False),
-    StructField("FCtrlADR", StringType(), False)
-])
-
 # Output directory to store the results
 output_path = "./output"
 
 # object where all the summaries of the results will be stored
 final_summary = None
 
+
+# for each file inside the directory, process the messages 
+# inside it according to the parameters on 'schema'
 for file in os.listdir(dataset_directory):
 
     # absolute path
     filename = os.path.join(os.fsdecode(dataset_directory), os.fsdecode(file))
     
-    # Load the data from the dataset path
-    df = spark.read.schema(schema).json(filename)
+    # Load the data from the dataset file
+    df = spark.read.json(filename)
+
+    # Explode the 'rxpk' array
+    df = df.withColumn("rxpk", explode(col("rxpk")))
+
+    # Extract individual fields from 'rxpk', including 'rsig'
+    for field in df.schema["rxpk"].dataType.fields:
+        df = df.withColumn(field.name, col(f"rxpk.{field.name}"))
+
+    # Drop the 'rxpk' column as it's now flattened
+    df = df.drop("rxpk")
+
+    # Explode the 'rsig' array
+    df = df.withColumn("rsig", explode(col("rsig")))
+
+    # Extract individual fields from 'rsig'
+    for field in df.schema["rsig"].dataType.fields:
+        df = df.withColumn(field.name, col(f"rsig.{field.name}"))
+
+    # Drop the 'rsig' column as it's now flattened
+    df = df.drop("rsig")
 
     # Add anomaly detection columns
     df = df.withColumn("Anomaly_SNR", when(col("lsnr") < -10, 1).otherwise(0)) \
