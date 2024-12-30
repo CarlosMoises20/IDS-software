@@ -51,47 +51,6 @@ def process_rxpk_dataset(df, process_type):
     return summary
 
 
-# Process a dataset of type 'stat'
-# TODO: correct the implementation (only anomaly part)
-# process_type: indicates if the model is being trained or tested
-# and then considering each attack, call a specific function that will be in another module
-def process_stat_dataset(df, process_type):
-
-    # Explode the 'rxpk' array
-    df = df.withColumn("rxpk", explode(col("rxpk")))
-
-    # Extract individual fields from 'rxpk'
-    for field in df.schema["rxpk"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rxpk.{field.name}"))
-
-    # Drop the 'rxpk' column as it's now flattened
-    df = df.drop("rxpk")
-
-    # Explode the 'rsig' array
-    df = df.withColumn("rsig", explode(col("rsig")))
-
-    # Extract individual fields from 'rsig'
-    for field in df.schema["rsig"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rsig.{field.name}"))
-
-    # Drop the 'rsig' column as it's now flattened
-    df = df.drop("rsig")
-
-
-    # TODO: correct
-    # Group data for analysis   
-    
-    # Add anomaly detection column
-    #df = df.withColumn("Anomaly", when(col("count") < 10, 1).otherwise(0))
-
-    #summary = df.groupBy("Anomaly").agg(
-    #    count("*").alias("MessageCount"),
-    #    count(when(col("Anomaly") == 1, 1)).alias("Anomalies")
-    #)
-
-    summary = 0
-
-    return summary
 
 
 # Process a dataset of type 'txpk'

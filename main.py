@@ -1,6 +1,6 @@
 from pyspark.sql import SparkSession
 import os
-from utils import *
+from dataset_processing import *
 
 
 def process_dataset(dataset, process_type):
@@ -18,12 +18,10 @@ def process_dataset(dataset, process_type):
         # Load the data from the dataset file
         df = spark.read.json(filename)
 
-        ## the process of the file parameters depends if it has messages of type 'rxpk', 'stat' or 'txpk'
+        ## the process of the file parameters depends if it has messages of type 'rxpk' or 'txpk'
         ## so, considering each type of messages inside a file, a different function is called
         if file.decode().startswith("rxpk"):        # 'rxpk'
             summary = process_rxpk_dataset(df, process_type)
-        #elif file.decode().startswith("stats"):     # 'stat'
-        #    summary = process_stat_dataset(df, process_type)
         #else:                                       # 'txpk'
         #    summary = process_txpk_dataset(df, process_type)
 

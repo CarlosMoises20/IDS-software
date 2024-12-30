@@ -14,7 +14,7 @@ python .\main.py
 
 ```utils.py```: This module contains functions to process each file considering the type of messages inside it
 
-```attack_detection.py```: This module contains functions to detect each attack, using one or many ML algorithms for it
+```intrusion_detection.py```: This module contains functions to detect each type of intrusion, using one or many ML algorithms for it
 
 
 ### Run some experiences to play with spark functionalities
