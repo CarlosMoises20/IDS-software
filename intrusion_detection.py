@@ -1,5 +1,6 @@
 
 from sklearn.neighbors import KNeighborsClassifier        # for kNN
+from constants import *
 
 
 
@@ -7,3 +8,11 @@ from sklearn.neighbors import KNeighborsClassifier        # for kNN
 
 
 
+## Gateway and device changes (kNN usage)
+def device_gateway_analysis(df):
+
+    # Create a kNN model
+    model = KNeighborsClassifier(n_neighbors=5)
+
+    # Train the model
+    pass
