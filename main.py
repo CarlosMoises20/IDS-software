@@ -1,89 +1,62 @@
 from pyspark.sql import SparkSession
 import os
-from dataset_processing import *
+from data_processing import *
 
 
-def process_dataset(dataset, process_type):
+def process_dataset(spark_session, dataset):
 
     # object where all the summaries of the results will be stored
-    final_summary = None
+    final_summary_rxpk = None
+    final_summary_txpk = None
 
-    # for each file inside the directory, process the messages 
-    # inside it according to the parameters on 'schema'
-    for file in os.listdir(dataset):
+
+    # TODO: later, implement 2 spark jobs to execute tasks in parallel: one for 'rxpk' and one for 'txpk'
+    # by now, we are doing everything locally
+
+    ### Uplink Messages
+
+    files_txpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file))
+                   for file in os.listdir(dataset) if file.decode().startswith("txpk")]
+
+
+    final_summary_txpk = process_txpk_dataset(spark_session, files_txpk)
+
+
+    ### Downlink Messages
+
+    files_rxpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file)) 
+                  for file in os.listdir(dataset) if file.decode().startswith("rxpk")]
+
+    final_summary_rxpk = process_rxpk_dataset(spark_session, files_rxpk)
         
-        # absolute path
-        filename = os.path.join(os.fsdecode(dataset), os.fsdecode(file))
-        
-        # Load the data from the dataset file
-        df = spark.read.json(filename)
 
-        ## the process of the file parameters depends if it has messages of type 'rxpk' or 'txpk'
-        ## so, considering each type of messages inside a file, a different function is called
-        if file.decode().startswith("rxpk"):        # 'rxpk'
-            summary = process_rxpk_dataset(df, process_type)
-        #else:                                       # 'txpk'
-        #    summary = process_txpk_dataset(df, process_type)
-
-        # Concatenate summaries
-        if final_summary is None:
-            final_summary = summary
-        else:
-            final_summary = final_summary.union(summary)
-
-        print(f"File '{filename}' has been processed")
-
-    return final_summary
+    return final_summary_txpk, final_summary_rxpk
 
 
 
 if __name__ == '__main__':
 
     # Initialize Spark Session
-    spark = SparkSession.builder.appName("LoRaWAN Anomaly Detection").master("local[*]").getOrCreate()
+    spark_session = SparkSession.builder.appName("IDS for LoRaWAN network").master("local[*]").getOrCreate()
 
+    dataset_path = "./dataset"
 
-    ## Train the model
-
-    # Output directory to store the training results
-    #output_path_train = "./output_train"
-
-    # Dataset test directory
-    #dataset_train = os.fsencode('.\dataset_train')
-
-    # Process the training dataset
-    #final_summary_train = process_dataset(dataset_train, 'train')
+    final_summary_test_uplink, final_summary_test_downlink = process_dataset(spark_session, os.fsencode(dataset_path))
     
-    # Save the final summary in a CSV file
-    #final_summary_train.write.mode("overwrite").csv(output_path_train)
 
-    # Print the results
-    #final_summary_train.show()
+    # Print the test result of uplink messages in the console
 
-    # Print the name of the output directory
-    #print(f"Training -> Anomaly summary saved to: {output_path_train}")
+    print("Uplink messages: \n")
+    print(final_summary_test_uplink)
+
+    # Print the test result of downlink messages in the console
+
+    print("\n\nDownlink messages: \n")
+    print(final_summary_test_downlink)
 
 
-    ## Test the model
+    # TODO: save the result of the tests in a unique CSV file 
 
-    # Output directory to store the testing results
-    output_path_test = "./output_test"
-
-    # Dataset test directory
-    dataset_test = os.fsencode('.\dataset_test')
-
-    # Process the testing dataset
-    final_summary_test = process_dataset(dataset_test, 'test')
-
-    # Save the final summary in a CSV file
-    final_summary_test.write.mode("overwrite").csv(output_path_test)
-
-    # Print the results
-    final_summary_test.show()
-
-    # Print the name of the output directory
-    print(f"Testing -> Anomaly summary saved to: {output_path_test}")
-    
 
     # Stop the Spark Session
-    spark.stop()
+    spark_session.stop()

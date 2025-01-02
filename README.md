@@ -12,9 +12,7 @@ pip install -r ./requirements.txt
 python .\main.py
 ```
 
-```utils.py```: This module contains functions to process each file considering the type of messages inside it
-
-```intrusion_detection.py```: This module contains functions to detect each type of intrusion, using one or many ML algorithms for it
+(.......)
 
 
 ### Run some experiences to play with spark functionalities
