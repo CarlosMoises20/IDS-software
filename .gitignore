@@ -1,6 +1,7 @@
 
 # Outputs
 output*/*
+combined_datasets/*
 
 # Artifacts
 artifacts/*
