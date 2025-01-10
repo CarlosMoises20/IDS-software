@@ -62,6 +62,5 @@ if __name__ == '__main__':
     final_summary_test_downlink.write.mode("overwrite").csv("./output_test_downlink")
 
 
-
     # Stop the Spark Session
     spark_session.stop()

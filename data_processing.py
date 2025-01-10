@@ -3,16 +3,16 @@ from pyspark.sql.functions import col, when, count, explode
 from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors        # for kNN
 from sklearn import model_selection
 import os
+from intrusion_detection import *
 
 ### On this module, add functions, where each function process a different type of messages
 
 
-# Auxiliary function to bind all log files into a single log file of each type of LoRaWAN message
+# Auxiliary function to bind all log files inside a indicated directory
+# into a single log file of each type of LoRaWAN message
 def bind_dir_files(dataset_path, output_filename):
 
-    ### Bind all log files into a single log file
-
-    all_logs = []
+    all_logs = []                         # Create a list to store the different files
 
     for filename in dataset_path:
         with open(filename, 'r') as f:
@@ -36,29 +36,8 @@ def pre_process_rxpk_dataset(spark_session, filename):
     # Load the data from the dataset file
     df = spark_session.read.json(filename)
 
-    # Explode the 'rxpk' array
-    df = df.withColumn("rxpk", explode(col("rxpk")))
-
-    # Extract individual fields from 'rxpk'
-    for field in df.schema["rxpk"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rxpk.{field.name}"))
-
-    # Drop the 'rxpk' column as it's now flattened
-    df = df.drop("rxpk")
-
-    # Explode the 'rsig' array
-    df = df.withColumn("rsig", explode(col("rsig")))
-
-    # Extract individual fields from 'rsig'
-    for field in df.schema["rsig"].dataType.fields:
-        df = df.withColumn(field.name, col(f"rsig.{field.name}"))
-
-    # Drop the 'rsig' column as it's now flattened
-    df = df.drop("rsig")
-
-
     ## TODO: filter attributes (2)
-    df = df.drop("type", "totalrxpk")
+    df = df.drop("type", "totalrxpk", "fromip")
 
     return df
 
@@ -72,13 +51,6 @@ def pre_process_txpk_dataset(spark_session, filename):
 
     # Load the data from the dataset file
     df = spark_session.read.json(filename)
-
-    # Extract individual fields from 'txpk'
-    for field in df.schema["txpk"].dataType.fields:
-        df = df.withColumn(field.name, col(f"txpk.{field.name}"))
-
-    # Drop the 'txpk' column as it's now flattened
-    df = df.drop("txpk")
 
     ## TODO: filter attributes (2)
     df = df.drop("type")
@@ -99,6 +71,21 @@ def process_rxpk_dataset(spark_session, dataset):
     ### Pre-Processing
     
     df = pre_process_rxpk_dataset(spark_session, combined_logs_filename)
+
+    # Add anomaly detection columns
+    df = df.withColumn("Jamming", when(jamming_detection(df.select(df.rxpk.rssi)), 1).otherwise(0))
+
+    # Combine anomaly indicators
+    df = df.withColumn("Anomaly", (col("Jamming")) > 0)
+
+    # Group data for analysis
+    summary = df.groupBy("Anomaly").agg(
+        count("*").alias("MessageCount"),
+        count(when(col("Anomaly_SNR") == 1, 1)).alias("SNR_Anomalies"),
+        count(when(col("Anomaly_RSSI") == 1, 1)).alias("RSSI_Anomalies"),
+        count(when(col("Anomaly_MIC") == 1, 1)).alias("MIC_Anomalies"),
+        count(when(col("Anomaly_Size") == 1, 1)).alias("Size_Anomalies")
+    )
 
 
     pass
