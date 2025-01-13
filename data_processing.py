@@ -73,12 +73,13 @@ def process_rxpk_dataset(spark_session, dataset):
     df = pre_process_rxpk_dataset(spark_session, combined_logs_filename)
 
     # Add anomaly detection columns
-    df = df.withColumn("Jamming", when(jamming_detection(df.select(df.rxpk.rssi)), 1).otherwise(0))
+    df = df.withColumn("Jamming", when(jamming_detection(df.rxpk.rssi), 1).otherwise(0))
 
-    # Combine anomaly indicators
-    df = df.withColumn("Anomaly", (col("Jamming")) > 0)
+    # Combine anomaly indicators (TODO: juntar com todas as outras anomalias)
+    #df = df.withColumn("Anomaly", (col("Jamming")) > 0)
 
     # Group data for analysis
+    """
     summary = df.groupBy("Anomaly").agg(
         count("*").alias("MessageCount"),
         count(when(col("Anomaly_SNR") == 1, 1)).alias("SNR_Anomalies"),
@@ -86,6 +87,7 @@ def process_rxpk_dataset(spark_session, dataset):
         count(when(col("Anomaly_MIC") == 1, 1)).alias("MIC_Anomalies"),
         count(when(col("Anomaly_Size") == 1, 1)).alias("Size_Anomalies")
     )
+    """
 
 
     pass
