@@ -1,6 +1,6 @@
 
 
-from pyspark.sql.functions import expr
+from pyspark.sql.functions import expr, struct
 
 
 # 1 - Converts a dataset of type 'rxpk', given the filename of the dataset, into a 'df' Spark dataframe
@@ -66,17 +66,17 @@ def pre_process_txpk_dataset(df):
     df = df.drop("type")
 
 
-    # apply filter to let pass only relevant attributes inside 'txpk' array 
-    df = df.withColumn("txpk", \
-                   expr("transform(txpk, x -> named_struct( \
-                        'data', x.txpk.data, \
-                        'datr', x.txpk.datr, \
-                        'freq', x.txpk.freq, \
-                        'powe', x.txpk.powe, \
-                        'size', x.txpk.size, \
-                        'tmst', x.txpk.tmst \
-                    ))")
-                   )
+    # apply filter to let pass only relevant attributes inside 'txpk' 
+    df = df.withColumn("txpk", 
+                       struct(
+                           expr("txpk.data AS data"),
+                           expr("txpk.datr AS datr"),
+                           expr("txpk.freq AS freq"),
+                           expr("txpk.powe AS powe"),
+                           expr("txpk.size AS size"),
+                           expr("txpk.tmst AS tmst")
+                       )
+                      )
 
 
     return df

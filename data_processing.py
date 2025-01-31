@@ -16,6 +16,11 @@ from data_preprocessing import *
 # into a single log file of each type of LoRaWAN message
 def bind_dir_files(dataset_path, output_filename):
 
+    # Skip file generation if it already exists
+    if os.path.exists(output_filename):
+        print(f"File '{output_filename}' already exists. Skipping generation.")
+        return
+
     all_logs = []                         # Create a list to store the different files
 
     for filename in dataset_path:
@@ -25,6 +30,13 @@ def bind_dir_files(dataset_path, output_filename):
 
     # Join all logs into a single string
     combined_logs = '\n'.join(all_logs)
+
+
+    # Ensure the output directory exists
+    output_dir = os.path.dirname(output_filename)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir, exist_ok=True)
+
 
     # Write the combined logs to a new file
     with open(output_filename, 'w') as f:
@@ -42,12 +54,10 @@ def process_rxpk_dataset(spark_session, dataset):
 
 
     # Load the dataset into a Spark Dataframe
-
     df = spark_session.read.json(combined_logs_filename)
 
 
     ### Pre-Processing
-    
     df = pre_process_rxpk_dataset(df)
 
 
@@ -85,27 +95,11 @@ def process_txpk_dataset(spark_session, dataset):
     bind_dir_files(dataset, combined_logs_filename)
 
     # Load the dataset into a Spark Dataframe
-
     df = spark_session.read.json(combined_logs_filename)
 
     ### Pre-Processing
-    
     df = pre_process_txpk_dataset(df)
 
     pass
 
 
-
-
-
-"""
-vectorized_data = [.....]
-
-# Create a kNN model
-model = KNeighborsClassifier(n_neighbors=10, algorithm='auto')
-
-model.fit(vectorized_data)
-
-model.predict(vectorized_data)
-
-"""

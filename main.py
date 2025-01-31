@@ -13,7 +13,7 @@ def process_dataset(spark_session, dataset):
     # TODO: later, implement 2 spark jobs to execute tasks in parallel: one for 'rxpk' and one for 'txpk'
     # by now, we are doing everything locally
 
-    ### Uplink Messages
+    ### Txpk Messages
 
     dataset_txpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file))
                    for file in os.listdir(dataset) if file.decode().startswith("txpk")]
@@ -22,7 +22,7 @@ def process_dataset(spark_session, dataset):
     final_summary_txpk = process_txpk_dataset(spark_session, dataset_txpk)
 
 
-    ### Downlink Messages
+    ### Rxpk Messages
 
     dataset_rxpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file)) 
                   for file in os.listdir(dataset) if file.decode().startswith("rxpk")]
@@ -41,25 +41,25 @@ if __name__ == '__main__':
 
     dataset_path = "./dataset"
 
-    final_summary_test_uplink, final_summary_test_downlink = process_dataset(spark_session, os.fsencode(dataset_path))
+    final_summary_test_txpk, final_summary_test_rxpk = process_dataset(spark_session, os.fsencode(dataset_path))
     
 
-    # Print the test result of uplink messages in the console
+    # Print the test result of txpk messages in the console
 
     print("Uplink messages: \n")
-    print(final_summary_test_uplink)
+    print(final_summary_test_txpk)
 
 
-    # Print the test result of downlink messages in the console
+    # Print the test result of rxpk messages in the console
 
     print("\n\nDownlink messages: \n")
-    print(final_summary_test_downlink)
+    print(final_summary_test_rxpk)
 
 
     # TODO: save the result of the tests in two unique CSV files instead of one file for each processed file
 
-    final_summary_test_uplink.write.mode("overwrite").csv("./output_test_uplink")
-    final_summary_test_downlink.write.mode("overwrite").csv("./output_test_downlink")
+    final_summary_test_txpk.write.mode("overwrite").csv("./output_test_txpk")
+    final_summary_test_rxpk.write.mode("overwrite").csv("./output_test_rxpk")
 
 
     # Stop the Spark Session
