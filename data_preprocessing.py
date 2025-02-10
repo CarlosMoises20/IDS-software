@@ -3,54 +3,62 @@
 from pyspark.sql.functions import expr, struct
 
 
+
+
 # 1 - Converts a dataset of type 'rxpk', given the filename of the dataset, into a 'df' Spark dataframe
 # 2 - Applies feature selection techniques to remove the most irrelevant attributes (dimensionality reduction),
 #        selecting only the attributes that are relevant to build the intended model for IDS 
 def pre_process_rxpk_dataset(df):
 
 
-    ## Feature Selection: remove irrelevant / redundant attributes
+    ### FEATURE SELECTION: remove irrelevant / redundant attributes
     df = df.drop("type", "totalrxpk", "fromip")
 
     # apply filter to let pass only relevant attributes inside 'rxpk' array
-    df = df.withColumn("rxpk", \
+    df = df.withColumn("rxpk",
                        expr("transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, \
-                            'AppNonce', x.AppNonce, 'DLSettings', x.DLSettings, \
+                            'AppNonce', x.AppNonce, \
+                            'DLSettings', x.DLSettings, \
                             'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, \
                             'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, \
-                            'DevAddr', x.DevAddr, 'DevEUI', x.DevEUI, 'DevNonce', x.DevNonce, \
-                            'Direction', x.Direction, 'FCnt', x.FCnt, \
-                            'FCtrl', x.FCtrl, 'FCtrlACK', x.FCtrlACK, \
-                            'FCtrlADR', x.FCtrlADR, 'FHDR', x.FHDR, \
-                            'FOpts', x.FOpts, 'FPort', x.FPort, \
-                            'FRMPayload', x.FRMPayload,'MACPayload', x.MACPayload, \
-                            'MHDR', x.MHDR, 'MIC', x.MIC, \
-                            'MessageType', x.MessageType, 'NetID', x.NetID, \
-                            'PHYPayload', x.PHYPayload, 'RxDelay', x.RxDelay, \
-                            'RxDelayDel', x.RxDelayDel, 'aesk', x.aesk, \
-                            'brd', x.brd, 'chan', x.chan, \
-                            'codr', x.codr, 'data', x.data, 'datr', x.datr, \
-                            'freq', x.freq, 'jver', x.jver, \
-                            'lsnr', x.lsnr, 'rfch', x.rfch, \
+                            'DevAddr', x.DevAddr, \
+                            'DevEUI', x.DevEUI, \
+                            'DevNonce', x.DevNonce, \
+                            'Direction', x.Direction, \
+                            'FCnt', x.FCnt, \
+                            'FCtrl', x.FCtrl, \
+                            'FCtrlACK', x.FCtrlACK, \
+                            'FCtrlADR', x.FCtrlADR, \
+                            'FHDR', x.FHDR, \
+                            'FOpts', x.FOpts, \
+                            'FPort', x.FPort, \
+                            'FRMPayload', x.FRMPayload, \
+                            'MACPayload', x.MACPayload, \
+                            'MHDR', x.MHDR, \
+                            'MIC', x.MIC, \
+                            'MessageType', x.MessageType, \
+                            'NetID', x.NetID, \
+                            'PHYPayload', x.PHYPayload, \
+                            'RxDelay', x.RxDelay, \
+                            'RxDelayDel', x.RxDelayDel, \
+                            'chan', x.chan, \
+                            'data', x.data, \
+                            'datr', x.datr, \
+                            'freq', x.freq, \
+                            'lsnr', x.lsnr, \
+                            'rfch', x.rfch, \
                             'rsig', transform(x.rsig, rs -> named_struct( \
-                                            'ant', rs.ant, \
                                             'chan', rs.chan, \
-                                            'dbg1', rs.dbg1, \
-                                            'dbg2', rs.dbg2, \
-                                            'etime', rs.etime, \
-                                            'foff', rs.foff, \
-                                            'ftdelta', rs.ftdelta, \
-                                            'ftime', rs.ftime, \
-                                            'ftstat', rs.ftstat, \
-                                            'ftver', rs.ftver, \
                                             'lsnr', rs.lsnr, \
-                                            'rssic', rs.rssic, \
-                                            'rssis', rs.rssis, \
-                                            'rssisd', rs.rssisd \
                             )), \
                             'rssi', x.rssi, 'size', x.size, \
                             'time', x.time, 'tmms', x.tmms, 'tmst', x.tmst ))")
                     )
+
+
+    ## TODO: impute missing values (using pyspark)
+
+
 
     return df
 

@@ -27,16 +27,13 @@ def bind_dir_files(dataset_path, output_filename):
         with open(filename, 'r') as f:
             all_logs.append(f.read())     # Append the contents of the file to the list
 
-
     # Join all logs into a single string
     combined_logs = '\n'.join(all_logs)
-
 
     # Ensure the output directory exists
     output_dir = os.path.dirname(output_filename)
     if output_dir and not os.path.exists(output_dir):
         os.makedirs(output_dir, exist_ok=True)
-
 
     # Write the combined logs to a new file
     with open(output_filename, 'w') as f:
@@ -47,7 +44,7 @@ def bind_dir_files(dataset_path, output_filename):
 
 def process_rxpk_dataset(spark_session, dataset):
 
-    ### Bind all log files into a single log file
+    ### Bind all log files into a single log file to simplify data processing
     
     combined_logs_filename = './combined_datasets/combined_rxpk_logs.log'
     bind_dir_files(dataset, combined_logs_filename)
