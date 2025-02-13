@@ -6,7 +6,7 @@ import os
 from intrusion_detection import *
 from crate.client import connect
 import pandas as pd
-from data_preprocessing import *
+from data_pre_processing import *
 
 
 ### On this module, add functions, where each function process a different type of messages
@@ -62,7 +62,7 @@ def process_rxpk_dataset(spark_session, dataset):
     #knn.fit(df.rxpk.rssi, df.rxpk.snr)
 
     # Add anomaly detection columns
-    df = df.withColumn("Jamming", when(jamming_detection(df.rxpk.rssi), 1).otherwise(0))
+    #df = df.withColumn("Jamming", when(jamming_detection(df.rxpk.rssi), 1).otherwise(0))
 
     # Combine anomaly indicators (TODO: juntar com todas as outras anomalias)
     #df = df.withColumn("Anomaly", (col("Jamming")) > 0)
