@@ -4,7 +4,7 @@ from pyspark.sql.functions import expr, struct, explode, col, when
 from pyspark.ml.feature import Imputer                   # includes 'mean', 'median' and 'mode'
 from pyspark.ml.regression import LinearRegression
 from pyspark.ml.clustering import KMeans
-
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 
 
 def impute_missing_values(df, df_features, replace_value):
@@ -50,14 +50,14 @@ This function applies pre-processing on data from the dataframe 'df', for the 'r
 """
 def pre_process_rxpk_dataset(df):
 
-    ### FEATURE SELECTION: remove irrelevant / redundant attributes
-    df = df.drop("type", "totalrxpk", "fromip", "ip", "port", "recv_date")
+    ## Feature Selection: remove irrelevant, redundant and correlated attributes
+    df = df.drop("type", "totalrxpk", "fromip", 
+                 "ip", "port", "recv_date")
 
 
     # apply filter to let pass only relevant attributes inside 'rxpk' array
     df = df.withColumn("rxpk", expr("transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, \
                                     'AppNonce', x.AppNonce, \
-                                    'DLSettings', x.DLSettings, \
                                     'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, \
                                     'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, \
                                     'DevAddr', x.DevAddr, \
@@ -78,7 +78,6 @@ def pre_process_rxpk_dataset(df):
                                     'NetID', x.NetID, \
                                     'PHYPayload', x.PHYPayload, \
                                     'RxDelay', x.RxDelay, \
-                                    'RxDelayDel', x.RxDelayDel, \
                                     'chan', x.chan, \
                                     'codr', x.codr, \
                                     'data', x.data, \
@@ -122,8 +121,9 @@ This function applies pre-processing on data from the dataframe 'df_txpk', for t
 """
 def pre_process_txpk_dataset(df):
 
-    ## Feature Selection: remove irrelevant / redundant attributes
-    df = df.drop("type", "recv_date", "fromip", "ip", "port", "Direction")
+    ## Feature Selection: remove irrelevant, redundant and correlated attributes
+    df = df.drop("type", "recv_date", "fromip", "ip", "port", 
+                 "Direction", "RxDelayDel", "DLSettings")
 
     # apply filter to let pass only relevant attributes inside 'txpk' 
     df = df.withColumn("txpk", struct(
@@ -136,15 +136,17 @@ def pre_process_txpk_dataset(df):
                         ))
 
 
-    # TODO: impute missing values (use Random Forest)
+    # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN v1.1 specification
+    # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
+    df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
 
-    # TODO: other numeric attributes that 
-    # were not imputed with 0: replace NULL with mean
-    #mv_txpk_imputer = Imputer(inputCol="txpk", outputCol="txpk", strategy="mean")
+    # remove the "CFList" attribute, since it is already split by "FreqCh4", "FreqCh5", "FreqCh6", 
+    # "FreqCh7", "FreqCh8" and "CFListType", for a easier processing
+    df = df.drop("CFList")
 
-    #mv_txpk_imputer_model = mv_txpk_imputer.fit(df)
 
-    #df = mv_txpk_imputer_model.transform(df)
+    # TODO: impute missing values (use Random Forest, it does not require to fill missing values; 
+    # study also other ML / DL algorithms)
 
     return df
 

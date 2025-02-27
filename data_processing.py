@@ -32,6 +32,9 @@ def process_rxpk_dataset(spark_session, dataset):
     df = pre_process_rxpk_dataset(df)
 
 
+    # TODO: calculate "RFU"
+
+
     #knn = KNeighborsClassifier(n_neighbors=10, algorithm='auto')
     #knn.fit(df.rxpk.rssi, df.rxpk.snr)
 
