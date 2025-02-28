@@ -1,41 +1,7 @@
 
 from pyspark.sql.types import *
-from pyspark.sql.functions import expr, struct, explode, col, when
-from pyspark.ml.feature import Imputer                   # includes 'mean', 'median' and 'mode'
-from pyspark.ml.regression import LinearRegression
-from pyspark.ml.clustering import KMeans
-from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
+from pyspark.sql.functions import expr, struct
 
-
-def impute_missing_values(df, df_features, replace_value):
-
-    
-    for df_feature in df_features:
-
-        print(df_feature)
-
-        df.select(df_feature).show()
-        
-        """
-        df = df.withColumn(
-            df_feature,
-            expr(f"transform({df_feature}, x -> coalesce(x, {replace_value}))")
-        )
-
-        
-        result = df_feature
-        
-        if isinstance(df_feature, list):
-            for i in df_feature:
-                print(i)
-                result[i] = replace_value
-
-        df = df.withColumn(df_feature, result)
-        """
-        
-
-
-    return df
 
 
 
@@ -55,7 +21,7 @@ def pre_process_rxpk_dataset(df):
                  "ip", "port", "recv_date")
 
 
-    # apply filter to let pass only relevant attributes inside 'rxpk' array
+    # apply filter to let pass only relevant attributes inside 'rxpk' and 'rsig' arrays
     df = df.withColumn("rxpk", expr("transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, \
                                     'AppNonce', x.AppNonce, \
                                     'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, \
@@ -92,16 +58,8 @@ def pre_process_rxpk_dataset(df):
                                     'size', x.size, \
                                     'tmst', x.tmst ))")
                     )
-
-
-
     
-    # TODO: impute missing values for some numeric attributes: using the 'mean' strategy
-    #       attributes: rssi
 
-    # TODO: impute missing values for the remaining string & categorical attributes: kNN / Logistic Regression
-    
-    
     return df
 
 
@@ -145,8 +103,8 @@ def pre_process_txpk_dataset(df):
     df = df.drop("CFList")
 
 
-    # TODO: impute missing values (use Random Forest, it does not require to fill missing values; 
-    # study also other ML / DL algorithms)
+    # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
+
 
     return df
 

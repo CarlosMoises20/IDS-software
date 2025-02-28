@@ -1,17 +1,37 @@
 
 from pyspark.sql.functions import col, when, count, explode, expr
-from sklearn.neighbors import KNeighborsClassifier, NearestNeighbors        # for kNN
-from sklearn import model_selection
-import os
-from intrusion_detection import *
 from crate.client import connect
-import pandas as pd
+from pyspark.ml.clustering import KMeans
+from pyspark.ml.classification import NaiveBayes, BinaryRandomForestClassificationSummary
+from pyspark.ml.feature import VectorAssembler
+from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
+from intrusion_detection import *
 from data_pre_processing import *
 from auxiliary_functions import *
 
 
 ### On this module, add functions, where each function process a different type of messages
 
+
+# TODO: finish
+def process_message(message_type):
+
+    if (message_type == "Join Request"):
+        pass
+    elif (message_type == "Join Accept"):
+        pass
+    elif (message_type == "Unconfirmed Data Up"):
+        pass
+    elif (message_type == "Unconfirmed Data Down"):
+        pass
+    elif (message_type == "Confirmed Data Up"):
+        pass
+    elif (message_type == "Confirmed Data Down"):
+        pass
+    elif (message_type == "RFU"):
+        pass
+    elif (message_type == "Proprietary"):
+        pass
 
 
 
@@ -32,28 +52,19 @@ def process_rxpk_dataset(spark_session, dataset):
     df = pre_process_rxpk_dataset(df)
 
 
-    # TODO: calculate "RFU"
+    # divide dataset into training (2/3) and test (1/3)
+    df_train, df_test = df.randomSplit([2/3, 1/3])
 
 
-    #knn = KNeighborsClassifier(n_neighbors=10, algorithm='auto')
-    #knn.fit(df.rxpk.rssi, df.rxpk.snr)
+    feature_columns = ['rxpk.lsnr', 'rxpk.rssi', 'rxpk.freq', 'rxpk.size']
+    
+    assembler_rxpk = VectorAssembler(inputCols=feature_columns, outputCol="features")
 
-    # Add anomaly detection columns
-    #df = df.withColumn("Jamming", when(jamming_detection(df.rxpk.rssi), 1).otherwise(0))
+    df_rxpk_train = assembler_rxpk.transform(df_train)
+    
+    # TODO: continue
 
-    # Combine anomaly indicators (TODO: juntar com todas as outras anomalias)
-    #df = df.withColumn("Anomaly", (col("Jamming")) > 0)
-
-    # Group data for analysis
-    """
-    summary = df.groupBy("Anomaly").agg(
-        count("*").alias("MessageCount"),
-        count(when(col("Anomaly_SNR") == 1, 1)).alias("SNR_Anomalies"),
-        count(when(col("Anomaly_RSSI") == 1, 1)).alias("RSSI_Anomalies"),
-        count(when(col("Anomaly_MIC") == 1, 1)).alias("MIC_Anomalies"),
-        count(when(col("Anomaly_Size") == 1, 1)).alias("Size_Anomalies")
-    )
-    """
+    # TODO: calculate "RFU", it comes from various attributes
 
 
     pass
@@ -74,6 +85,11 @@ def process_txpk_dataset(spark_session, dataset):
 
     ### Pre-Processing
     df = pre_process_txpk_dataset(df)
+
+    # divide dataset into training (2/3) and test (1/3)
+    df_train, df_test = df.randomSplit([2/3, 1/3])
+
+    # TODO: continue
 
     pass
 
