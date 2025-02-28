@@ -2,7 +2,7 @@
 from pyspark.sql.functions import col, when, count, explode, expr
 from crate.client import connect
 from pyspark.ml.clustering import KMeans
-from pyspark.ml.classification import NaiveBayes, BinaryRandomForestClassificationSummary
+from pyspark.ml.classification import NaiveBayes, RandomForestClassifier
 from pyspark.ml.feature import VectorAssembler
 from xgboost.spark import SparkXGBClassifier, SparkXGBRegressor
 from intrusion_detection import *
@@ -10,7 +10,6 @@ from data_pre_processing import *
 from auxiliary_functions import *
 
 
-### On this module, add functions, where each function process a different type of messages
 
 
 # TODO: finish
@@ -52,17 +51,21 @@ def process_rxpk_dataset(spark_session, dataset):
     df = pre_process_rxpk_dataset(df)
 
 
-    # divide dataset into training (2/3) and test (1/3)
+    # randomly divide dataset into training (2/3) and test (1/3)
     df_train, df_test = df.randomSplit([2/3, 1/3])
-
-
-    feature_columns = ['rxpk.lsnr', 'rxpk.rssi', 'rxpk.freq', 'rxpk.size']
-    
-    assembler_rxpk = VectorAssembler(inputCols=feature_columns, outputCol="features")
-
-    df_rxpk_train = assembler_rxpk.transform(df_train)
     
     # TODO: continue
+
+    # Possible approach for numeric attributes
+    assembler = VectorAssembler(inputCols=get_numeric_attributes(df.schema), outputCol="features", handleInvalid="keep")
+
+    # TODO: study approach for categorical attributes or an approach for all types of attributes
+
+    #rf = RandomForestClassifier(numTrees=5, maxDepth=4)
+
+    #rf_model = rf.fit(df_train)
+
+    #rf_predictions = rf_model.transform(df_test)
 
     # TODO: calculate "RFU", it comes from various attributes
 
@@ -86,7 +89,7 @@ def process_txpk_dataset(spark_session, dataset):
     ### Pre-Processing
     df = pre_process_txpk_dataset(df)
 
-    # divide dataset into training (2/3) and test (1/3)
+    # randomly divide dataset into training (2/3) and test (1/3)
     df_train, df_test = df.randomSplit([2/3, 1/3])
 
     # TODO: continue
