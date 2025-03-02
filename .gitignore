@@ -1,10 +1,10 @@
 
 # Outputs
 output*/*
-combined_datasets/*
+combinedDatasets/*
 
 # Artifacts
 artifacts/*
 
 # Python cache
-__pycache__/*
+**/__pycache__/*

@@ -1,65 +1,36 @@
 from pyspark.sql import SparkSession
-import os
-from data_processing import *
+from processing.processing import DataProcessing
+from dataset_type import DatasetType
+from auxiliaryFunctions.general_functions import *
+from concurrent.futures import ThreadPoolExecutor
 
 
-def process_dataset(spark_session, dataset):
+def execute(dataset_type, spark_session):
+    
+    test_result = None      # TODO: call only one method that receives 'dataset_type' and 'spark_session'
 
-    # object where all the summaries of the results will be stored
-    final_summary_txpk = None
-    final_summary_rxpk = None
+    output_path = f"./output_test_{dataset_type.value}"
+    #test_result.write.mode("overwrite").csv(output_path)    # TODO: maybe parquet file instead ?? analyse it later
 
-
-    # TODO: later, implement 2 spark jobs to execute tasks in parallel: one for 'rxpk' and one for 'txpk'
-    # by now, we are doing everything locally
-
-    ### Txpk Messages
-
-    dataset_txpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file))
-                   for file in os.listdir(dataset) if file.decode().startswith("txpk")]
-
-
-    final_summary_txpk = process_txpk_dataset(spark_session, dataset_txpk)
-
-
-    ### Rxpk Messages
-
-    dataset_rxpk = [os.path.join(os.fsdecode(dataset), os.fsdecode(file)) 
-                  for file in os.listdir(dataset) if file.decode().startswith("rxpk")]
-
-    final_summary_rxpk = process_rxpk_dataset(spark_session, dataset_rxpk)
-
-
-    return final_summary_txpk, final_summary_rxpk
-
+    return test_result
 
 
 if __name__ == '__main__':
 
     # Initialize Spark Session
-    spark_session = SparkSession.builder.appName("IDS for LoRaWAN network").master("local[*]").getOrCreate()
+    spark_session = SparkSession.builder.appName("IDS for LoRaWAN").getOrCreate()
 
-    dataset_path = "./dataset"
+    # List of tasks
+    tasks = [(DatasetType.RXPK), (DatasetType.TXPK)]
 
-    final_summary_test_txpk, final_summary_test_rxpk = process_dataset(spark_session, os.fsencode(dataset_path))
-    
+    # Execute tasks in parallel using threads that use the Spark Session to process LoRaWAN data
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [executor.submit(execute, task, spark_session) for task in tasks]
 
-    # Print the test result of txpk messages in the console
-
-    print("Uplink messages: \n")
-    print(final_summary_test_txpk)
-
-
-    # Print the test result of rxpk messages in the console
-
-    print("\n\nDownlink messages: \n")
-    print(final_summary_test_rxpk)
-
-
-    # TODO: save the result of the tests in two unique CSV files instead of one file for each processed file
-
-    final_summary_test_txpk.write.mode("overwrite").csv("./output_test_txpk")
-    final_summary_test_rxpk.write.mode("overwrite").csv("./output_test_rxpk")
+        # Aguarda a conclusão de todas as tarefas
+        for future in futures:
+            print(future.result())
+            
 
 
     # Stop the Spark Session

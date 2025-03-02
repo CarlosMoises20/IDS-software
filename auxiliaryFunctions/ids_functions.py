@@ -17,8 +17,10 @@ if the strings have different lengths
 
 """
 def hamming_distance(str1, str2):
+    
     if (str1 is None) or (str2 is None):
         return None
+    
     if len(str1) != len(str2):
         return None
     

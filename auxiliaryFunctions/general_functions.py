@@ -5,31 +5,39 @@ from pyspark.sql.types import *
 
 # Auxiliary function to bind all log files inside a indicated directory
 # into a single log file of each type of LoRaWAN message
-def bind_dir_files(dataset_path, output_filename):
+def bind_dir_files(dataset_root_path, dataset_type):
+
+    output_filename = f"./combinedDatasets/combined_logs_{dataset_type.value}.log"
 
     # Skip file generation if it already exists
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' already exists. Skipping generation.")
-        return
+    
+    else:
+        all_logs = []           # Create a list to store the content of different files
 
-    all_logs = []                         # Create a list to store the different files
+        dataset_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
+                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value)]
 
-    for filename in dataset_path:
-        with open(filename, 'r') as f:
-            all_logs.append(f.read())     # Append the contents of the file to the list
+        # Loop through all files in the directory
+        for filename in dataset_from_type:
+            with open(filename, 'r') as f:
+                all_logs.append(f.read())     # Append the contents of the file to the list
 
-    # Join all logs into a single string
-    combined_logs = '\n'.join(all_logs)
+        # Join all logs into a single string
+        combined_logs = '\n'.join(all_logs)
 
-    # Ensure the output directory exists
-    output_dir = os.path.dirname(output_filename)
-    if output_dir and not os.path.exists(output_dir):
-        os.makedirs(output_dir, exist_ok=True)
+        # Ensure the output directory exists
+        output_dir = os.path.dirname(output_filename)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir, exist_ok=True)
 
-    # Write the combined logs to a new file
-    with open(output_filename, 'w') as f:
-        f.write(combined_logs)
+        # Write the combined logs to a new file
+        with open(output_filename, 'w') as f:
+            f.write(combined_logs)
 
+
+    return output_filename
 
 
 """
@@ -73,7 +81,6 @@ def is_one_of_instances(obj, instances):
             return True
         
     return False
-
 
 
 """
@@ -132,8 +139,6 @@ def get_string_attributes(df_schema, parent_name=""):
             string_attributes.extend(get_string_attributes(field.dataType, field.name))  # Handle direct nested structs
     
     return string_attributes
-
-
 
 
 """
