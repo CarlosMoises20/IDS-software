@@ -1,5 +1,5 @@
 from pyspark.sql import SparkSession
-from processing.processing import DataProcessing
+from message_classification import MessageClassification
 from dataset_type import DatasetType
 from auxiliaryFunctions.general_functions import *
 from concurrent.futures import ThreadPoolExecutor
@@ -7,9 +7,10 @@ from concurrent.futures import ThreadPoolExecutor
 
 def execute(dataset_type, spark_session):
     
-    test_result = None      # TODO: call only one method that receives 'dataset_type' and 'spark_session'
+    msg_classify = MessageClassification()
+    test_result = msg_classify.message_classification(spark_session, dataset_type)
 
-    output_path = f"./output_test_{dataset_type.value}"
+    output_path = f'./output_test_{dataset_type.value["filename_field"]}'
     #test_result.write.mode("overwrite").csv(output_path)    # TODO: maybe parquet file instead ?? analyse it later
 
     return test_result

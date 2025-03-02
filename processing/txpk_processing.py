@@ -5,9 +5,10 @@ from processing.processing import DataProcessing
 
 
 class TxpkProcessing(DataProcessing):
-    
-    def __init__(self, spark_session, dataset, dataset_type):
-        super().__init__(spark_session, dataset, dataset_type)
 
-    def process_dataset(self):
-        pass
+
+    def process_data(df_train, df_test, message_types):
+
+        # TODO: continue
+
+        return 1

@@ -7,17 +7,21 @@ from pyspark.sql.types import *
 # into a single log file of each type of LoRaWAN message
 def bind_dir_files(dataset_root_path, dataset_type):
 
-    output_filename = f"./combinedDatasets/combined_logs_{dataset_type.value}.log"
+    # Define the name of the file where all logs corresponding 
+    # to the dataset type 'dataset_type' will be stored
+    output_filename = f'./combinedDatasets/combined_logs_{dataset_type.value["filename_field"]}.log'
 
     # Skip file generation if it already exists
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' already exists. Skipping generation.")
     
     else:
-        all_logs = []           # Create a list to store the content of different files
+        # Create a list to store the content of different files
+        all_logs = []           
 
+        # Filter files based on the dataset type
         dataset_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
-                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value)]
+                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value["filename_field"])]
 
         # Loop through all files in the directory
         for filename in dataset_from_type:
@@ -36,7 +40,7 @@ def bind_dir_files(dataset_root_path, dataset_type):
         with open(output_filename, 'w') as f:
             f.write(combined_logs)
 
-
+    # Returns the name of the output file to be used to load dataset as a spark dataframe
     return output_filename
 
 
