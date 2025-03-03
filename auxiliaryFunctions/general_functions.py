@@ -3,9 +3,19 @@ import os
 from pyspark.sql.types import *
 
 
-# Auxiliary function to bind all log files inside a indicated directory
-# into a single log file of each type of LoRaWAN message
+"""
+Auxiliary function to bind all log files inside an indicated directory
+into a single log file of each type of LoRaWAN message
+
+    dataset_root_path (string) - path to the directory containing the log files
+    dataset_type (DatasetType enum) - type of dataset to be processed (DatasetType.RXPK or DatasetType.TXPK)
+
+It returns the name of the output file to be used to load dataset as a spark dataframe
+
+"""
 def bind_dir_files(dataset_root_path, dataset_type):
+
+    dataset_root_path = os.fsencode(dataset_root_path)
 
     # Define the name of the file where all logs corresponding 
     # to the dataset type 'dataset_type' will be stored
@@ -31,7 +41,7 @@ def bind_dir_files(dataset_root_path, dataset_type):
         # Join all logs into a single string
         combined_logs = '\n'.join(all_logs)
 
-        # Ensure the output directory exists
+        # Ensure that the output directory exists
         output_dir = os.path.dirname(output_filename)
         if output_dir and not os.path.exists(output_dir):
             os.makedirs(output_dir, exist_ok=True)
@@ -43,33 +53,6 @@ def bind_dir_files(dataset_root_path, dataset_type):
     # Returns the name of the output file to be used to load dataset as a spark dataframe
     return output_filename
 
-
-"""
-Function that converts a hexadecimal number inside a string to a decimal number as an integer 
-
-"""
-def hex_to_decimal(hex_string):
-    
-    # Check if string is Null
-    if hex_string == None:
-        return None
-    
-    # Convert the hexadecimal string to decimal (base 10)
-    return int(hex_string, 16)
-
-
-"""
-Function that converts a hexadecimal number inside a string to a binary number as an integer 
-
-"""
-def hex_to_binary(hex_string):
-    
-    # Check if string is Null
-    if hex_string == None:
-        return None
-    
-    # Convert the hexadecimal string to binary (base 2)
-    return int(bin(int(hex_string, 16))[2:])
 
 
 """

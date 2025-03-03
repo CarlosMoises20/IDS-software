@@ -7,10 +7,7 @@ from abc import ABC, abstractmethod
 
 class DataProcessing(ABC):
 
+    @staticmethod
     @abstractmethod
-    def process_data(df_train, df_test, message_types):
+    def process_data(df_train, df_test):
         """..."""
-
-
-
-
