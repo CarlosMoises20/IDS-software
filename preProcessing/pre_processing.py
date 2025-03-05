@@ -7,25 +7,6 @@ from pyspark.sql.functions import when, col, expr
 class DataPreProcessing(ABC):
 
     """
-    Method to convert boolean attributes to integer attributes
-    
-        df: spark dataframe that represents the dataset
-        attributes: a list of strings with the names of attributes to be converted
-    
-    """
-    @staticmethod
-    def bool_to_int(df, attributes):
-        
-        for attr in attributes:
-            df = df.withColumn(attr, when(df[attr] == True, 1)
-                                      .when(df[attr] == False, 0)
-                                      .otherwise(None)) 
-            
-        return df
-
-
-    
-    """
     Method to reverse hexadecimal octets in string format
     
         hex_str: hexadecimal value
@@ -48,7 +29,18 @@ class DataPreProcessing(ABC):
         
         return reversed_octets
 
-    
+
+
+    # TODO: fix
+    @staticmethod
+    def str_to_float(df, attributes):
+
+        for attr in attributes:
+            df = df.withColumn(attr, when(col(attr).isNull(), None)
+                                      .otherwise(col(attr).cast("float")))
+
+        return df
+
     """
     Method to convert hexadecimal attributes to decimal attributes in integer format
     
@@ -61,7 +53,7 @@ class DataPreProcessing(ABC):
         
         for attr in attributes:
             df = df.withColumn(attr, when(col(attr).isNull(), None)
-                                      .otherwise(expr(f"conv({attr}, 16, 10)")))
+                                      .otherwise(expr(f"conv({attr}, 16, 10)").cast(IntegerType())))
 
         return df
 
@@ -78,7 +70,7 @@ class DataPreProcessing(ABC):
         
         for attr in attributes:
             df = df.withColumn(attr, when(col(attr).isNull(), None)
-                                      .otherwise(expr(f"bin(conv({attr}, 16, 10))")))
+                                      .otherwise(expr(f"bin(conv({attr}, 16, 10))").cast(IntegerType())))
 
         return df
 

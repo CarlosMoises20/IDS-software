@@ -1,6 +1,6 @@
 
 
-from pyspark.sql.functions import expr, when, col, asc, concat
+from pyspark.sql.functions import expr, when, col, asc, concat, length
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType
@@ -33,10 +33,12 @@ class TxpkPreProcessing(DataPreProcessing):
         # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
         # of attributes inside the 'txpk' struct
         selected_columns = [
-            "AppNonce", "CFList", "DLSettings", "DLSettingsRX1DRoffset", "DLSettingsRX2DataRate", 
-            "DevAddr", "FCnt", "FCtrl", "FCtrlACK", "FHDR", "FOpts", "FPort", "FRMPayload",
-            "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", "MACPayload",
-            "MHDR", "MIC", "MessageType", "NetID", "PHYPayload", "RxDelay", "txpk.*"
+            "AppNonce", "CFList", "DLSettings", "DLSettingsRX1DRoffset", 
+            "DLSettingsRX2DataRate", "DevAddr", "FCnt", "FCtrl", 
+            "FCtrlACK", "FHDR", "FOpts", "FPort", "FRMPayload",
+            "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
+            "MACPayload", "MHDR", "MIC", "MessageType", "NetID", 
+            "PHYPayload", "RxDelay", "txpk.*"
         ]
 
         # Select only the specified columns
@@ -45,9 +47,16 @@ class TxpkPreProcessing(DataPreProcessing):
         # Remove irrelevant / redundant attributes that used to be inside 'txpk' array,
         # as well as attributes that have always the same value
         df = df.drop("codr", "imme", "ipol", "modu", "ncrc", "rfch")
+
+        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN v1.1 specification
+        # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
+        df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
+
+        # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
+        # "FreqCh7", "FreqCh8" and "CFListType", for a more simple processing
+        df = df.drop("CFList")
         
         # Convert MessageType parameter to its corresponding value in decimal
-        """
         df = df.withColumn("MessageType", when(col("MessageType") == "Join Request", 0)
                                         .when(col("MessageType") == "Join Accept", 1)
                                         .when(col("MessageType") == "Unconfirmed Data Up", 2)
@@ -57,19 +66,12 @@ class TxpkPreProcessing(DataPreProcessing):
                                         .when(col("MessageType") == "Rejoin Request", 6)
                                         .when(col("MessageType") == "Proprietary", 7)
                                         .otherwise(None))
-        """
-
-        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN v1.1 specification
-        # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
-        df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
-
-        # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
-        # "FreqCh7", "FreqCh8" and "CFListType", for a more simple processing
-        df = df.drop("CFList")
 
         # Convert 'FCtrlACK' to integer: True = 1, False = 0; ensuring that an acknowledge was received is useful to detect anomalies
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/
-        df = DataPreProcessing.bool_to_int(df, ["FCtrlACK"])
+        df = df.withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
+                                      .when(col("FCtrlACK") == False, 0)
+                                      .otherwise(None)) 
 
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
@@ -99,6 +101,13 @@ class TxpkPreProcessing(DataPreProcessing):
         # After calculating RFU, remove DLSettings
         df = df.drop("DLSettings")
 
+        # Create 'dataLen' that corresponds to the length of 'data', 
+        # that represents the content of the LoRaWAN message
+        df = df.withColumn("dataLen", length(col("data")))
+
+        # TODO: check is "data" and "datr" are not needed
+        df = df.drop("data", "datr")
+
 
         # TODO 1B: calculate MIC, that comes from: MHDR | FHDR | FPort | FRMPayload
         # TODO 1C: calculate other fields that are split by others
@@ -108,24 +117,28 @@ class TxpkPreProcessing(DataPreProcessing):
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
         # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
         # these would be treated as categorical values, which is not the case
-        df = DataPreProcessing.hex_to_decimal(df, ["AppNonce", "CFListType", "DLSettingsRX1DRoffset", "DLSettingsRX2DataRate",
-                                                   "DevAddr", "FCnt", "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
+        df = DataPreProcessing.hex_to_decimal(df, ["AppNonce", "CFListType","DevAddr", "FCnt", 
+                                                   "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                                                    "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                                                    "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
                                                    "PHYPayload", "RxDelay"])
 
 
-        # TODO: Fill missing values with static values (maybe best option), or mean, or median
-        # TODO: when implementing algorithms, verify if this is really necessary
+        # Fill missing values with 0 for numeric attributes
+        df = df.na.fill(0)
+        
+        # Fill missing values with "Unknown" for string attributes
+        df = df.na.fill("Unknown")
 
 
         #print(df)
 
         # TODO: during processing, analyse if it's necessary to apply some more pre-processing steps
 
-        df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 1).otherwise(0))
+        df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))
 
-        df.select("tmst", "Valid_FHDR", "Valid_MACPayload", "intrusion").sort(asc("tmst")).show(50, truncate=False)
+        df.select("tmst", "AppNonce", "FCnt", "intrusion").sort(asc("tmst")).show(50, truncate=False)
+
 
         return df
 

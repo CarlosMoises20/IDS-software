@@ -2,10 +2,10 @@
 
 from processing.processing import DataProcessing
 from pyspark.ml import Pipeline
-from pyspark.ml.feature import StringIndexer, VectorAssembler, VectorIndexer
-from pyspark.mllib.tree import RandomForest
+from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from auxiliaryFunctions.general_functions import get_all_attributes_names
 
 
 class TxpkProcessing(DataProcessing):
@@ -15,15 +15,12 @@ class TxpkProcessing(DataProcessing):
 
         # TODO: continue training the model
 
-        # TODO: review this categorical column indexing
-        indexer = VectorIndexer(maxCategories=9, inputCol="MessageType", outputCol="MType_indexed")
+        print(df_train)
 
-        # Definir colunas numéricas
-        feature_columns = ["DLSettingsRX1DRoffset", "DLSettingsRX2DataRate", 
-                            "freq", "size", "tmst"]
+        column_names = get_all_attributes_names(df_train.schema)
 
         # Criar o vetor de features
-        assembler = VectorAssembler(inputCols=feature_columns, outputCol="features", handleInvalid="keep")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features", handleInvalid="keep")
 
         # Criar o modelo RandomForest
         rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=100, maxDepth=10)
@@ -44,6 +41,6 @@ class TxpkProcessing(DataProcessing):
         print(f"Área sob a curva ROC: {roc_auc}")
 
         # Exibir previsões
-        predictions.select("intrusion", "prediction", "probability").show(10)
+        predictions.select("intrusion", "prediction", "probability").show(200)
 
         return 1

@@ -15,19 +15,7 @@ class RxpkProcessing(DataProcessing):
 
         # TODO: continue training the model
 
-        # Definir colunas categóricas com poucas categorias (que podemos indexar)
-        limited_categorical_columns = ["MType", "NetID", "codr", "datr"]
-
-        # Criar indexadores para essas colunas
-        indexers = [StringIndexer(inputCol=col, outputCol=col + "_indexed", handleInvalid="keep") 
-                    for col in limited_categorical_columns]
-
-        # Definir colunas numéricas
-        numerical_columns = ["DLSettingsRX1DRoffset", "DLSettingsRX2DataRate", 
-                            "freq", "lsnr", "rssi", "size", "tmst"]
-
-        # Criar lista final de colunas para o modelo
-        feature_columns = numerical_columns + [col + "_indexed" for col in limited_categorical_columns]
+        feature_columns = get_all_attributes_names(df_train.schema)
 
         # Criar o vetor de features
         assembler = VectorAssembler(inputCols=feature_columns, outputCol="features", handleInvalid="keep")
@@ -36,7 +24,7 @@ class RxpkProcessing(DataProcessing):
         rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=100, maxDepth=10)
 
         # Criar pipeline
-        pipeline = Pipeline(stages=indexers + [assembler, rf])
+        pipeline = Pipeline(stages=[assembler, rf])
 
         # Treinar o modelo
         model = pipeline.fit(df_train)
