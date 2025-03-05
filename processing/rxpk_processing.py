@@ -3,6 +3,7 @@ from processing.processing import DataProcessing
 from pyspark.ml import Pipeline
 from pyspark.ml.feature import StringIndexer, VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
+from pyspark.mllib.tree import RandomForest
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
 from auxiliaryFunctions.general_functions import *
 

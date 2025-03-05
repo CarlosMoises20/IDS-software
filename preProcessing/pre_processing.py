@@ -1,7 +1,7 @@
 
 from pyspark.sql.types import *
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when
+from pyspark.sql.functions import when, col, expr
 
 
 class DataPreProcessing(ABC):
@@ -43,7 +43,8 @@ class DataPreProcessing(ABC):
             raise ValueError("Invalid Format")
         
         # Divides hex_str into octets
-        reversed_octets = "".join(reversed([hex_str[i:i+2] for i in range(0, len(hex_str), 2)]))
+        octets = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
+        reversed_octets = "".join(reversed(octets))
         
         return reversed_octets
 
@@ -59,9 +60,8 @@ class DataPreProcessing(ABC):
     def hex_to_decimal(df, attributes):
         
         for attr in attributes:
-            df = df.withColumn(attr, when(df[attr] == None, None)
-                                      .otherwise(int(df[attr], 16)))
-
+            df = df.withColumn(attr, when(col(attr).isNull(), None)
+                                      .otherwise(expr(f"conv({attr}, 16, 10)")))
 
         return df
 
@@ -77,8 +77,8 @@ class DataPreProcessing(ABC):
     def hex_to_binary(df, attributes):
         
         for attr in attributes:
-            df = df.withColumn(attr, when(df[attr] == None, None)
-                                      .otherwise(str(bin(int(df[attr], 16))[2:])))
+            df = df.withColumn(attr, when(col(attr).isNull(), None)
+                                      .otherwise(expr(f"bin(conv({attr}, 16, 10))")))
 
         return df
 

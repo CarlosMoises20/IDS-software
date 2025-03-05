@@ -1,6 +1,7 @@
 
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf
+from pyspark.sql.types import StringType
 
 
 """
@@ -41,7 +42,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'MACPayload', x.MACPayload, 
                                         'MHDR', x.MHDR, 
                                         'MIC', x.MIC, 
-                                        'MType', CASE 
+                                        'MessageType', CASE 
                                                     WHEN x.MessageType = 'Join Request' THEN 0 
                                                     WHEN x.MessageType = 'Join Accept' THEN 1 
                                                     WHEN x.MessageType = 'Unconfirmed Data Up' THEN 2 
@@ -70,33 +71,46 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'tmst', x.tmst ))
                                     """))
         
+        # TODO: maybe remove 'rsig'
 
         # explode 'rxpk' array, since each element inside the 'rxpk' array corresponds to a different LoRaWAN message
         df = df.withColumn("rxpk", explode(col("rxpk")))
 
         # change attribute names to be recognized by PySpark ML algorithms (for example, 'rxpk.AppEUI' -> 'AppEUI')
-        # this also removes all attributes outside the 'rxpk' array, since these are irrelevant / redundant
+        # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")    
-
-        # TODO: maybe remove 'rsig'
         
-        # TODO: calculate RFU
+        # TODO 1: continue to add columns that validate fields to check if they are correctly calculated
+        df = df.withColumn(
+            "Valid_FHDR",
+            when(col("FHDR").isNull(), None) 
+            .when(col("FHDR") == DataPreProcessing.reverse_hex_octets(col("DevAddr")) + 
+                                DataPreProcessing.reverse_hex_octets(col("FCtrl")) + 
+                                DataPreProcessing.reverse_hex_octets(col("FCnt")) + 
+                                col("FOpts"), 1)
+            .otherwise(0)
+        )
+        
 
+        df.select("FHDR", "DevAddr", "FCtrl", "FCnt", "FOpts", "valid_fhdr").dropDuplicates().show(30, truncate=False)
+
+        # TODO: calculate RFU
 
         # After calculating RFU, remove DLSettings
         df = df.drop("DLSettings")
         
         # Create 'dataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
-        df = df.withColumn("dataLen", length(col("txpk.data")))
+        df = df.withColumn("dataLen", length(col("data")))
 
         # Convert hexadecimal attributes (string) to decimal (int)
-        df = DataPreProcessing.hex_to_decimal(df, ["PHYPayload", "MHDR", "MACPayload",
-                                                   "MIC", "FHDR", "FPort", "FRMPayload",
-                                                   "DevAddr", "FCnt", "FCtrl", "FOpts",
-                                                   "AppNonce", "NetID"])
-
+        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
+                                                   "DevNonce", "FCnt", "FCtrl", "FHDR",
+                                                   "FOpts", "FPort", "FRMPayload", "MACPayload",
+                                                   "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"])
+        
         # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
+
 
         return df
 
