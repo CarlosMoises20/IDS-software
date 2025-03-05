@@ -47,6 +47,7 @@ class TxpkPreProcessing(DataPreProcessing):
         df = df.drop("codr", "imme", "ipol", "modu", "ncrc", "rfch")
         
         # Convert MessageType parameter to its corresponding value in decimal
+        """
         df = df.withColumn("MessageType", when(col("MessageType") == "Join Request", 0)
                                         .when(col("MessageType") == "Join Accept", 1)
                                         .when(col("MessageType") == "Unconfirmed Data Up", 2)
@@ -56,6 +57,7 @@ class TxpkPreProcessing(DataPreProcessing):
                                         .when(col("MessageType") == "Rejoin Request", 6)
                                         .when(col("MessageType") == "Proprietary", 7)
                                         .otherwise(None))
+        """
 
         # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN v1.1 specification
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
@@ -103,8 +105,10 @@ class TxpkPreProcessing(DataPreProcessing):
 
 
 
-        # Convert hexadecimal attributes (string) to decimal (int)
-        df = DataPreProcessing.hex_to_decimal(df, ["AppNonce", "DLSettingsRX1DRoffset", "DLSettingsRX2DataRate",
+        # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
+        # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
+        # these would be treated as categorical values, which is not the case
+        df = DataPreProcessing.hex_to_decimal(df, ["AppNonce", "CFListType", "DLSettingsRX1DRoffset", "DLSettingsRX2DataRate",
                                                    "DevAddr", "FCnt", "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                                                    "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                                                    "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",

@@ -2,7 +2,7 @@
 
 from processing.processing import DataProcessing
 from pyspark.ml import Pipeline
-from pyspark.ml.feature import StringIndexer, VectorAssembler
+from pyspark.ml.feature import StringIndexer, VectorAssembler, VectorIndexer
 from pyspark.mllib.tree import RandomForest
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
@@ -14,6 +14,9 @@ class TxpkProcessing(DataProcessing):
     def process_data(df_train, df_test):
 
         # TODO: continue training the model
+
+        # TODO: review this categorical column indexing
+        indexer = VectorIndexer(maxCategories=9, inputCol="MessageType", outputCol="MType_indexed")
 
         # Definir colunas numéricas
         feature_columns = ["DLSettingsRX1DRoffset", "DLSettingsRX2DataRate", 
