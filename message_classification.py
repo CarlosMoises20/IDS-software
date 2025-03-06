@@ -1,5 +1,5 @@
 
-from auxiliaryFunctions.general_functions import bind_dir_files
+from auxiliaryFunctions.general import bind_dir_files
 import os
 
 

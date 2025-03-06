@@ -5,7 +5,7 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from auxiliaryFunctions.general_functions import get_all_attributes_names
+from auxiliaryFunctions.general import get_all_attributes_names
 
 
 class TxpkProcessing(DataProcessing):
@@ -15,15 +15,13 @@ class TxpkProcessing(DataProcessing):
 
         # TODO: continue training the model
 
-        print(df_train)
-
         column_names = get_all_attributes_names(df_train.schema)
 
         # Criar o vetor de features
         assembler = VectorAssembler(inputCols=column_names, outputCol="features", handleInvalid="keep")
 
         # Criar o modelo RandomForest
-        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=100, maxDepth=10)
+        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=7, maxDepth=5, seed=522)
 
         # Criar pipeline
         pipeline = Pipeline(stages=[assembler, rf])

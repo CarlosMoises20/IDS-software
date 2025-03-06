@@ -1,7 +1,7 @@
 
 from preProcessing.pre_processing import *
-from auxiliaryFunctions.general_functions import *
-from auxiliaryFunctions.ids_functions import *
+from auxiliaryFunctions.general import *
+from auxiliaryFunctions.anomaly_detection import *
 from abc import ABC, abstractmethod
 
 

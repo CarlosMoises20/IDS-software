@@ -5,7 +5,7 @@ from pyspark.ml.feature import StringIndexer, VectorAssembler, VectorIndexer
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.mllib.tree import RandomForest
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from auxiliaryFunctions.general_functions import *
+from auxiliaryFunctions.general import *
 
 
 class RxpkProcessing(DataProcessing):
@@ -15,13 +15,13 @@ class RxpkProcessing(DataProcessing):
 
         # TODO: continue training the model
 
-        feature_columns = get_all_attributes_names(df_train.schema)
+        column_names = get_all_attributes_names(df_train.schema)
 
         # Criar o vetor de features
-        assembler = VectorAssembler(inputCols=feature_columns, outputCol="features", handleInvalid="keep")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features", handleInvalid="keep")
 
         # Criar o modelo RandomForest
-        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=100, maxDepth=10)
+        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=7, maxDepth=5, seed=522)
 
         # Criar pipeline
         pipeline = Pipeline(stages=[assembler, rf])
@@ -40,28 +40,6 @@ class RxpkProcessing(DataProcessing):
 
         # Exibir previsões
         predictions.select("intrusion", "prediction", "probability").show(10)
-
-
-        """
-        numeric_attributes = get_numeric_attributes(df_train.schema)
-
-        # Possible approach for numeric attributes
-        assembler = VectorAssembler(inputCols=numeric_attributes, outputCol="features", handleInvalid="keep")
-
-        # Define Random Forest classifier (handles categorical & missing values)
-        rf = RandomForestClassifier(featuresCol="features", numTrees=20)
-
-        # Build pipeline
-        pipeline = Pipeline(stages=[assembler, rf])
-
-        # Train the model   
-        model = pipeline.fit(df_train)
-
-        # Evaluate the model
-        predictions = model.transform(df_test.select(numeric_attributes))
-
-        predictions.select("prediction", "probability").show(10)
-        """
 
 
         return 3

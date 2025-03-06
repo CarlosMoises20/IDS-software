@@ -58,14 +58,14 @@ class TxpkPreProcessing(DataPreProcessing):
         
         # Convert MessageType parameter to its corresponding value in decimal
         df = df.withColumn("MessageType", when(col("MessageType") == "Join Request", 0)
-                                        .when(col("MessageType") == "Join Accept", 1)
-                                        .when(col("MessageType") == "Unconfirmed Data Up", 2)
-                                        .when(col("MessageType") == "Unconfirmed Data Down", 3)
-                                        .when(col("MessageType") == "Confirmed Data Up", 4)
-                                        .when(col("MessageType") == "Confirmed Data Down", 5)
-                                        .when(col("MessageType") == "Rejoin Request", 6)
-                                        .when(col("MessageType") == "Proprietary", 7)
-                                        .otherwise(None))
+                                          .when(col("MessageType") == "Join Accept", 1)
+                                          .when(col("MessageType") == "Unconfirmed Data Up", 2)
+                                          .when(col("MessageType") == "Unconfirmed Data Down", 3)
+                                          .when(col("MessageType") == "Confirmed Data Up", 4)
+                                          .when(col("MessageType") == "Confirmed Data Down", 5)
+                                          .when(col("MessageType") == "Rejoin Request", 6)
+                                          .when(col("MessageType") == "Proprietary", 7)
+                                          .otherwise(None))
 
         # Convert 'FCtrlACK' to integer: True = 1, False = 0; ensuring that an acknowledge was received is useful to detect anomalies
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/
@@ -77,7 +77,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
-        # TODO 1: continue to add columns that validate fields to check if they are correctly calculated
+        # TODO: analyse if these 3 steps are necessary
         df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), None)
                                             .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
@@ -90,13 +90,12 @@ class TxpkPreProcessing(DataPreProcessing):
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
-
-        #df.select("tmst", "MACPayload", "FHDR", "FPort", "FRMPayload", "Valid_MACPayload").sort(asc("tmst")).show(50, truncate=False)
-
-
-        # TODO 1A: calculate RFU, that comes from various fields
-
-
+        
+        """
+        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), None)
+                                          .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
+                                          .otherwise(0))
+        """
 
         # After calculating RFU, remove DLSettings
         df = df.drop("DLSettings")
@@ -107,11 +106,6 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # TODO: check is "data" and "datr" are not needed
         df = df.drop("data", "datr")
-
-
-        # TODO 1B: calculate MIC, that comes from: MHDR | FHDR | FPort | FRMPayload
-        # TODO 1C: calculate other fields that are split by others
-
 
 
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
@@ -126,18 +120,10 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # Fill missing values with 0 for numeric attributes
         df = df.na.fill(0)
-        
-        # Fill missing values with "Unknown" for string attributes
-        df = df.na.fill("Unknown")
-
-
-        #print(df)
 
         # TODO: during processing, analyse if it's necessary to apply some more pre-processing steps
 
         df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))
-
-        df.select("tmst", "AppNonce", "FCnt", "intrusion").sort(asc("tmst")).show(50, truncate=False)
 
 
         return df

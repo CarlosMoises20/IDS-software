@@ -30,17 +30,6 @@ class DataPreProcessing(ABC):
         return reversed_octets
 
 
-
-    # TODO: fix
-    @staticmethod
-    def str_to_float(df, attributes):
-
-        for attr in attributes:
-            df = df.withColumn(attr, when(col(attr).isNull(), None)
-                                      .otherwise(col(attr).cast("float")))
-
-        return df
-
     """
     Method to convert hexadecimal attributes to decimal attributes in integer format
     

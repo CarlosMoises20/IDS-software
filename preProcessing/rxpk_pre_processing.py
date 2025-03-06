@@ -1,7 +1,7 @@
 
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, FloatType
 
 
 """
@@ -27,7 +27,6 @@ class RxpkPreProcessing(DataPreProcessing):
         df = df.withColumn("rxpk", expr("""
                                         transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, 
                                         'AppNonce', x.AppNonce, 
-                                        'DLSettings', x.DLSettings, 
                                         'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, 
                                         'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, 
                                         'DevAddr', x.DevAddr, 
@@ -56,22 +55,15 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'NetID', x.NetID, 
                                         'PHYPayload', x.PHYPayload, 
                                         'RxDelay', x.RxDelay, 
-                                        'chan', x.chan, 
-                                        'codr', x.codr, 
+                                        'chan', x.chan,
                                         'data', x.data, 
-                                        'datr', x.datr, 
                                         'freq', x.freq, 
                                         'lsnr', x.lsnr, 
                                         'rfch', x.rfch, 
-                                        'rsig', transform(x.rsig, rs -> named_struct( 
-                                                        'chan', rs.chan, 
-                                                        'lsnr', rs.lsnr)), 
                                         'rssi', x.rssi, 
                                         'size', x.size, 
                                         'tmst', x.tmst ))
                                     """))
-        
-        # TODO: maybe remove 'rsig' later
 
         # explode 'rxpk' array, since each element inside the 'rxpk' array corresponds to a different LoRaWAN message
         df = df.withColumn("rxpk", explode(col("rxpk")))
@@ -83,8 +75,10 @@ class RxpkPreProcessing(DataPreProcessing):
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
+        #hex_to_binary_udf = udf(DataPreProcessing.hex_to_binary, StringType())
 
-        # TODO 1: continue to add columns that validate fields to check if they are correctly calculated
+        # TODO: analyse if these 3 steps are necessary
+        
         df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), None)
                                           .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
@@ -97,22 +91,19 @@ class RxpkPreProcessing(DataPreProcessing):
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
-        
+        """
+        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), None)
+                                          .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
+                                          .otherwise(0))
+        """
 
-        #df.select("FHDR", "DevAddr", "FCtrl", "FCnt", "FOpts", "Valid_FHDR").dropDuplicates().show(30, truncate=False)
-
-        # TODO: calculate RFU
-
-
-        # After calculating RFU, remove DLSettings
-        df = df.drop("DLSettings")
         
         # Create 'DataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
-        df = df.withColumn("DataLen", length(col("data")))
+        df = df.withColumn("dataLen", length(col("data")))
 
-        # TODO: verify later if these fields are not necessary
-        df = df.drop("data", "datr")
+        # remove 'data' after creating 'dataLen'
+        df = df.drop("data")
 
         # Convert hexadecimal attributes (string) to decimal (int)
         df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
@@ -120,20 +111,12 @@ class RxpkPreProcessing(DataPreProcessing):
                                                    "FOpts", "FPort", "FRMPayload", "MACPayload",
                                                    "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"])
         
-        df.select("codr").dropDuplicates().show(30, truncate=False)
-
-        df = DataPreProcessing.str_to_float(df, ["codr"])
-
-        df.select("codr").dropDuplicates().show(30, truncate=False)
-        
         # Fill missing values with 0 for numeric attributes
         df = df.na.fill(0)
         
-        # Fill missing values with "Unknown" for string attributes
-        #df = df.na.fill("Unknown")
-        
         # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
 
+        df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))
 
         return df
 

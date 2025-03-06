@@ -17,7 +17,11 @@ def execute(dataset_type, spark_session):
 if __name__ == '__main__':
 
     # Initialize Spark Session
-    spark_session = SparkSession.builder.appName("IDS for LoRaWAN").getOrCreate()
+    spark_session = SparkSession.builder \
+                                .appName("IDS for LoRaWAN network") \
+                                .config("spark.executor.memory", "4g") \
+                                .config("spark.driver.memory", "4g") \
+                                .getOrCreate()
 
     # List of tasks (each task processes a different category of LoRaWAN messages according to the gateway)
     tasks = [(DatasetType.RXPK), (DatasetType.TXPK)]
