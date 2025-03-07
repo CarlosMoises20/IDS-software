@@ -118,8 +118,8 @@ class TxpkPreProcessing(DataPreProcessing):
                                                    "PHYPayload", "RxDelay"])
 
 
-        # Fill missing values with 0 for numeric attributes
-        df = df.na.fill(0)
+        # Fill missing values with -1 for numeric attributes
+        df = df.na.fill(-1)
 
         # TODO: during processing, analyse if it's necessary to apply some more pre-processing steps
 

@@ -1,7 +1,8 @@
 
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, coalesce
 from pyspark.sql.types import StringType, FloatType
+from pyspark.sql.functions import array, array_union
 
 
 """
@@ -60,6 +61,9 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'freq', x.freq, 
                                         'lsnr', x.lsnr, 
                                         'rfch', x.rfch, 
+                                        'rsig', transform(x.rsig, rs -> named_struct( 
+                                                        'chan', rs.chan, 
+                                                        'lsnr', rs.lsnr)),
                                         'rssi', x.rssi, 
                                         'size', x.size, 
                                         'tmst', x.tmst ))
@@ -71,6 +75,13 @@ class RxpkPreProcessing(DataPreProcessing):
         # change attribute names to be recognized by PySpark ML algorithms (for example, 'rxpk.AppEUI' -> 'AppEUI')
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")    
+
+        # aggregate values of 'chan' and 'lsnr' coming from 'rsig' array into 'chan' and 'lsnr' outside the 'rsig' array
+        df = df.withColumn("chan", array_union(coalesce(array(col("chan"))), coalesce(col("rsig.chan"), array()))) \
+                .withColumn("lsnr", array_union(coalesce(array(col("lsnr"))), coalesce(col("rsig.lsnr"), array())))
+        
+        # remove 'rsig' array after aggregation of 'chan' and 'lsnr'
+        df = df.drop("rsig")
         
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
@@ -111,8 +122,8 @@ class RxpkPreProcessing(DataPreProcessing):
                                                    "FOpts", "FPort", "FRMPayload", "MACPayload",
                                                    "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"])
         
-        # Fill missing values with 0 for numeric attributes
-        df = df.na.fill(0)
+        # Fill missing values with -1 for numeric attributes
+        #df = df.na.fill(-1)
         
         # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
 

@@ -53,32 +53,3 @@ def bind_dir_files(dataset_root_path, dataset_type):
     # Returns the name of the output file to be used to load dataset as a spark dataframe
     return output_filename
 
-
-
-"""
-Auxiliary function to get all attributes names of a spark dataframe schema
-
-    schema - spark dataframe schema
-    parent_name - name of parent field of an array or struct. Optional, only applicable of the field is array or struct and
-                    used for recursive calls inside the function.
-
-Returns: a array
-
-"""
-def get_all_attributes_names(df_schema, parent_name=""):
-    
-    attribute_names = []
-
-    # Iterate through all the fields in the schema, including fields inside arrays and structs
-    for field in df_schema.fields:
-
-        if isinstance(field.dataType, ArrayType) and isinstance(field.dataType.elementType, StructType):
-            attribute_names.extend(get_all_attributes_names(field.dataType.elementType, field.name))  # Recursive call for nested structs
-        
-        elif isinstance(field.dataType, StructType):
-            attribute_names.extend(get_all_attributes_names(field.dataType, field.name))  # Handle direct nested structs
-    
-        else:
-            attribute_names.append(field.name)
-
-    return attribute_names

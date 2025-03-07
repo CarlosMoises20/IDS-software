@@ -5,7 +5,6 @@ from pyspark.ml.feature import StringIndexer, VectorAssembler, VectorIndexer
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.mllib.tree import RandomForest
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
-from auxiliaryFunctions.general import *
 
 
 class RxpkProcessing(DataProcessing):
@@ -15,15 +14,18 @@ class RxpkProcessing(DataProcessing):
 
         # TODO: continue training the model
 
-        column_names = get_all_attributes_names(df_train.schema)
+        # get all attributes names to assemble since they are all now numeric
+        column_names = DataProcessing.get_all_attributes_names(df_train.schema)
 
-        # Criar o vetor de features
+        print(column_names)
+
+        # Create the VectorAssembler that merges all features of the dataset into a Vector
+        # These feature are, now, all numeric and with the missing values all imputed, so now we can use them
         assembler = VectorAssembler(inputCols=column_names, outputCol="features", handleInvalid="keep")
 
-        # Criar o modelo RandomForest
+        # Create the Random Forest Classifier model
         rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=7, maxDepth=5, seed=522)
-
-        # Criar pipeline
+ 
         pipeline = Pipeline(stages=[assembler, rf])
 
         # Treinar o modelo
