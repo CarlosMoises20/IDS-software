@@ -1,9 +1,9 @@
 
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, coalesce
-from pyspark.sql.types import StringType, FloatType
-from pyspark.sql.functions import array, array_union
-
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc
+from pyspark.sql.types import StringType
+from pyspark.ml.feature import Imputer
+from auxiliaryFunctions.general import get_all_attributes_names
 
 """
 This class represents the pre-processing phase on LoRaWAN messages from the 'rxpk' dataset
@@ -74,19 +74,30 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # change attribute names to be recognized by PySpark ML algorithms (for example, 'rxpk.AppEUI' -> 'AppEUI')
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
-        df = df.select("rxpk.*")    
+        df = df.select("rxpk.*")
 
-        # aggregate values of 'chan' and 'lsnr' coming from 'rsig' array into 'chan' and 'lsnr' outside the 'rsig' array
-        df = df.withColumn("chan", array_union(coalesce(array(col("chan"))), coalesce(col("rsig.chan"), array()))) \
-                .withColumn("lsnr", array_union(coalesce(array(col("lsnr"))), coalesce(col("rsig.lsnr"), array())))
+        # aggregate 'chan' and 'lsnr' arrays, removing NULL values
+        df = df.withColumn("chan", when(col("rsig.chan").isNotNull() | col("chan").isNotNull(),
+                                                expr("filter(array_union(coalesce(array(chan), array()), coalesce(rsig.chan, array())), x -> x IS NOT NULL AND x = x)")
+                                        ).otherwise(None)
+                ).withColumn("lsnr", when(col("rsig.lsnr").isNotNull() | col("lsnr").isNotNull(),
+                                                expr("filter(array_union(coalesce(array(lsnr), array()), coalesce(rsig.lsnr, array())), x -> x IS NOT NULL AND x = x)")
+                                        ).otherwise(None)
+                )
         
-        # remove 'rsig' array after aggregation of 'chan' and 'lsnr'
-        df = df.drop("rsig")
+        # split "chan" by "chan1" and "chan2" and "lsnr" by "lsnr1" and "lsnr2", since Vectors on algorithms
+        # do not support arrays, only numeric values
+        df = df.withColumn("chan1", col("chan")[0])   # the first element of 'chan' array
+        df = df.withColumn("chan2", col("chan")[1])   # the second element of 'chan' array
+        df = df.withColumn("lsnr1", col("lsnr")[0])   # the first element of 'lsnr' array
+        df = df.withColumn("lsnr2", col("lsnr")[1])   # the second element of 'lsnr' array
+        
+        # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
+        df = df.drop("rsig", "chan", "lsnr")
         
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
-        #hex_to_binary_udf = udf(DataPreProcessing.hex_to_binary, StringType())
 
         # TODO: analyse if these 3 steps are necessary
         
@@ -116,15 +127,28 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'data' after creating 'dataLen'
         df = df.drop("data")
 
-        # Convert hexadecimal attributes (string) to decimal (int)
-        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
-                                                   "DevNonce", "FCnt", "FCtrl", "FHDR",
-                                                   "FOpts", "FPort", "FRMPayload", "MACPayload",
-                                                   "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"])
+        hex_attributes = ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
+                        "DevNonce", "FCnt", "FCtrl", "FHDR",
+                        "FOpts", "FPort", "FRMPayload", "MACPayload",
+                        "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
         
-        # Fill missing values with -1 for numeric attributes
-        #df = df.na.fill(-1)
+        # get all non-hexadecimal attributes of the dataframe
+        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
+
+        # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL values with -1 since
+        # -1 would never be a valid value for an hexadecimal-to-decimal attribute
+        df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
         
+        # TODO: for the remaining attributes (that are all numeric), check if mean is really the best way 
+        # to impute missing values 
+        imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
+        
+        #df.select("tmst", "size", "lsnr1", "chan1").sort(asc("tmst")).show(truncate=False)
+
+        df = imputer.fit(df).transform(df)
+
+        #df.select("tmst", "size", "lsnr1", "chan1").sort(asc("tmst")).show(truncate=False)
+
         # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
 
         df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))

@@ -1,10 +1,10 @@
 
 from processing.processing import DataProcessing
 from pyspark.ml import Pipeline
-from pyspark.ml.feature import StringIndexer, VectorAssembler, VectorIndexer
+from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
-from pyspark.mllib.tree import RandomForest
 from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from auxiliaryFunctions.general import get_all_attributes_names
 
 
 class RxpkProcessing(DataProcessing):
@@ -15,9 +15,9 @@ class RxpkProcessing(DataProcessing):
         # TODO: continue training the model
 
         # get all attributes names to assemble since they are all now numeric
-        column_names = DataProcessing.get_all_attributes_names(df_train.schema)
+        column_names = get_all_attributes_names(df_train.schema)
 
-        print(column_names)
+        df_train.select(*column_names).show(25, truncate=False, vertical=True)
 
         # Create the VectorAssembler that merges all features of the dataset into a Vector
         # These feature are, now, all numeric and with the missing values all imputed, so now we can use them

@@ -4,6 +4,8 @@ from pyspark.sql.functions import expr, when, col, asc, concat, length
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType
+from pyspark.ml.feature import Imputer
+from auxiliaryFunctions.general import get_all_attributes_names
 
 
 class TxpkPreProcessing(DataPreProcessing):
@@ -77,7 +79,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
-        # TODO: analyse if these 3 steps are necessary
+        # TODO: analyse if these 3 steps are really necessary
         df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), None)
                                             .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
@@ -107,19 +109,27 @@ class TxpkPreProcessing(DataPreProcessing):
         # TODO: check is "data" and "datr" are not needed
         df = df.drop("data", "datr")
 
+        # manually define all LoRaWAN attributes in the dataframe 'df' that are hexadecimal
+        hex_attributes = ["AppNonce", "CFListType","DevAddr", "FCnt", 
+                        "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
+                        "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
+                        "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
+                        "PHYPayload", "RxDelay"]
 
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
+        # this also replaces NULL values with -1 to be supported by the algorithms
         # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
         # these would be treated as categorical values, which is not the case
-        df = DataPreProcessing.hex_to_decimal(df, ["AppNonce", "CFListType","DevAddr", "FCnt", 
-                                                   "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
-                                                   "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
-                                                   "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
-                                                   "PHYPayload", "RxDelay"])
+        df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
+        # get all other attributes that used not to be hexadecimal
+        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
+        
+        # TODO: find an reasonable approach to impute missing values on the remaining attributes (e.g. the ones that were always numeric
+        # and the categorical attributes)
+        imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
 
-        # Fill missing values with -1 for numeric attributes
-        df = df.na.fill(-1)
+        df = imputer.fit(df).transform(df)
 
         # TODO: during processing, analyse if it's necessary to apply some more pre-processing steps
 

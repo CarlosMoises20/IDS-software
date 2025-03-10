@@ -1,8 +1,7 @@
 
-from pyspark.sql.types import *
+from pyspark.sql.types import DecimalType
 from abc import ABC, abstractmethod
 from pyspark.sql.functions import when, col, expr
-
 
 class DataPreProcessing(ABC):
 
@@ -31,7 +30,8 @@ class DataPreProcessing(ABC):
 
 
     """
-    Method to convert hexadecimal attributes to decimal attributes in integer format
+    Method to convert hexadecimal attributes to decimal attributes in numeric format (DecimalType(38, 0)),
+    in order to avoid loss of precision and accuracy in very big values, supporting a scale of up to 38 digits
     
         df: spark dataframe that represents the dataset
         attributes: a list of strings with the names of attributes to be converted
@@ -41,8 +41,10 @@ class DataPreProcessing(ABC):
     def hex_to_decimal(df, attributes):
         
         for attr in attributes:
-            df = df.withColumn(attr, when(col(attr).isNull(), None)
-                                      .otherwise(expr(f"conv({attr}, 16, 10)").cast(IntegerType())))
+            # Fill missing values with -1, since -1 would never be a valid value
+            # for an hexadecimal-to-decimal attribute
+            df = df.withColumn(attr, when(col(attr).isNull(), -1)
+                                      .otherwise(expr(f"conv({attr}, 16, 10)").cast(DecimalType(38, 0))))
 
         return df
 
@@ -59,13 +61,13 @@ class DataPreProcessing(ABC):
         
         for attr in attributes:
             df = df.withColumn(attr, when(col(attr).isNull(), None)
-                                      .otherwise(expr(f"bin(conv({attr}, 16, 10))").cast(IntegerType())))
+                                      .otherwise(expr(f"bin(conv({attr}, 16, 10))")))
 
         return df
 
     
     """
-    Abstract method for data pre-processing that has different implementations for 'rxpk' and 'txpk
+    Abstract method for data pre-processing that has different implementations for 'rxpk' and 'txpk'
     
     It's used to apply feature selection techniques to remove irrelevant, redundant and correlated attributes,
     and also to apply necessary transformations on dataset relevant attributes
