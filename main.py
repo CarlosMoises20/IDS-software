@@ -19,12 +19,15 @@ if __name__ == '__main__':
     # Initialize Spark Session
     spark_session = SparkSession.builder \
                                 .appName("IDS for LoRaWAN network") \
+                                .config("spark.sql.shuffle.partitions", "200")  \
+                                .config("spark.sql.autoBroadcastJoinThreshold", "-1")  \
+                                .config("spark.sql.files.maxPartitionBytes", "134217728")  \
                                 .config("spark.executor.memory", "4g") \
                                 .config("spark.driver.memory", "4g") \
                                 .getOrCreate()
 
     # List of tasks (each task processes a different category of LoRaWAN messages according to the gateway)
-    tasks = [(DatasetType.RXPK), (DatasetType.TXPK)]
+    tasks = [DatasetType.RXPK, DatasetType.TXPK]
 
     # Execute tasks in parallel using threads that use the Spark Session to process LoRaWAN data
     with ThreadPoolExecutor(max_workers=2) as executor:

@@ -51,7 +51,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                                             WHEN x.MessageType = 'Confirmed Data Down' THEN 5 
                                                             WHEN x.MessageType = 'Rejoin Request' THEN 6 
                                                             WHEN x.MessageType = 'Proprietary' THEN 7 
-                                                            ELSE NULL
+                                                            ELSE -1
                                                        END, 
                                         'NetID', x.NetID, 
                                         'PHYPayload', x.PHYPayload, 
@@ -101,20 +101,20 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # TODO: analyse if these 3 steps are necessary
         
-        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), None)
+        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), -1)
                                           .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
                                                                         reverse_hex_udf(col("FCnt")), 
                                                                         col("FOpts")), 1)
                                            .otherwise(0))
 
-        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), None)
+        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), -1)
                                                 .when(col("MACPayload") == concat(col("FHDR"), 
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
         """
-        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), None)
+        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), -1)
                                           .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
                                           .otherwise(0))
         """
@@ -127,27 +127,25 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'data' after creating 'dataLen'
         df = df.drop("data")
 
+        # manually define hexadecimal attributes from the 'df' dataframe, that are part
+        # of the LoRaWAN specification
         hex_attributes = ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
                         "DevNonce", "FCnt", "FCtrl", "FHDR",
                         "FOpts", "FPort", "FRMPayload", "MACPayload",
                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
-        
-        # get all non-hexadecimal attributes of the dataframe
-        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
 
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
+
+        # get all non-hexadecimal attributes of the dataframe
+        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
         
         # TODO: for the remaining attributes (that are all numeric), check if mean is really the best way 
         # to impute missing values 
         imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
-        
-        #df.select("tmst", "size", "lsnr1", "chan1").sort(asc("tmst")).show(truncate=False)
 
         df = imputer.fit(df).transform(df)
-
-        #df.select("tmst", "size", "lsnr1", "chan1").sort(asc("tmst")).show(truncate=False)
 
         # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
 

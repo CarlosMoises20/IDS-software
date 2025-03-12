@@ -18,7 +18,7 @@ class TxpkProcessing(DataProcessing):
         column_names = get_all_attributes_names(df_train.schema)
 
         # Criar o vetor de features
-        assembler = VectorAssembler(inputCols=column_names, outputCol="features", handleInvalid="keep")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
 
         # Criar o modelo RandomForest
         rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", numTrees=7, maxDepth=5, seed=522)
@@ -37,8 +37,5 @@ class TxpkProcessing(DataProcessing):
         roc_auc = evaluator.evaluate(predictions)
 
         print(f"Área sob a curva ROC: {roc_auc}")
-
-        # Exibir previsões
-        predictions.select("intrusion", "prediction", "probability").show(200)
 
         return 1

@@ -41,10 +41,13 @@ class MessageClassification:
         # (this proportion can be modified according to the results)
         df_train, df_test = df.randomSplit([0.7, 0.3], seed=522)
 
+        df_train.persist()
+        df_test.persist()  
+
         ### Initialize processing class
         processing = dataset_type.value["processing_class"]
 
-        # Call processing method on the corresponding class and return the processing results
+        # Call processing method on the corresponding class and return the processing results (model)
         return processing.process_data(df_train, df_test)
 
         

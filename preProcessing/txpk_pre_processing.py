@@ -67,34 +67,34 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "Confirmed Data Down", 5)
                                           .when(col("MessageType") == "Rejoin Request", 6)
                                           .when(col("MessageType") == "Proprietary", 7)
-                                          .otherwise(None))
+                                          .otherwise(-1))
 
         # Convert 'FCtrlACK' to integer: True = 1, False = 0; ensuring that an acknowledge was received is useful to detect anomalies
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/
         df = df.withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
                                       .when(col("FCtrlACK") == False, 0)
-                                      .otherwise(None)) 
+                                      .otherwise(-1)) 
 
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
         # TODO: analyse if these 3 steps are really necessary
-        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), None)
+        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), -1)
                                             .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
                                                                         reverse_hex_udf(col("FCnt")), 
                                                                         col("FOpts")), 1)
                                             .otherwise(0))
 
-        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), None)
+        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), -1)
                                                 .when(col("MACPayload") == concat(col("FHDR"), 
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
         
         """
-        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), None)
+        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), -1)
                                           .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
                                           .otherwise(0))
         """
@@ -109,8 +109,9 @@ class TxpkPreProcessing(DataPreProcessing):
         # TODO: check is "data" and "datr" are not needed
         df = df.drop("data", "datr")
 
-        # manually define all LoRaWAN attributes in the dataframe 'df' that are hexadecimal
-        hex_attributes = ["AppNonce", "CFListType","DevAddr", "FCnt", 
+        # manually define hexadecimal attributes from the 'df' dataframe, that are part
+        # of the LoRaWAN specification
+        hex_attributes = ["AppNonce", "CFListType", "DevAddr", "FCnt", 
                         "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                         "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                         "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",

@@ -8,3 +8,6 @@ artifacts/*
 
 # Python cache
 **/__pycache__/*
+
+# Environments
+pyspark-env/*

@@ -1,7 +1,7 @@
 
 from pyspark.sql.types import DecimalType
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when, col, expr
+from pyspark.sql.functions import when, col, expr, lit, bool_or
 
 class DataPreProcessing(ABC):
 
@@ -15,8 +15,8 @@ class DataPreProcessing(ABC):
     def reverse_hex_octets(hex_str):
 
         # If hex_str is None, return None
-        if hex_str is None:
-            return None
+        if (hex_str is None) or (hex_str == ""):
+            return -1
 
         # Ensure hex_str has an even number of characters
         if len(hex_str) % 2 != 0:
@@ -43,7 +43,7 @@ class DataPreProcessing(ABC):
         for attr in attributes:
             # Fill missing values with -1, since -1 would never be a valid value
             # for an hexadecimal-to-decimal attribute
-            df = df.withColumn(attr, when(col(attr).isNull(), -1)
+            df = df.withColumn(attr, when((col(attr).isNull()) | (col(attr) == lit("")), -1)
                                       .otherwise(expr(f"conv({attr}, 16, 10)").cast(DecimalType(38, 0))))
 
         return df
@@ -60,7 +60,7 @@ class DataPreProcessing(ABC):
     def hex_to_binary(df, attributes):
         
         for attr in attributes:
-            df = df.withColumn(attr, when(col(attr).isNull(), None)
+            df = df.withColumn(attr, when((col(attr).isNull()) | (col(attr) == lit("")), -1)
                                       .otherwise(expr(f"bin(conv({attr}, 16, 10))")))
 
         return df
