@@ -25,6 +25,7 @@ def bind_dir_files(dataset_root_path, dataset_type):
     if os.path.exists(output_filename):
         print(f"File '{output_filename}' already exists. Skipping generation.")
     
+    # Generate file if it doesn't exist yet
     else:
         # Create a list to store the content of different files
         all_logs = []           
@@ -82,3 +83,26 @@ def get_all_attributes_names(df_schema, parent_name=""):
             attribute_names.append(field.name)
 
     return attribute_names
+
+
+
+
+# Auxiliary function to print time on adequate format
+def format_time(seconds):
+    
+    # Function to round the value of seconds to integer
+    seconds = round(seconds)
+
+    if seconds < 1:
+        return f"{seconds * 1000:.2f} ms"            # Milisseconds
+    elif seconds < 60:
+        return f"{seconds:.2f} s "                   # Seconds
+    elif seconds < 3600:
+        minutes = int(seconds // 60)
+        sec = int(seconds % 60)
+        return f"{minutes} min {sec} s "             # Minutes and seconds
+    else:
+        hours = int(seconds // 3600)
+        minutes = int((seconds % 3600) // 60)
+        sec = int(seconds % 60)
+        return f"{hours} h {minutes} min {sec} s "   # Minutes, hours and seconds

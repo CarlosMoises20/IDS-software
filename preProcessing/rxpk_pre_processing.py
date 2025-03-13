@@ -1,9 +1,11 @@
 
+import time
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc, struct
+from pyspark.sql.types import StringType, IntegerType
 from pyspark.ml.feature import Imputer
-from auxiliaryFunctions.general import get_all_attributes_names
+from auxiliaryFunctions.general import get_all_attributes_names, format_time
+from auxiliaryFunctions.anomaly_detection import intrusion_detection
 
 """
 This class represents the pre-processing phase on LoRaWAN messages from the 'rxpk' dataset
@@ -20,6 +22,8 @@ class RxpkPreProcessing(DataPreProcessing):
     """
     @staticmethod
     def pre_process_data(df):
+
+        start_time = time.time()
 
         ## Feature Selection: remove irrelevant, redundant and correlated attributes
         # apply filter to let pass only relevant attributes inside 'rxpk' and 'rsig' arrays
@@ -113,11 +117,6 @@ class RxpkPreProcessing(DataPreProcessing):
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
-        """
-        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), -1)
-                                          .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
-                                          .otherwise(0))
-        """
 
         
         # Create 'DataLen' that corresponds to the length of 'data', 
@@ -134,22 +133,25 @@ class RxpkPreProcessing(DataPreProcessing):
                         "FOpts", "FPort", "FRMPayload", "MACPayload",
                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
 
-        # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL values with -1 since
+        # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
         # get all non-hexadecimal attributes of the dataframe
         non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
         
-        # TODO: for the remaining attributes (that are all numeric), check if mean is really the best way 
-        # to impute missing values 
         imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
 
-        # TODO: after starting processing, analyse if it's necessary to apply some more pre-processing steps
+        # Define UDF to apply the function of intrusion detection
+        intrusion_udf = udf(lambda row: intrusion_detection(row), IntegerType())
 
-        df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))
+        df = df.withColumn("intrusion", intrusion_udf(struct(*df.columns)))
+
+        end_time = time.time()
+
+        print("Time of rxpk pre-processing: ", format_time(end_time - start_time), "\n\n")
 
         return df
 

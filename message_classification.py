@@ -1,7 +1,5 @@
 
 from auxiliaryFunctions.general import bind_dir_files
-import os
-
 
 class MessageClassification:
 
@@ -34,20 +32,14 @@ class MessageClassification:
         # Call pre-processing method on the corresponding class
         df = pre_processing.pre_process_data(df)
 
-        # randomly divide dataset into training (70%) and test (30%)
-        # and set a seed in order to ensure reproducibility, which is important to 
-        # ensure that the model is always trained and tested on the same examples each time the
-        # model is run. This is important to compare the model's performance in different situations
-        # (this proportion can be modified according to the results)
-        df_train, df_test = df.randomSplit([0.7, 0.3], seed=522)
+        df.persist()
 
-        df_train.persist()
-        df_test.persist()  
+        df = df.repartition(100)
 
         ### Initialize processing class
         processing = dataset_type.value["processing_class"]
 
         # Call processing method on the corresponding class and return the processing results (model)
-        return processing.process_data(df_train, df_test)
+        return processing.process_data(df)
 
         

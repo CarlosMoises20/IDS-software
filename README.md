@@ -19,3 +19,6 @@ python .\main.py
 ```python3
 python .\test.py
 ```
+
+
+### TODO: add instructions to create 'CrateDB' docker local container 

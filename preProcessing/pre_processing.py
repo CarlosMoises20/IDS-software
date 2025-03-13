@@ -1,7 +1,7 @@
 
 from pyspark.sql.types import DecimalType
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when, col, expr, lit, bool_or
+from pyspark.sql.functions import when, col, expr, lit
 
 class DataPreProcessing(ABC):
 
@@ -14,7 +14,7 @@ class DataPreProcessing(ABC):
     @staticmethod
     def reverse_hex_octets(hex_str):
 
-        # If hex_str is None, return None
+        # If hex_str is None or an empty string, return -1
         if (hex_str is None) or (hex_str == ""):
             return -1
 
@@ -28,7 +28,6 @@ class DataPreProcessing(ABC):
         
         return reversed_octets
 
-
     """
     Method to convert hexadecimal attributes to decimal attributes in numeric format (DecimalType(38, 0)),
     in order to avoid loss of precision and accuracy in very big values, supporting a scale of up to 38 digits
@@ -41,13 +40,12 @@ class DataPreProcessing(ABC):
     def hex_to_decimal(df, attributes):
         
         for attr in attributes:
-            # Fill missing values with -1, since -1 would never be a valid value
+            # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
             # for an hexadecimal-to-decimal attribute
             df = df.withColumn(attr, when((col(attr).isNull()) | (col(attr) == lit("")), -1)
                                       .otherwise(expr(f"conv({attr}, 16, 10)").cast(DecimalType(38, 0))))
 
         return df
-
 
     """
     Method to convert hexadecimal attributes to decimal attributes in string format
@@ -60,12 +58,13 @@ class DataPreProcessing(ABC):
     def hex_to_binary(df, attributes):
         
         for attr in attributes:
+            # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
+            # for an hexadecimal-to-decimal attribute
             df = df.withColumn(attr, when((col(attr).isNull()) | (col(attr) == lit("")), -1)
                                       .otherwise(expr(f"bin(conv({attr}, 16, 10))")))
 
         return df
 
-    
     """
     Abstract method for data pre-processing that has different implementations for 'rxpk' and 'txpk'
     

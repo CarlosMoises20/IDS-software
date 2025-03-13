@@ -1,11 +1,12 @@
 
-
-from pyspark.sql.functions import expr, when, col, asc, concat, length
+import time
+from pyspark.sql.functions import expr, when, col, asc, concat, length, struct
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType
+from pyspark.sql.types import StringType, IntegerType
 from pyspark.ml.feature import Imputer
-from auxiliaryFunctions.general import get_all_attributes_names
+from auxiliaryFunctions.general import get_all_attributes_names, format_time
+from auxiliaryFunctions.anomaly_detection import intrusion_detection
 
 
 class TxpkPreProcessing(DataPreProcessing):
@@ -31,6 +32,8 @@ class TxpkPreProcessing(DataPreProcessing):
     """
     @staticmethod
     def pre_process_data(df):
+
+        start_time = time.time()
 
         # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
         # of attributes inside the 'txpk' struct
@@ -92,12 +95,6 @@ class TxpkPreProcessing(DataPreProcessing):
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
-        
-        """
-        df = df.withColumn("Valid_MHDR", when(col("MHDR").isNull(), -1)
-                                          .when(hex_to_binary_udf(col("MHDR"))[:3] == bin(col("MessageType")), 1)
-                                          .otherwise(0))
-        """
 
         # After calculating RFU, remove DLSettings
         df = df.drop("DLSettings")
@@ -118,7 +115,7 @@ class TxpkPreProcessing(DataPreProcessing):
                         "PHYPayload", "RxDelay"]
 
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
-        # this also replaces NULL values with -1 to be supported by the algorithms
+        # this also replaces NULL and empty values with -1 to be supported by the algorithms
         # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
         # these would be treated as categorical values, which is not the case
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
@@ -126,16 +123,18 @@ class TxpkPreProcessing(DataPreProcessing):
         # get all other attributes that used not to be hexadecimal
         non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
         
-        # TODO: find an reasonable approach to impute missing values on the remaining attributes (e.g. the ones that were always numeric
-        # and the categorical attributes)
         imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
 
-        # TODO: during processing, analyse if it's necessary to apply some more pre-processing steps
+        # Define UDF to apply the function of intrusion detection
+        intrusion_udf = udf(lambda row: intrusion_detection(row), IntegerType())
 
-        df = df.withColumn("intrusion", when((col("Valid_FHDR") == 1) & (col("Valid_MACPayload") == 1), 0).otherwise(1))
+        df = df.withColumn("intrusion", intrusion_udf(struct(*df.columns)))
 
+        end_time = time.time()
+
+        print("Time of txpk pre-processing: ", format_time(end_time - start_time), "\n\n")
 
         return df
 
