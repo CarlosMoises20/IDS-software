@@ -31,6 +31,8 @@ class RxpkProcessing(DataProcessing):
         pipelineModel = pipeline.fit(df)
         df = pipelineModel.transform(df)
 
+        #df = df.filter(df.DevAddr == 48979)
+
         # randomly divide dataset into training (80%) and test (20%)
         # and set a seed in order to ensure reproducibility, which is important to 
         # ensure that the model is always trained and tested on the same examples each time the
@@ -40,7 +42,7 @@ class RxpkProcessing(DataProcessing):
 
         # Create the Random Forest Classifier model
         rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", 
-                                    numTrees=6, maxDepth=3, seed=522, maxMemoryInMB=8192)
+                                    numTrees=6, maxDepth=3, seed=522, maxMemoryInMB=8388608)
 
         model = rf.fit(df_train)
 
@@ -55,7 +57,8 @@ class RxpkProcessing(DataProcessing):
 
         end_time = time.time()
 
+        # Print the total time of pre-processing; the time is in seconds, minutes or hours
         print("Time of rxpk processing: ", format_time(end_time - start_time), "\n\n")
 
-        # TODO: the model and evaluator should be returned to be used on real-time incoming messages
+        # TODO: the model and results should be returned to be used on real-time incoming messages
         return 3

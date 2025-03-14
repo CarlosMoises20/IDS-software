@@ -2,8 +2,28 @@
 from pyspark.sql.types import DecimalType
 from abc import ABC, abstractmethod
 from pyspark.sql.functions import when, col, expr, lit
+from auxiliaryFunctions.general import get_all_attributes_names
+from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 
 class DataPreProcessing(ABC):
+
+    @staticmethod
+    def normalization(df):
+
+        attributes = get_all_attributes_names(df.schema)
+
+        assembler = VectorAssembler(inputCols=attributes, outputCol="features")
+
+        df = assembler.transform(df)
+        
+        scaler = MinMaxScaler(inputCol="features", outputCol="scaled_features")
+        df = scaler.fit(df).transform(df)
+        
+        df = df.drop("features")
+
+        return df
+
+
 
     """
     Method to reverse hexadecimal octets in string format

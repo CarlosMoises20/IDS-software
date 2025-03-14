@@ -55,13 +55,8 @@ class AnomalyDetection:
 
     # auxiliary boolean function to detect jamming attacks
     @staticmethod
-    def __jamming_detection(rssi_values):
-        if isinstance(rssi_values, list):
-            for i in rssi_values:
-                if (i is not None) and (i < RSSI_MIN or i > RSSI_MAX):
-                    return True
-
-        return False
+    def __jamming_detection(rssi):
+        return rssi < RSSI_MIN or rssi > RSSI_MAX
     
 
     # Replay attack detection based on FCnt reuse
@@ -105,46 +100,12 @@ class AnomalyDetection:
             pass
         if message_type == 5:   # Confirmed Data Down
             pass
-        if message_type == 6:   # Rejoin Request
-            pass
         if message_type == 7:   # Proprietary
             pass
 
+        # Rejoin-Requests (6) don't exist on the dataset, so the model won't be trained on it
 
 
-
-# this function will be fundamental to define the label that will be used as
-# the desired output in the model training, that will allow the model to fit
-# its weights and pendors using the input and the desired output
-def intrusion_detection(df_row):
-
-    try:
-
-        # TODO: introduce all types of possible LoRaWAN attacks here
-
-        # call AnomalyDetection.__detection
-
-        # Example logic for detecting an intrusion
-        jamming = AnomalyDetection.__jamming_detection([df_row.rssi])
-
-        # Example LSNR anomaly detection (adjust thresholds as needed)
-        lsnr_anomaly = df_row.lsnr1 < LSNR_MIN or df_row.lsnr2 < LSNR_MIN or \
-                        df_row.lsnr2 > LSNR_MAX or df_row.lsnr2 > LSNR_MAX
-
-        #replay_attack = AnomalyDetection.__replay_attack(fcnt_history, df_row.FCnt)
-        
-        sinkhole = AnomalyDetection.__sinkhole_detection(df_row.freq)
-        wormhole = AnomalyDetection.__wormhole_detection(df_row.tmst)
-        downlink_routing = AnomalyDetection.__downlink_routing_attack(df_row.Valid_MACPayload)
-        physical_tampering = AnomalyDetection.__physical_tampering(df_row.Valid_FHDR)
-
-
-        # If any of the conditions indicate an intrusion, return 1 (intrusion detected), otherwise return 0
-        return int(jamming or lsnr_anomaly or sinkhole or wormhole or \
-                   downlink_routing or physical_tampering)
-
-    except Exception as e:
-        return 0  # Default to no intrusion if an error occurs
 
         
 

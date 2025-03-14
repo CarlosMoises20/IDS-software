@@ -11,3 +11,6 @@ artifacts/*
 
 # Environments
 pyspark-env/*
+
+# Test files
+test*

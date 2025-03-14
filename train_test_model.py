@@ -10,6 +10,7 @@ def execute(dataset_type, spark_session):
     test_result = mc.message_classification(spark_session, dataset_type)
 
     output_path = f'./output_test_{dataset_type.value["filename_field"]}'
+    
     #test_result.write.mode("overwrite").csv(output_path)    # TODO: maybe parquet file instead ?? analyse it later
 
     return test_result
@@ -33,6 +34,7 @@ if __name__ == '__main__':
     # List of tasks (each task processes a different category of LoRaWAN messages according to the gateway)
     tasks = [DatasetType.RXPK, DatasetType.TXPK]
 
+    # List to store the results
     results = []
 
     # Execute tasks in parallel using threads that use the Spark Session to process LoRaWAN data

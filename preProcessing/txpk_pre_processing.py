@@ -6,10 +6,28 @@ from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType, IntegerType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
-from auxiliaryFunctions.anomaly_detection import intrusion_detection
-
+from auxiliaryFunctions.anomaly_detection import AnomalyDetection
+from constants import *
 
 class TxpkPreProcessing(DataPreProcessing):
+
+
+    # this function will be fundamental to define the label that will be used as
+    # the desired output in the model training, that will allow the model to fit
+    # its weights and pendors using the input and the desired output
+    @staticmethod
+    def intrusion_detection(df_row):
+
+        try:
+
+            # TODO: introduce all types of possible LoRaWAN attacks here
+            # TODO: correct the logic; separate examples for each device (DevAddr)
+
+            pass
+
+        except Exception as e:
+            return 0  # Default to no intrusion if an error occurs
+
 
 
     """
@@ -38,7 +56,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
         # of attributes inside the 'txpk' struct
         selected_columns = [
-            "AppNonce", "CFList", "DLSettings", "DLSettingsRX1DRoffset", 
+            "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
             "DLSettingsRX2DataRate", "DevAddr", "FCnt", "FCtrl", 
             "FCtrlACK", "FHDR", "FOpts", "FPort", "FRMPayload",
             "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
@@ -46,7 +64,7 @@ class TxpkPreProcessing(DataPreProcessing):
             "PHYPayload", "RxDelay", "txpk.*"
         ]
 
-        # Select only the specified columns
+        # Select only the specified columns, removing irrelevant, redundant or correlated attributes
         df = df.select(*selected_columns)
 
         # Remove irrelevant / redundant attributes that used to be inside 'txpk' array,
@@ -82,7 +100,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # others but with reversed octets
         reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
-        # TODO: analyse if these 3 steps are really necessary
+        # TODO: analyse if these steps are really necessary
         df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), -1)
                                             .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
                                                                         reverse_hex_udf(col("FCtrl")), 
@@ -95,9 +113,6 @@ class TxpkPreProcessing(DataPreProcessing):
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
                                                 .otherwise(0))
-
-        # After calculating RFU, remove DLSettings
-        df = df.drop("DLSettings")
 
         # Create 'dataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
@@ -123,17 +138,26 @@ class TxpkPreProcessing(DataPreProcessing):
         # get all other attributes that used not to be hexadecimal
         non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
         
+        # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
+        # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
+        # the mean is the best approach to preserve the distribution and variety of the data
         imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
 
         # Define UDF to apply the function of intrusion detection
-        intrusion_udf = udf(lambda row: intrusion_detection(row), IntegerType())
+        intrusion_udf = udf(lambda row: TxpkPreProcessing.intrusion_detection(row), IntegerType())
 
+        # define the label "intrusion" based on the result of the intrusion detection; this label will
+        # be used for supervised learning of the models during training
         df = df.withColumn("intrusion", intrusion_udf(struct(*df.columns)))
+
+        # apply normalization
+        #df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
 
+        # Print the total time of pre-processing; the time is in seconds, minutes or hours
         print("Time of txpk pre-processing: ", format_time(end_time - start_time), "\n\n")
 
         return df
