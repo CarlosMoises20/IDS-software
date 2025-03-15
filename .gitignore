@@ -4,11 +4,24 @@
 # Datasets
 data*/
 
-# Outputs
-output*/
-
 # PyCache
 __pycache__/
 
 # virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 hs_err_pid*
+
+# Outputs
+output*/*
+combinedDatasets/*
+
+# Artifacts
+artifacts/*
+
+# Python cache
+**/__pycache__/*
+
+# Environments
+pyspark-env/*
+
+# Test files
+test*
