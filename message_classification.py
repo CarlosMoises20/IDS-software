@@ -32,10 +32,6 @@ class MessageClassification:
         # Call pre-processing method on the corresponding class
         df = pre_processing.pre_process_data(df)
 
-        df.persist()                    # TODO: review if this is necessary, specially if changing to VM
-
-        df = df.repartition(100)        # TODO: review if this is necessary, specially if changing to VM
-
         ### Initialize processing class
         processing = dataset_type.value["processing_class"]
 
