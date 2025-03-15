@@ -54,7 +54,7 @@ class TxpkProcessing(DataProcessing):
 
         end_time = time.time()
 
-        print("Time of txpk processing: ", format_time(end_time - start_time), "\n\n")
+        print("Time of txpk processing:", format_time(end_time - start_time), "\n\n")
 
         # TODO: the model and evaluator should be returned to be used on real-time incoming messages
         return 1

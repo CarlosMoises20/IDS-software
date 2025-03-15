@@ -3,6 +3,7 @@ from message_classification import MessageClassification as mc
 from dataset_type import DatasetType
 from concurrent.futures import ThreadPoolExecutor
 from crate.client import connect
+from constants import *
 
 
 def execute(dataset_type, spark_session):
@@ -18,18 +19,19 @@ def execute(dataset_type, spark_session):
 
 if __name__ == '__main__':
 
-    # Initialize Spark Session
     spark_session = SparkSession.builder \
-                                .appName("IDS for LoRaWAN network") \
-                                .config("spark.sql.shuffle.partitions", "400")  \
-                                .config("spark.sql.autoBroadcastJoinThreshold", "-1")  \
-                                .config("spark.sql.files.maxPartitionBytes", "134217728")  \
-                                .config("spark.executor.memory", "8g") \
-                                .config("spark.driver.memory", "8g") \
-                                .config("spark.executor.memoryOverhead", "3000") \
-                                .config("spark.network.timeout", "800s") \
-                                .config("spark.executor.heartbeatInterval", "60s") \
-                                .getOrCreate()
+                            .appName(SPARK_APP_NAME) \
+                            .config("spark.ui.port", SPARK_PORT) \
+                            .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
+                            .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
+                            .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
+                            .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \
+                            .config("spark.executor.memoryOverhead", SPARK_EXECUTOR_MEMORY_OVERHEAD) \
+                            .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
+                            .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
+                            .getOrCreate()
+    
+    spark_session.sparkContext.setLogLevel("DEBUG")
 
     # List of tasks (each task processes a different category of LoRaWAN messages according to the gateway)
     tasks = [DatasetType.RXPK, DatasetType.TXPK]

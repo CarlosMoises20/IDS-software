@@ -5,9 +5,8 @@ from pyspark.ml import Pipeline
 from pyspark.ml.feature import VectorAssembler
 from pyspark.ml.classification import RandomForestClassifier
 from pyspark.ml import Model
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, MulticlassClassificationEvaluator
-from pyspark.mllib.evaluation import BinaryClassificationMetrics, MulticlassMetrics
-from pyspark.ml.tuning import CrossValidator, ParamGridBuilder, CrossValidatorModel
+from pyspark.ml.evaluation import BinaryClassificationEvaluator
+from pyspark.ml.tuning import CrossValidator, CrossValidatorModel
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
 
 
@@ -41,8 +40,9 @@ class RxpkProcessing(DataProcessing):
         df_train, df_test = df.randomSplit([0.8, 0.2], seed=522)
 
         # Create the Random Forest Classifier model
-        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion", 
-                                    numTrees=6, maxDepth=3, seed=522, maxMemoryInMB=8388608)
+        rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion",
+                                    predictionCol="prediction", 
+                                    numTrees=6, maxDepth=3, seed=522, maxMemoryInMB=1024)
 
         model = rf.fit(df_train)
 
@@ -58,7 +58,7 @@ class RxpkProcessing(DataProcessing):
         end_time = time.time()
 
         # Print the total time of pre-processing; the time is in seconds, minutes or hours
-        print("Time of rxpk processing: ", format_time(end_time - start_time), "\n\n")
+        print("Time of rxpk processing:", format_time(end_time - start_time), "\n\n")
 
         # TODO: the model and results should be returned to be used on real-time incoming messages
         return 3

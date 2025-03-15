@@ -1,12 +1,10 @@
 
-
 from constants import *
 from pyspark.sql.functions import udf
 from pyspark.sql.types import BooleanType
 from scipy.spatial.distance import hamming
 import numpy as np
 from scipy.stats import entropy
-
 
 
 class AnomalyDetection:
@@ -52,61 +50,8 @@ class AnomalyDetection:
         return entropy(P, Q, base=2)  # Using log base 2 for better interpretability
 
 
-
-    # auxiliary boolean function to detect jamming attacks
+    # TODO: review this and apply on code, not here as UDF 
     @staticmethod
-    def __jamming_detection(rssi):
-        return rssi < RSSI_MIN or rssi > RSSI_MAX
-    
-
-    # Replay attack detection based on FCnt reuse
-    @staticmethod
-    def __replay_attack(fcnt_history, current_fcnt):
+    def replay_attack(fcnt_history, current_fcnt):
         return current_fcnt in fcnt_history
-
-    # Sinkhole attack detection based on frequency anomalies
-    @staticmethod
-    def __sinkhole_detection(freq):
-        return freq not in EXPECTED_FREQUENCIES
-
-    # Wormhole attack detection based on timestamp anomalies
-    @staticmethod
-    def __wormhole_detection(tmst):
-        return tmst > EXPECTED_TMST_THRESHOLD
-
-    # Downlink routing attack detection using MAC Payload validation
-    @staticmethod
-    def __downlink_routing_attack(valid_mac_payload):
-        return valid_mac_payload == 0  # Invalid payload suggests interference
-
-    # Physical tampering detection based on unexpected FHDR values
-    @staticmethod
-    def __physical_tampering(valid_fhdr):
-        return valid_fhdr == 0
-    
-
-    @staticmethod
-    def __detection(message_type):
-
-        if message_type == 0:   # Join Request
-            pass
-        if message_type == 1:   # Join Accept
-            pass
-        if message_type == 2:   # Unconfirmed Data Up
-            pass
-        if message_type == 3:   # Unconfirmed Data Down
-            pass
-        if message_type == 4:   # Confirmed Data Up
-            pass
-        if message_type == 5:   # Confirmed Data Down
-            pass
-        if message_type == 7:   # Proprietary
-            pass
-
-        # Rejoin-Requests (6) don't exist on the dataset, so the model won't be trained on it
-
-
-
-        
-
     

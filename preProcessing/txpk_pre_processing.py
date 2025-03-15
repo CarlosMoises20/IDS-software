@@ -1,6 +1,6 @@
 
 import time
-from pyspark.sql.functions import expr, when, col, asc, concat, length, struct
+from pyspark.sql.functions import expr, when, col, asc, concat, length
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType, IntegerType
@@ -10,24 +10,6 @@ from auxiliaryFunctions.anomaly_detection import AnomalyDetection
 from constants import *
 
 class TxpkPreProcessing(DataPreProcessing):
-
-
-    # this function will be fundamental to define the label that will be used as
-    # the desired output in the model training, that will allow the model to fit
-    # its weights and pendors using the input and the desired output
-    @staticmethod
-    def intrusion_detection(df_row):
-
-        try:
-
-            # TODO: introduce all types of possible LoRaWAN attacks here
-            # TODO: correct the logic; separate examples for each device (DevAddr)
-
-            pass
-
-        except Exception as e:
-            return 0  # Default to no intrusion if an error occurs
-
 
 
     """
@@ -118,7 +100,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # that represents the content of the LoRaWAN message
         df = df.withColumn("dataLen", length(col("data")))
 
-        # TODO: check is "data" and "datr" are not needed
+        # TODO: check if "data" and "datr" are not needed
         df = df.drop("data", "datr")
 
         # manually define hexadecimal attributes from the 'df' dataframe, that are part
@@ -145,12 +127,49 @@ class TxpkPreProcessing(DataPreProcessing):
 
         df = imputer.fit(df).transform(df)
 
-        # Define UDF to apply the function of intrusion detection
-        intrusion_udf = udf(lambda row: TxpkPreProcessing.intrusion_detection(row), IntegerType())
 
         # define the label "intrusion" based on the result of the intrusion detection; this label will
         # be used for supervised learning of the models during training
-        df = df.withColumn("intrusion", intrusion_udf(struct(*df.columns)))
+        # Define "intrusion" based on MessageType without using UDFs
+        df = df.withColumn("intrusion", when(col("MessageType") == 0 | col("MessageType") == 6,  # Join Request and Rejoin-Request
+                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
+                                            .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
+                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
+                                            .when(col("Valid_MACPayload") == 0, 1)  # Downlink Routing Attack
+                                            .when(col("Valid_FHDR") == 0, 1)  # Physical Tampering
+                                            .otherwise(0)
+                                        ).when(
+                                            col("MessageType") == 1,      # Join Accept
+                                            when(col("Valid_MACPayload") == 0, 1)       # Downlink Routing Attack
+                                            .otherwise(0)
+                                        ).when(
+                                            col("MessageType") == 2,  # Unconfirmed Data Up
+                                            when(col("Valid_FHDR") == 0, 1)             # Physical Tampering
+                                            .otherwise(0)
+                                        ).when(
+                                            col("MessageType") == 3,  # Unconfirmed Data Down
+                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)
+                                            .when((col("Valid_MACPayload") == 0), 1)
+                                            .otherwise(0)
+                                        ).when(
+                                            col("MessageType") == 4,  # Confirmed Data Up
+                                            when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
+                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
+                                            .otherwise(0)
+                                        ).when(
+                                            col("MessageType") == 5,  # Confirmed Data Down
+                                            when(col("Valid_FHDR") == 0, 1)
+                                            .when(col("Valid_MACPayload") == 0, 1)
+                                            .otherwise(0)
+                                        )       # TODO: review Rejoin-Requests (6)
+                                        .when(
+                                            col("MessageType") == 7,  # Proprietary
+                                            when(col("Valid_FHDR") == 0, 1)
+                                            .when(col("Valid_MACPayload") == 0, 1)
+                                            .otherwise(0)
+                                        ).otherwise(0)  # No MessageType, no intrusion
+                                    )
+
 
         # apply normalization
         #df = DataPreProcessing.normalization(df)
@@ -158,7 +177,7 @@ class TxpkPreProcessing(DataPreProcessing):
         end_time = time.time()
 
         # Print the total time of pre-processing; the time is in seconds, minutes or hours
-        print("Time of txpk pre-processing: ", format_time(end_time - start_time), "\n\n")
+        print("Time of txpk pre-processing:", format_time(end_time - start_time), "\n\n")
 
         return df
 

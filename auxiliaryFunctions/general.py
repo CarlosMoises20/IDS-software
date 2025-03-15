@@ -87,22 +87,32 @@ def get_all_attributes_names(df_schema, parent_name=""):
 
 
 
-# Auxiliary function to print time on adequate format
+# Auxiliary function to print processing time on an adequate format
 def format_time(seconds):
-    
-    # Function to round the value of seconds to integer
-    seconds = round(seconds)
 
-    if seconds < 1:
-        return f"{seconds * 1000:.2f} ms"            # Milisseconds
-    elif seconds < 60:
-        return f"{seconds:.2f} s "                   # Seconds
-    elif seconds < 3600:
-        minutes = int(seconds // 60)
-        sec = int(seconds % 60)
-        return f"{minutes} min {sec} s "             # Minutes and seconds
+    # Convert seconds to milisseconds (round to integer)
+    milisseconds = round(seconds * 1000)
+
+    # If the time is less than 1 second and arrendondated value of milisseconds is less than 1000 milisseconds
+    # For example: seconds = 0.9999 -> milisseconds = 999.9 =~ 1000 and time will be printed in seconds
+    if milisseconds < 1000:
+        return f"{milisseconds} ms"      # Milisseconds
+
     else:
-        hours = int(seconds // 3600)
-        minutes = int((seconds % 3600) // 60)
-        sec = int(seconds % 60)
-        return f"{hours} h {minutes} min {sec} s "   # Minutes, hours and seconds
+        # Function to round the value of seconds to integer
+        seconds = round(seconds)
+    
+        if seconds < 60:
+            return f"{seconds:.2f} s "                      # Seconds
+        
+        elif seconds < 3600:
+            minutes = seconds // 60                         # Minute as the integer part of the division of total by number of seconds in a minute
+            secs = seconds % 60                             # Seconds as the rest of the division of total by number of seconds in a minute
+            return f"{minutes} min {secs} s "               # Minutes and seconds
+        
+        else:
+            hours = seconds // 3600                         # Hour as the integer part of the division of total by number of seconds in a hour
+            minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
+            secs = seconds % 60                             # Seconds as the rest of the division of total by number of seconds in a minute
+            return f"{hours} h {minutes} min {secs} s "     # Minutes, hours and seconds
+        

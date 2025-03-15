@@ -2,10 +2,22 @@
 ## All constants are defined here
 
 
+'''SPARK'''
+SPARK_APP_NAME = "IDS for LoRaWAN network"
+SPARK_PORT = "4050"
+SPARK_EXECUTOR_MEMORY = "4g"  # Reduced to 4 GB for local machine
+SPARK_DRIVER_MEMORY = "4g"  # Reduced to 4 GB for local machine
+SPARK_EXECUTOR_MEMORY_OVERHEAD = "2g"  # Increased memory overhead for more headroom
+SPARK_NETWORK_TIMEOUT = "300s"  # Reduced timeout for faster error detection
+SPARK_EXECUTOR_HEARTBEAT_INTERVAL = "60s"
+SPARK_NUM_PARTITIONS = "150"  # Adjusted number of partitions based on data size
+SPARK_FILES_MAX_PARTITION_BYTES = "268435456"
+
+
 '''CRATEDB'''
-HOST = 'localhost'
-PORT = 4201
-DATABASE_URI = f'http://{HOST}:{PORT}'
+CRATEDB_HOST = 'localhost'
+CRATEDB_PORT = 4201
+CRATEDB_URI = f'http://{CRATEDB_HOST}:{CRATEDB_PORT}'
 
 
 '''ANOMALY DETECTION'''
@@ -14,8 +26,8 @@ LSNR_MAX = 10
 RSSI_MIN = -130
 RSSI_MAX = -10
 TMST_MIN = 2000     # miliseconds
-LEN_MIN = 5        # REVIEW
-LEN_MAX = 20       # REVIEW
+LEN_MIN = 5         # REVIEW
+LEN_MAX = 20        # REVIEW
 
 
 # Expected frequency values (LoRaWAN operates on specific frequencies)
