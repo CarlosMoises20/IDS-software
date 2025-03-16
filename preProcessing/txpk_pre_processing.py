@@ -1,6 +1,6 @@
 
 import time
-from pyspark.sql.functions import expr, when, col, asc, concat, length
+from pyspark.sql.functions import expr, when, col, asc, concat, length, regexp_extract
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType, IntegerType
@@ -40,7 +40,7 @@ class TxpkPreProcessing(DataPreProcessing):
         selected_columns = [
             "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
             "DLSettingsRX2DataRate", "DevAddr", "FCnt", "FCtrl", 
-            "FCtrlACK", "FHDR", "FOpts", "FPort", "FRMPayload",
+            "FCtrlACK", "FCtrlADR", "FHDR", "FOpts", "FPort", "FRMPayload",
             "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
             "MACPayload", "MHDR", "MIC", "MessageType", "NetID", 
             "PHYPayload", "RxDelay", "txpk.*"
@@ -72,11 +72,15 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "Proprietary", 7)
                                           .otherwise(-1))
 
-        # Convert 'FCtrlACK' to integer: True = 1, False = 0; ensuring that an acknowledge was received is useful to detect anomalies
-        # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/
-        df = df.withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
-                                      .when(col("FCtrlACK") == False, 0)
-                                      .otherwise(-1)) 
+
+        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
+
+        df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
+                                        .when(col("FCtrlADR") == False, 0)
+                                        .otherwise(-1)) \
+                .withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
+                                        .when(col("FCtrlACK") == False, 0)
+                                        .otherwise(-1))
 
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
@@ -100,8 +104,18 @@ class TxpkPreProcessing(DataPreProcessing):
         # that represents the content of the LoRaWAN message
         df = df.withColumn("dataLen", length(col("data")))
 
-        # TODO: check if "data" and "datr" are not needed
-        df = df.drop("data", "datr")
+        # TODO: check if "data" is not needed
+        df = df.drop("data")
+
+        # regex pattern to extract "SF" and "BW" LoRa parameters from "datr"
+        pattern = r"SF(\d+)BW(\d+)"
+
+        # extract SF and BW from 'datr' attribute
+        df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \
+                .withColumn("BW", regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
+
+        # Remove "datr" after splitting it by "SF" and "BW"
+        df = df.drop("datr")
 
         # manually define hexadecimal attributes from the 'df' dataframe, that are part
         # of the LoRaWAN specification
@@ -128,10 +142,10 @@ class TxpkPreProcessing(DataPreProcessing):
         df = imputer.fit(df).transform(df)
 
 
-        # define the label "intrusion" based on the result of the intrusion detection; this label will
+         # define the label "intrusion" based on the result of the intrusion detection; this label will
         # be used for supervised learning of the models during training
         # Define "intrusion" based on MessageType without using UDFs
-        df = df.withColumn("intrusion", when(col("MessageType") == 0 | col("MessageType") == 6,  # Join Request and Rejoin-Request
+        df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request
                                             when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
                                             .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
                                             .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
@@ -161,8 +175,7 @@ class TxpkPreProcessing(DataPreProcessing):
                                             when(col("Valid_FHDR") == 0, 1)
                                             .when(col("Valid_MACPayload") == 0, 1)
                                             .otherwise(0)
-                                        )       # TODO: review Rejoin-Requests (6)
-                                        .when(
+                                        ).when(
                                             col("MessageType") == 7,  # Proprietary
                                             when(col("Valid_FHDR") == 0, 1)
                                             .when(col("Valid_MACPayload") == 0, 1)

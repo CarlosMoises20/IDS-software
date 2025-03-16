@@ -1,7 +1,7 @@
 
 import time
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc, struct
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc, struct, regexp_extract
 from pyspark.sql.types import StringType, IntegerType, BooleanType, DoubleType, NumericType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
@@ -77,6 +77,8 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'DevNonce', x.DevNonce, 
                                         'FCnt', x.FCnt,
                                         'FCtrl', x.FCtrl,
+                                        'FCtrlACK', x.FCtrlACK,
+                                        'FCtrlADR', x.FCtrlADR,
                                         'FHDR', x.FHDR, 
                                         'FOpts', x.FOpts, 
                                         'FPort', x.FPort, 
@@ -99,7 +101,8 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'PHYPayload', x.PHYPayload, 
                                         'RxDelay', x.RxDelay, 
                                         'chan', x.chan,
-                                        'data', x.data, 
+                                        'data', x.data,
+                                        'datr', x.datr, 
                                         'freq', x.freq, 
                                         'lsnr', x.lsnr, 
                                         'rfch', x.rfch, 
@@ -118,6 +121,32 @@ class RxpkPreProcessing(DataPreProcessing):
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")
 
+
+        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
+
+        df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
+                                        .when(col("FCtrlADR") == False, 0)
+                                        .otherwise(-1)) \
+                .withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
+                                        .when(col("FCtrlACK") == False, 0)
+                                        .otherwise(-1))
+
+
+        ### Extract SF and BW from "datr" attribute
+
+        # regex pattern to extract "SF" and "BW" LoRa parameters from "datr"
+        pattern = r"SF(\d+)BW(\d+)"
+
+        # extract SF and BW from 'datr' attribute
+        df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \
+                .withColumn("BW", regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
+
+        # Remove "datr" after splitting it by "SF" and "BW"
+        df = df.drop("datr")
+
+
+        ### Extract "chan" and "lsnr" from "rsig" attribute
+
         # aggregate 'chan' and 'lsnr' arrays, removing NULL values
         df = df.withColumn("chan", when(col("rsig.chan").isNotNull() | col("chan").isNotNull(),
                                                 expr("filter(array_union(coalesce(array(chan), array()), coalesce(rsig.chan, array())), x -> x IS NOT NULL AND x = x)")
@@ -135,6 +164,9 @@ class RxpkPreProcessing(DataPreProcessing):
         
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
+
+
+        ### Create 'Valid_FHDR', 'Valid_MACPayload' to check if "FHDR" and "MACPayload" are correctly calculated
         
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
@@ -186,7 +218,7 @@ class RxpkPreProcessing(DataPreProcessing):
         # define the label "intrusion" based on the result of the intrusion detection; this label will
         # be used for supervised learning of the models during training
         # Define "intrusion" based on MessageType without using UDFs
-        df = df.withColumn("intrusion", when(col("MessageType") == 0 | col("MessageType") == 6,  # Join Request and Rejoin-Request
+        df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request
                                             when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
                                             .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
                                             .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
@@ -216,8 +248,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                             when(col("Valid_FHDR") == 0, 1)
                                             .when(col("Valid_MACPayload") == 0, 1)
                                             .otherwise(0)
-                                        )       # Rejoin-Requests (6) don't exist on the dataset, so the model won't be trained on it
-                                        .when(
+                                        ).when(
                                             col("MessageType") == 7,  # Proprietary
                                             when(col("Valid_FHDR") == 0, 1)
                                             .when(col("Valid_MACPayload") == 0, 1)
