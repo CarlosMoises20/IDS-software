@@ -117,9 +117,9 @@ class TxpkPreProcessing(DataPreProcessing):
         # Remove "datr" after splitting it by "SF" and "BW"
         df = df.drop("datr")
 
-        # manually define hexadecimal attributes from the 'df' dataframe, that are part
-        # of the LoRaWAN specification
-        hex_attributes = ["AppNonce", "CFListType", "DevAddr", "FCnt", 
+        # manually define hexadecimal attributes from the 'df' dataframe that will be
+        # converted to decimal to be processed by the algorithms as values
+        hex_attributes = ["AppNonce", "CFListType", "FCnt", 
                         "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                         "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                         "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
@@ -131,18 +131,19 @@ class TxpkPreProcessing(DataPreProcessing):
         # these would be treated as categorical values, which is not the case
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-        # get all other attributes that used not to be hexadecimal
-        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
+        # get all other attributes
+        remaining_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes + ["DevAddr"]))
         
         # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
         # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
         # the mean is the best approach to preserve the distribution and variety of the data
-        imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
+        imputer = Imputer(inputCols=remaining_attributes, outputCols=remaining_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
 
 
-         # define the label "intrusion" based on the result of the intrusion detection; this label will
+        # TODO: fix
+        # define the label "intrusion" based on the result of the intrusion detection; this label will
         # be used for supervised learning of the models during training
         # Define "intrusion" based on MessageType without using UDFs
         df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request

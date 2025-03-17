@@ -194,9 +194,9 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'data' after creating 'dataLen'
         df = df.drop("data")
 
-        # manually define hexadecimal attributes from the 'df' dataframe, that are part
-        # of the LoRaWAN specification
-        hex_attributes = ["AppEUI", "AppNonce", "DevAddr", "DevEUI",
+        # manually define hexadecimal attributes from the 'df' dataframe that will be
+        # converted to decimal to be processed by the algorithms as values
+        hex_attributes = ["AppEUI", "AppNonce", "DevEUI",
                         "DevNonce", "FCnt", "FCtrl", "FHDR",
                         "FOpts", "FPort", "FRMPayload", "MACPayload",
                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
@@ -206,15 +206,16 @@ class RxpkPreProcessing(DataPreProcessing):
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
         # get all non-hexadecimal attributes of the dataframe
-        non_hex_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes))
+        remaining_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes + ["DevAddr"]))
         
         # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
         # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
         # the mean is the best approach to preserve the distribution and variety of the data
-        imputer = Imputer(inputCols=non_hex_attributes, outputCols=non_hex_attributes, strategy="mean")
+        imputer = Imputer(inputCols=remaining_attributes, outputCols=remaining_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
 
+        # TODO: fix
         # define the label "intrusion" based on the result of the intrusion detection; this label will
         # be used for supervised learning of the models during training
         # Define "intrusion" based on MessageType without using UDFs

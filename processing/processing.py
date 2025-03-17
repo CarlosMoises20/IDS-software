@@ -9,5 +9,5 @@ class DataProcessing(ABC):
 
     @staticmethod
     @abstractmethod
-    def process_data(df_train, df_test):
+    def process_data(df):
         """..."""
