@@ -7,7 +7,7 @@ CREATE TABLE model (
     dataset_type        VARCHAR(4) NOT NULL CHECK (dataset_type IN ('RXPK', 'TXPK')),
     created             TIMESTAMP NOT NULL DEFAULT NOW(),
     modified            TIMESTAMP NOT NULL DEFAULT NOW(),
-    --model               OBJECT(DYNAMIC) NOT NULL,
+    --model               OBJECT(DYNAMIC) NOT NULL,     -- review this later
     accuracy            DECIMAL(5,4) NOT NULL CHECK (accuracy >= 0 AND accuracy <= 1),
     
     CONSTRAINT PK_model PRIMARY KEY (dev_addr, dataset_type)
