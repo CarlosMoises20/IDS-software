@@ -2,15 +2,15 @@ from pyspark.sql import SparkSession
 from message_classification import MessageClassification as mc
 from dataset_type import DatasetType
 from concurrent.futures import ThreadPoolExecutor
-from crate.client import connect
 from constants import *
 
 
 def execute(dataset_type, spark_session):
     
+    # TODO: change return for a general confusion matrix??
     test_result = mc.message_classification(spark_session, dataset_type)
 
-    output_path = f'./output_test_{dataset_type.value["filename_field"]}'
+    output_path = f'./output_test_{dataset_type.value["name"]}'
     
     #test_result.write.mode("overwrite").csv(output_path)    # TODO: maybe parquet file instead ?? analyse it later
 
@@ -43,14 +43,9 @@ if __name__ == '__main__':
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [executor.submit(execute, task, spark_session) for task in tasks]
 
-        # Aguarda a conclusão de todas as tarefas
+        # Waits for conclusion of all tasks
         for future in futures:
-            print(future.result())
             results.append(future.result())  
-
-
-    # TODO: store the two models & their results on CrateDB to be later used on real-time message processing; replace previous model by 
-    # these ones
 
 
     # Stop the Spark Session

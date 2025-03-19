@@ -19,7 +19,7 @@ def bind_dir_files(dataset_root_path, dataset_type):
 
     # Define the name of the file where all logs corresponding 
     # to the dataset type 'dataset_type' will be stored
-    output_filename = f'./combinedDatasets/combined_logs_{dataset_type.value["filename_field"]}.log'
+    output_filename = f'./combinedDatasets/combined_logs_{dataset_type.value["name"]}.log'
 
     # Skip file generation if it already exists
     if os.path.exists(output_filename):
@@ -32,7 +32,7 @@ def bind_dir_files(dataset_root_path, dataset_type):
 
         # Filter files based on the dataset type
         dataset_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
-                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value["filename_field"])]
+                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value["name"])]
 
         # Loop through all files in the directory
         for filename in dataset_from_type:
