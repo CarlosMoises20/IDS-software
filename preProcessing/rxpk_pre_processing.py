@@ -1,7 +1,7 @@
 
 import time
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, asc, desc, struct, regexp_extract
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, regexp_extract
 from pyspark.sql.types import StringType, IntegerType, BooleanType, DoubleType, NumericType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
@@ -14,41 +14,6 @@ This class represents the pre-processing phase on LoRaWAN messages from the 'rxp
 
 """
 class RxpkPreProcessing(DataPreProcessing):
-
-    # this function will be fundamental to define the label that will be used as
-    # the desired output in the model training, that will allow the model to fit
-    # its weights and pendors using the input and the desired output
-    @staticmethod
-    def intrusion_detection(df_row):
-
-        try:
-
-            # TODO: introduce all types of possible LoRaWAN attacks here
-            # TODO: correct the logic; separate examples for each device (DevAddr)
-
-            # call AnomalyDetection.__detection
-
-            # Example logic for detecting an intrusion
-            jamming = AnomalyDetection.jamming_detection(df_row.rssi)
-
-            # Example LSNR anomaly detection (adjust thresholds as needed)
-            lsnr_anomaly = df_row.lsnr1 < LSNR_MIN or df_row.lsnr2 < LSNR_MIN or \
-                            df_row.lsnr2 > LSNR_MAX or df_row.lsnr2 > LSNR_MAX
-
-            #replay_attack = AnomalyDetection.__replay_attack(fcnt_history, df_row.FCnt)
-            
-            #sinkhole = AnomalyDetection.sinkhole_detection(df_row.freq)
-            #wormhole = AnomalyDetection.wormhole_detection(df_row.tmst)
-            downlink_routing = AnomalyDetection.downlink_routing_attack(df_row.Valid_MACPayload)
-            physical_tampering = AnomalyDetection.physical_tampering(df_row.Valid_FHDR)
-
-
-            # If any of the conditions indicate an intrusion, return 1 (intrusion detected), otherwise return 0
-            return int(jamming or lsnr_anomaly or downlink_routing or physical_tampering)
-
-        except Exception as e:
-            print("Error:", e)
-
 
 
     """
