@@ -38,7 +38,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # of attributes inside the 'txpk' struct
         selected_columns = [
             "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
-            "DLSettingsRX2DataRate", "DevAddr", "FCnt", "FCtrl", 
+            "DLSettingsRX2DataRate", "DevAddr", "DevEUI", "FCnt", "FCtrl", 
             "FCtrlACK", "FCtrlADR", "FHDR", "FOpts", "FPort", "FRMPayload",
             "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
             "MACPayload", "MHDR", "MIC", "MessageType", "NetID", 
@@ -123,7 +123,7 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppNonce", "CFListType", "FCnt", 
+        hex_attributes = ["AppNonce", "CFListType", "FCnt", "DevAddr", "DevEUI",
                         "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                         "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                         "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",

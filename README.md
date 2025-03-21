@@ -6,7 +6,7 @@ This repository contains the base software implementation for the Intrusion Dete
 https://www.python.org/downloads/
 
 
-### Install the necessary Python packages on your local machine
+### Install the necessary Python packages on your local machine (in root directory)
 ```
 pip install -r ./requirements.txt
 ```
@@ -26,8 +26,28 @@ cd ./database
 docker compose up
 ```
 
+### To create tables in the database, run the corresponding script with the following commands
+```
+cd ./database 
+python ./init_db.py
+```
 
-### Train and test the model, and store it on the database
+### Train and test the models, and store them on the database (in root directory)
 ```python3
 python .\message_classification.py
 ```
+
+### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
+ ```python3
+python .\real_time_msg_processing.py
+```
+If you want to stop the application, just force it (Ctrl + C in Windows)
+
+
+### If you want to clean all data in the database (without removing the tables), run the corresponding script with the following commands
+```
+cd ./database 
+python ./clean_db.py
+```
+
+

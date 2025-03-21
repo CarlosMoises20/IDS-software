@@ -1,22 +1,10 @@
 version: '3.8'
 
 services:
-  ids:
+  cratedb:
     image: crate/crate:latest
-    container_name: crate_ids_2425
-    restart: always
+    container_name: cratedb_ids
     ports:
-      - "4201:4200"
+      - "4201:4200"  # Map CrateDB's HTTP port 4200 to 4201
     environment:
       - CRATE_HEAP_SIZE=1g
-      - CRATE_CLUSTER_NAME=crate_cluster
-      - CRATE_NODE_NAME=crate_node
-      - CRATE_LICENSE_ACCEPTED=true
-    volumes:
-      - ./data:/data  # Persistent storage
-      - ./init-scripts:/docker-entrypoint-initdb.d  # Folder for init scripts
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4201/"]
-      interval: 10s
-      timeout: 5s
-      retries: 5

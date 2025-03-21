@@ -37,6 +37,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, 
                                         'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, 
                                         'DevAddr', x.DevAddr, 
+                                        'DevEUI', x.DevEUI,
                                         'DevNonce', x.DevNonce, 
                                         'FCnt', x.FCnt,
                                         'FCtrl', x.FCtrl,
@@ -84,9 +85,10 @@ class RxpkPreProcessing(DataPreProcessing):
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")
 
-        # Remove rows with invalid DevAddr and MessageType
+        # Remove rows with invalid DevAddr and MessageType, since messages with no DevAddr are sent by devices that 
+        # didn't join the LoRaWAN network and, hence, don't present a risk to the network,
+        # and messages with no MessageType are not real LoRaWAN messages
         df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
-
 
         ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer values
         df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
@@ -165,10 +167,11 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", "DevNonce", "FCnt", 
+        hex_attributes = ["AppEUI", "AppNonce", 
+                          "DevAddr", "DevEUI", "DevNonce", "FCnt", 
                           "FCtrl", "FHDR",  "FOpts", "FPort", 
-                          "FRMPayload", "MACPayload",
-                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
+                          "FRMPayload", "MACPayload", "MHDR", "MIC", 
+                          "NetID", "PHYPayload", "RxDelay"]
         
         # Show attributes to see how some "labels" behave
         df.select("DevAddr", "DevEUI", "FHDR", "FPort", "FRMPayload", "MACPayload", "Valid_MACPayload") \
@@ -231,10 +234,12 @@ class RxpkPreProcessing(DataPreProcessing):
         
 
         # Show messages that are considered intrusions (for demonstration in next meeting)
+        """
         df.select("tmst", "DevAddr", "DevEUI", "MACPayload", "MIC", "rssi", "Valid_FHDR", 
                         "Valid_MACPayload", "intrusion") \
                     .filter(df.intrusion == 1) \
                     .show(40, truncate=False)
+        """
 
         # apply normalization
         #df = DataPreProcessing.normalization(df)
