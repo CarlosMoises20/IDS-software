@@ -121,9 +121,11 @@ class RxpkPreProcessing(DataPreProcessing):
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")
 
+        # Remove rows with invalid DevAddr and MessageType
+        df = df.filter(col("DevAddr").isNotNull() & (col("DevAddr") != "") & col("MessageType") != -1)
 
-        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
 
+        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer values
         df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
                                         .when(col("FCtrlADR") == False, 0)
                                         .otherwise(-1)) \
@@ -173,14 +175,17 @@ class RxpkPreProcessing(DataPreProcessing):
         reverse_hex = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
         # TODO: analyse if these steps are necessary
-        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), -1)
+        df = df.withColumn("Valid_FHDR", when((col("FHDR").isNull()) | (col("DevAddr").isNull()) | 
+                                              (col("FCtrl").isNull()) | (col("FCnt").isNull()) | 
+                                              (col("FOpts").isNull()), -1)
                                           .when(col("FHDR") == concat(reverse_hex(col("DevAddr")), 
                                                                         reverse_hex(col("FCtrl")), 
                                                                         reverse_hex(col("FCnt")), 
                                                                         col("FOpts")), 1)
                                            .otherwise(0))
 
-        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), -1)
+        df = df.withColumn("Valid_MACPayload", when((col("MACPayload").isNull()) | (col("FHDR").isNull()) |
+                                                    (col("FPort").isNull()) | (col("FRMPayload").isNull()), -1)
                                                 .when(col("MACPayload") == concat(col("FHDR"), 
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
@@ -192,6 +197,7 @@ class RxpkPreProcessing(DataPreProcessing):
         df = df.withColumn("dataLen", length(col("data")))
 
         # remove 'data' after creating 'dataLen'
+        # TODO: check if "data" is not needed
         df = df.drop("data")
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
@@ -200,12 +206,16 @@ class RxpkPreProcessing(DataPreProcessing):
                         "DevNonce", "FCnt", "FCtrl", "FHDR",
                         "FOpts", "FPort", "FRMPayload", "MACPayload",
                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
+        
+        # Show attributes to see how some "labels" behave
+        df.select("DevAddr", "DevEUI", "FHDR", "FPort", "FRMPayload", "MACPayload", "Valid_MACPayload") \
+            .show(50, truncate=False)
 
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-        # get all non-hexadecimal attributes of the dataframe
+        # get all other attributes of the dataframe
         remaining_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes + ["DevAddr"]))
         
         # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
@@ -217,8 +227,7 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # TODO: fix
         # define the label "intrusion" based on the result of the intrusion detection; this label will
-        # be used for supervised learning of the models during training
-        # Define "intrusion" based on MessageType without using UDFs
+        # be used for supervised learning during training
         df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request
                                             when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
                                             .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
@@ -256,6 +265,13 @@ class RxpkPreProcessing(DataPreProcessing):
                                             .otherwise(0)
                                         ).otherwise(0)  # No MessageType, no intrusion
                                     )
+        
+
+        # Show messages that are considered intrusions (for demonstration in next meeting)
+        df.select("tmst", "DevAddr", "DevEUI", "MACPayload", "MIC", "rssi", "Valid_FHDR", 
+                        "Valid_MACPayload", "intrusion") \
+                    .filter(df.intrusion == 1) \
+                    .show(40, truncate=False)
 
         # apply normalization
         #df = DataPreProcessing.normalization(df)

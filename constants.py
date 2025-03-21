@@ -5,12 +5,12 @@
 '''SPARK'''
 SPARK_APP_NAME = "IDS for LoRaWAN network"
 SPARK_PORT = "4050"
-SPARK_EXECUTOR_MEMORY = "4g"  # Reduced to 4 GB for local machine
-SPARK_DRIVER_MEMORY = "4g"  # Reduced to 4 GB for local machine
-SPARK_EXECUTOR_MEMORY_OVERHEAD = "2g"  # Increased memory overhead for more headroom
-SPARK_NETWORK_TIMEOUT = "300s"  # Reduced timeout for faster error detection
-SPARK_EXECUTOR_HEARTBEAT_INTERVAL = "60s"
-SPARK_NUM_PARTITIONS = "150"  # Adjusted number of partitions based on data size
+SPARK_EXECUTOR_MEMORY = "5g"  
+SPARK_DRIVER_MEMORY = "5g"  
+SPARK_EXECUTOR_MEMORY_OVERHEAD = "2g"  # 
+SPARK_NETWORK_TIMEOUT = "300s"  
+SPARK_EXECUTOR_HEARTBEAT_INTERVAL = "100s"
+SPARK_NUM_PARTITIONS = "30"  
 SPARK_FILES_MAX_PARTITION_BYTES = "268435456"
 
 

@@ -1,12 +1,12 @@
 version: '3.8'
+
 services:
-  storeA:
+  ids:
     image: crate/crate:latest
     container_name: crate_ids_2425
     restart: always
     ports:
       - "4201:4200"
-      - "5432:5432"  # Expose PostgreSQL port for SQL execution
     environment:
       - CRATE_HEAP_SIZE=1g
       - CRATE_CLUSTER_NAME=crate_cluster
@@ -14,8 +14,7 @@ services:
       - CRATE_LICENSE_ACCEPTED=true
     volumes:
       - ./data:/data  # Persistent storage
-      - ./init-scripts:/docker-entrypoint-initdb.d  # Folder for init SQL scripts
-    entrypoint: ["/bin/sh", "-c", "/docker-entrypoint-initdb.d/init.sh"]
+      - ./init-scripts:/docker-entrypoint-initdb.d  # Folder for init scripts
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4201/"]
       interval: 10s

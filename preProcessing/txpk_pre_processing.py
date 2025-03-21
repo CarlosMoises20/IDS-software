@@ -72,9 +72,10 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "Proprietary", 7)
                                           .otherwise(-1))
 
+        # Remove rows with invalid DevAddr and MessageType
+        df = df.filter(col("DevAddr").isNotNull() & (col("DevAddr") != "") & col("MessageType") != -1)
 
         ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
-
         df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
                                         .when(col("FCtrlADR") == False, 0)
                                         .otherwise(-1)) \
@@ -84,17 +85,20 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # Create a udf to compare fields that correspond to part of 
         # others but with reversed octets
-        reverse_hex_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
+        reverse_hex = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
         # TODO: analyse if these steps are really necessary
-        df = df.withColumn("Valid_FHDR", when(col("FHDR").isNull(), -1)
-                                            .when(col("FHDR") == concat(reverse_hex_udf(col("DevAddr")), 
-                                                                        reverse_hex_udf(col("FCtrl")), 
-                                                                        reverse_hex_udf(col("FCnt")), 
+        df = df.withColumn("Valid_FHDR", when((col("FHDR").isNull()) | (col("DevAddr").isNull()) | 
+                                              (col("FCtrl").isNull()) | (col("FCnt").isNull()) | 
+                                              (col("FOpts").isNull()), -1)
+                                          .when(col("FHDR") == concat(reverse_hex(col("DevAddr")), 
+                                                                        reverse_hex(col("FCtrl")), 
+                                                                        reverse_hex(col("FCnt")), 
                                                                         col("FOpts")), 1)
-                                            .otherwise(0))
+                                           .otherwise(0))
 
-        df = df.withColumn("Valid_MACPayload", when(col("MACPayload").isNull(), -1)
+        df = df.withColumn("Valid_MACPayload", when((col("MACPayload").isNull()) | (col("FHDR").isNull()) |
+                                                    (col("FPort").isNull()) | (col("FRMPayload").isNull()), -1)
                                                 .when(col("MACPayload") == concat(col("FHDR"), 
                                                                             col("FPort"), 
                                                                             col("FRMPayload")), 1)
@@ -104,6 +108,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # that represents the content of the LoRaWAN message
         df = df.withColumn("dataLen", length(col("data")))
 
+        # remove 'data' after creating 'dataLen'
         # TODO: check if "data" is not needed
         df = df.drop("data")
 
