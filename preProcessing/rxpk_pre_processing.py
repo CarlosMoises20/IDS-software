@@ -2,10 +2,9 @@
 import time
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, regexp_extract
-from pyspark.sql.types import StringType, IntegerType, BooleanType, DoubleType, NumericType
+from pyspark.sql.types import StringType, IntegerType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
-from auxiliaryFunctions.anomaly_detection import AnomalyDetection
 from constants import *
 
 
@@ -38,7 +37,6 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, 
                                         'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, 
                                         'DevAddr', x.DevAddr, 
-                                        'DevEUI', x.DevEUI, 
                                         'DevNonce', x.DevNonce, 
                                         'FCnt', x.FCnt,
                                         'FCtrl', x.FCtrl,
@@ -87,7 +85,7 @@ class RxpkPreProcessing(DataPreProcessing):
         df = df.select("rxpk.*")
 
         # Remove rows with invalid DevAddr and MessageType
-        df = df.filter(col("DevAddr").isNotNull() & (col("DevAddr") != "") & col("MessageType") != -1)
+        df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
 
 
         ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer values
@@ -167,10 +165,10 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", "DevEUI",
-                        "DevNonce", "FCnt", "FCtrl", "FHDR",
-                        "FOpts", "FPort", "FRMPayload", "MACPayload",
-                        "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
+        hex_attributes = ["AppEUI", "AppNonce", "DevNonce", "FCnt", 
+                          "FCtrl", "FHDR",  "FOpts", "FPort", 
+                          "FRMPayload", "MACPayload",
+                         "MHDR", "MIC", "NetID", "PHYPayload", "RxDelay"]
         
         # Show attributes to see how some "labels" behave
         df.select("DevAddr", "DevEUI", "FHDR", "FPort", "FRMPayload", "MACPayload", "Valid_MACPayload") \

@@ -1,12 +1,11 @@
 
 import time
-from pyspark.sql.functions import expr, when, col, asc, concat, length, regexp_extract
+from pyspark.sql.functions import expr, when, col, concat, length, regexp_extract
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import StringType, IntegerType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
-from auxiliaryFunctions.anomaly_detection import AnomalyDetection
 from constants import *
 
 class TxpkPreProcessing(DataPreProcessing):
@@ -73,7 +72,7 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .otherwise(-1))
 
         # Remove rows with invalid DevAddr and MessageType
-        df = df.filter(col("DevAddr").isNotNull() & (col("DevAddr") != "") & col("MessageType") != -1)
+        df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
 
         ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
         df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)

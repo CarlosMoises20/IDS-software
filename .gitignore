@@ -16,4 +16,4 @@ pyspark-env/*
 test*
 
 # Data files
-data*
+*/data*
