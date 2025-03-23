@@ -35,7 +35,7 @@ class TxpkPreProcessing(DataPreProcessing):
         start_time = time.time()
 
         # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
-        # of attributes inside the 'txpk' struct
+        # of attributes inside the 'txpk' struct attribute
         selected_columns = [
             "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
             "DLSettingsRX2DataRate", "DevAddr", "DevEUI", "FCnt", "FCtrl", 
@@ -48,7 +48,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # Select only the specified columns, removing irrelevant, redundant or correlated attributes
         df = df.select(*selected_columns)
 
-        # Remove irrelevant / redundant attributes that used to be inside 'txpk' array,
+        # Remove irrelevant / redundant attributes that used to be inside 'txpk' struct attribute,
         # as well as attributes that have always the same value
         df = df.drop("codr", "imme", "ipol", "modu", "ncrc", "rfch")
 
