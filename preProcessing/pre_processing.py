@@ -35,9 +35,9 @@ class DataPreProcessing(ABC):
     @staticmethod
     def reverse_hex_octets(hex_str):
 
-        # If hex_str is None or an empty string, return -1
+        # If hex_str is None or an empty string, return an empty string
         if (hex_str is None) or (hex_str == ""):
-            return -1
+            return ""
 
         # Ensure hex_str has an even number of characters
         if len(hex_str) % 2 != 0:

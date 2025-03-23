@@ -131,32 +131,8 @@ class RxpkPreProcessing(DataPreProcessing):
         
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
-
-
-        ### Create 'Valid_FHDR', 'Valid_MACPayload' to check if "FHDR" and "MACPayload" are correctly calculated
         
-        # Create a udf to compare fields that correspond to part of 
-        # others but with reversed octets
-        reverse_hex = udf(DataPreProcessing.reverse_hex_octets, StringType())
 
-        # TODO: analyse if these steps are necessary
-        df = df.withColumn("Valid_FHDR", when((col("FHDR").isNull()) | (col("DevAddr").isNull()) | 
-                                              (col("FCtrl").isNull()) | (col("FCnt").isNull()) | 
-                                              (col("FOpts").isNull()), -1)
-                                          .when(col("FHDR") == concat(reverse_hex(col("DevAddr")), 
-                                                                        reverse_hex(col("FCtrl")), 
-                                                                        reverse_hex(col("FCnt")), 
-                                                                        col("FOpts")), 1)
-                                           .otherwise(0))
-
-        df = df.withColumn("Valid_MACPayload", when((col("MACPayload").isNull()) | (col("FHDR").isNull()) |
-                                                    (col("FPort").isNull()) | (col("FRMPayload").isNull()), -1)
-                                                .when(col("MACPayload") == concat(col("FHDR"), 
-                                                                            col("FPort"), 
-                                                                            col("FRMPayload")), 1)
-                                                .otherwise(0))
-
-        
         # Create 'DataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
         df = df.withColumn("dataLen", length(col("data")))
@@ -172,11 +148,8 @@ class RxpkPreProcessing(DataPreProcessing):
                           "FCtrl", "FHDR",  "FOpts", "FPort", 
                           "FRMPayload", "MACPayload", "MHDR", "MIC", 
                           "NetID", "PHYPayload", "RxDelay"]
-        
-        # Show attributes to see how some "labels" behave
-        df.select("DevAddr", "DevEUI", "FHDR", "FPort", "FRMPayload", "MACPayload", "Valid_MACPayload") \
-            .show(50, truncate=False)
-
+    
+            
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
@@ -190,58 +163,9 @@ class RxpkPreProcessing(DataPreProcessing):
         imputer = Imputer(inputCols=remaining_attributes, outputCols=remaining_attributes, strategy="mean")
 
         df = imputer.fit(df).transform(df)
+    
 
-        # TODO: fix
-        # define the label "intrusion" based on the result of the intrusion detection; this label will
-        # be used for supervised learning during training
-        df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request
-                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
-                                            .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
-                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)  # Downlink Routing Attack
-                                            .when(col("Valid_FHDR") == 0, 1)  # Physical Tampering
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 1,      # Join Accept
-                                            when(col("Valid_MACPayload") == 0, 1)       # Downlink Routing Attack
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 2,  # Unconfirmed Data Up
-                                            when(col("Valid_FHDR") == 0, 1)             # Physical Tampering
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 3,  # Unconfirmed Data Down
-                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)
-                                            .when((col("Valid_MACPayload") == 0), 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 4,  # Confirmed Data Up
-                                            when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
-                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 5,  # Confirmed Data Down
-                                            when(col("Valid_FHDR") == 0, 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 7,  # Proprietary
-                                            when(col("Valid_FHDR") == 0, 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)
-                                            .otherwise(0)
-                                        ).otherwise(0)  # No MessageType, no intrusion
-                                    )
-        
-
-        # Show messages that are considered intrusions (for demonstration in next meeting)
-        """
-        df.select("tmst", "DevAddr", "DevEUI", "MACPayload", "MIC", "rssi", "Valid_FHDR", 
-                        "Valid_MACPayload", "intrusion") \
-                    .filter(df.intrusion == 1) \
-                    .show(40, truncate=False)
-        """
-
-        # apply normalization
+        # apply normalization (TODO: check if this is necessary, maybe it will be)
         #df = DataPreProcessing.normalization(df)
 
         end_time = time.time()

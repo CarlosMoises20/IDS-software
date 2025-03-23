@@ -50,4 +50,9 @@ cd ./database
 python ./clean_db.py
 ```
 
+## If you want to remove the container from your local machine, run the following commands
+```
+cd ./database
+docker compose down
+```
 

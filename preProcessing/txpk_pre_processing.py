@@ -82,27 +82,6 @@ class TxpkPreProcessing(DataPreProcessing):
                                         .when(col("FCtrlACK") == False, 0)
                                         .otherwise(-1))
 
-        # Create a udf to compare fields that correspond to part of 
-        # others but with reversed octets
-        reverse_hex = udf(DataPreProcessing.reverse_hex_octets, StringType())
-
-        # TODO: analyse if these steps are really necessary
-        df = df.withColumn("Valid_FHDR", when((col("FHDR").isNull()) | (col("DevAddr").isNull()) | 
-                                              (col("FCtrl").isNull()) | (col("FCnt").isNull()) | 
-                                              (col("FOpts").isNull()), -1)
-                                          .when(col("FHDR") == concat(reverse_hex(col("DevAddr")), 
-                                                                        reverse_hex(col("FCtrl")), 
-                                                                        reverse_hex(col("FCnt")), 
-                                                                        col("FOpts")), 1)
-                                           .otherwise(0))
-
-        df = df.withColumn("Valid_MACPayload", when((col("MACPayload").isNull()) | (col("FHDR").isNull()) |
-                                                    (col("FPort").isNull()) | (col("FRMPayload").isNull()), -1)
-                                                .when(col("MACPayload") == concat(col("FHDR"), 
-                                                                            col("FPort"), 
-                                                                            col("FRMPayload")), 1)
-                                                .otherwise(0))
-
         # Create 'dataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
         df = df.withColumn("dataLen", length(col("data")))
@@ -146,50 +125,7 @@ class TxpkPreProcessing(DataPreProcessing):
         df = imputer.fit(df).transform(df)
 
 
-        # TODO: fix
-        # define the label "intrusion" based on the result of the intrusion detection; this label will
-        # be used for supervised learning of the models during training
-        # Define "intrusion" based on MessageType without using UDFs
-        df = df.withColumn("intrusion", when((col("MessageType") == 0) | (col("MessageType") == 6),  # Join Request and Rejoin-Request
-                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)  # Jamming
-                                            .when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
-                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)  # Downlink Routing Attack
-                                            .when(col("Valid_FHDR") == 0, 1)  # Physical Tampering
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 1,      # Join Accept
-                                            when(col("Valid_MACPayload") == 0, 1)       # Downlink Routing Attack
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 2,  # Unconfirmed Data Up
-                                            when(col("Valid_FHDR") == 0, 1)             # Physical Tampering
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 3,  # Unconfirmed Data Down
-                                            when((col("rssi") < RSSI_MIN) | (col("rssi") > RSSI_MAX), 1)
-                                            .when((col("Valid_MACPayload") == 0), 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 4,  # Confirmed Data Up
-                                            when((col("lsnr1") < LSNR_MIN) | (col("lsnr1") > LSNR_MAX), 1)
-                                            .when((col("lsnr2") < LSNR_MIN) | (col("lsnr2") > LSNR_MAX), 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 5,  # Confirmed Data Down
-                                            when(col("Valid_FHDR") == 0, 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)
-                                            .otherwise(0)
-                                        ).when(
-                                            col("MessageType") == 7,  # Proprietary
-                                            when(col("Valid_FHDR") == 0, 1)
-                                            .when(col("Valid_MACPayload") == 0, 1)
-                                            .otherwise(0)
-                                        ).otherwise(0)  # No MessageType, no intrusion
-                                    )
-
-
-        # apply normalization
+        # apply normalization (TODO: check if this is necessary, maybe it will be)
         #df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
