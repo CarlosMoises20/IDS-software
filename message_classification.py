@@ -51,10 +51,11 @@ class MessageClassification:
         # Convert to a list of integers
         dev_addr_list = [row.DevAddr for row in dev_addr_list.collect()]
 
-        # get names of all attributes names to assemble since they are all now numeric (excluding DevAddr)
+        # get, in a list of strings, the names of all attributes names to assemble (excluding DevAddr)
+        # since they are all now numeric
         column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr"]))
 
-        # list of all models' accuracy
+        # list of all models' accuracy to be used to return the mean accuracy of all models
         accuracy_list = []
 
         ### Initialize connection with CrateDB
@@ -65,11 +66,9 @@ class MessageClassification:
         # Create a specific model for each device (DevAddr)
         for dev_addr in dev_addr_list:
 
-            # Filter dataset by the selected DevAddr
-            df_model = df.filter(df.DevAddr == dev_addr)
-
-            # Remove DevAddr since we don't need it anymore, and to make processing more efficient
-            df_model = df_model.drop("DevAddr")
+            # Filter dataset considering the selected DevAddr
+            # Remove DevAddr to make processing more efficient, since we don't need it anymore 
+            df_model = df.filter(df.DevAddr == dev_addr).drop("DevAddr")
 
             # Create the VectorAssembler that merges all features of the dataset into a Vector
             # These feature are, now, all numeric and with the missing values all imputed, so now we can use them
@@ -77,41 +76,28 @@ class MessageClassification:
     
             pipeline = Pipeline(stages=[assembler])
 
-            # Train the pipeline model to assemble all features
-            pipelineModel = pipeline.fit(df_model)
-
-            # Apply the pipeline to the dataset to assemble the features
-            df_model = pipelineModel.transform(df_model)
+            # Train and apply the pipeline model to assemble all features
+            df_model = pipeline.fit(df_model).transform(df_model)
 
             # randomly divide dataset into training (85%) and test (15%)
             # and set a seed in order to ensure reproducibility, which is important to 
             # ensure that the model is always trained and tested on the same examples each time the
             # model is run. This is important to compare the model's performance in different situations
-            # (this proportion can be modified according to the results)
             df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed=522)
-
-            # TODO: review where to make this step
-            # Filter dataset by the non-intrusion messages, which are the ones that will be used to train the model
-            # This ensures that the model learns the network traffic patterns of normal behaviour, and then it is capable
-            # to analyze new messages and distinguish between expected and suspicious activity
-            df_model_train = df_model_train.filter(df_model_train.intrusion == 0)
-
-            # TODO: review this approach
-            # Aggregate test samples with train samples where intrusion=1, that were not used in training
-            df_model_test = df_model_train.filter(df_model_train.intrusion == 1).union(df_model_test)
 
             # Create the Random Forest Classifier model
             rf = RandomForestClassifier(featuresCol="features", labelCol="intrusion",
                                         predictionCol="prediction", 
                                         numTrees=6, maxDepth=3, seed=522, maxMemoryInMB=1024)
 
-            # Train the model using the training data
+            # Train the model using the training data (the model will later be stored on database 
+            # and be used to classify new messages)
             model = rf.fit(df_model_train)
 
-            # Fazer previsões
+            # Make predictions
             predictions = model.transform(df_model_test)
 
-            # Avaliar o modelo
+            # Evaluate the modem
             evaluator = BinaryClassificationEvaluator(labelCol="intrusion", metricName="areaUnderROC",
                                                       rawPredictionCol="prediction")
             

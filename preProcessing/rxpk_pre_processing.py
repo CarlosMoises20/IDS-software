@@ -143,13 +143,11 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", 
-                          "DevAddr", "DevEUI", "DevNonce", "FCnt", 
+        hex_attributes = ["AppEUI", "AppNonce", "DevEUI", "DevNonce", "FCnt", 
                           "FCtrl", "FHDR",  "FOpts", "FPort", 
                           "FRMPayload", "MACPayload", "MHDR", "MIC", 
                           "NetID", "PHYPayload", "RxDelay"]
     
-            
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)

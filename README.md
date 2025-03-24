@@ -1,6 +1,10 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
+### To install Apache Spark on your local machine
+https://spark.apache.org/downloads.html
+
+That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file. 
 
 ### To install Python on your local machine
 https://www.python.org/downloads/
@@ -10,6 +14,8 @@ https://www.python.org/downloads/
 ```
 pip install -r ./requirements.txt
 ```
+
+#### NOTE: Properly define the environment variables on your local machine
 
 
 ### To initialize CrateDB, you must first install Docker on your local machine
@@ -50,7 +56,7 @@ cd ./database
 python ./clean_db.py
 ```
 
-## If you want to remove the container from your local machine, run the following commands
+### If you want to remove the container from your local machine, run the following commands
 ```
 cd ./database
 docker compose down

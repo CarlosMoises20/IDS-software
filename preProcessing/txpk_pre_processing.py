@@ -102,7 +102,7 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppNonce", "CFListType", "FCnt", "DevAddr", "DevEUI",
+        hex_attributes = ["AppNonce", "CFListType", "FCnt", "DevEUI",
                         "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
                         "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
                         "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
@@ -126,7 +126,7 @@ class TxpkPreProcessing(DataPreProcessing):
 
 
         # apply normalization (TODO: check if this is necessary, maybe it will be)
-        #df = DataPreProcessing.normalization(df)
+        df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
 
