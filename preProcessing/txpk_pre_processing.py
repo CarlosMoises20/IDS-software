@@ -39,10 +39,10 @@ class TxpkPreProcessing(DataPreProcessing):
         selected_columns = [
             "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
             "DLSettingsRX2DataRate", "DevAddr", "DevEUI", "FCnt", "FCtrl", 
-            "FCtrlACK", "FCtrlADR", "FHDR", "FOpts", "FPort", "FRMPayload",
+            "FCtrlACK", "FCtrlADR", "FOpts", "FPort", "FRMPayload",
             "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
-            "MACPayload", "MHDR", "MIC", "MessageType", "NetID", 
-            "PHYPayload", "RxDelay", "txpk.*"
+            "MHDR", "MIC", "MessageType", "NetID", 
+            "RxDelay", "txpk.*"
         ]
 
         # Select only the specified columns, removing irrelevant, redundant or correlated attributes
@@ -52,7 +52,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # as well as attributes that have always the same value
         df = df.drop("codr", "imme", "ipol", "modu", "ncrc", "rfch")
 
-        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN v1.1 specification
+        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
         df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
 
@@ -67,7 +67,7 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "Unconfirmed Data Down", 3)
                                           .when(col("MessageType") == "Confirmed Data Up", 4)
                                           .when(col("MessageType") == "Confirmed Data Down", 5)
-                                          .when(col("MessageType") == "Rejoin Request", 6)
+                                          .when(col("MessageType") == "RFU", 6)
                                           .when(col("MessageType") == "Proprietary", 7)
                                           .otherwise(-1))
 
@@ -103,10 +103,10 @@ class TxpkPreProcessing(DataPreProcessing):
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
         hex_attributes = ["AppNonce", "CFListType", "FCnt", "DevEUI",
-                        "FCtrl", "FCtrlACK", "FHDR", "FOpts", 
+                        "FCtrl", "FCtrlACK", "FOpts", 
                         "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
-                        "FreqCh7", "FreqCh8", "MACPayload", "MHDR", "MIC", "NetID",
-                        "PHYPayload", "RxDelay"]
+                        "FreqCh7", "FreqCh8", "MHDR", "MIC", "NetID",
+                        "RxDelay"]
 
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
         # this also replaces NULL and empty values with -1 to be supported by the algorithms

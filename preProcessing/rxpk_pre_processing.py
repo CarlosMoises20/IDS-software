@@ -43,11 +43,9 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'FCtrl', x.FCtrl,
                                         'FCtrlACK', x.FCtrlACK,
                                         'FCtrlADR', x.FCtrlADR,
-                                        'FHDR', x.FHDR, 
                                         'FOpts', x.FOpts, 
                                         'FPort', x.FPort, 
                                         'FRMPayload', x.FRMPayload, 
-                                        'MACPayload', x.MACPayload, 
                                         'MHDR', x.MHDR, 
                                         'MIC', x.MIC, 
                                         'MessageType', CASE 
@@ -57,12 +55,11 @@ class RxpkPreProcessing(DataPreProcessing):
                                                             WHEN x.MessageType = 'Unconfirmed Data Down' THEN 3 
                                                             WHEN x.MessageType = 'Confirmed Data Up' THEN 4 
                                                             WHEN x.MessageType = 'Confirmed Data Down' THEN 5 
-                                                            WHEN x.MessageType = 'Rejoin Request' THEN 6 
+                                                            WHEN x.MessageType = 'RFU' THEN 6 
                                                             WHEN x.MessageType = 'Proprietary' THEN 7 
                                                             ELSE -1
                                                        END, 
                                         'NetID', x.NetID, 
-                                        'PHYPayload', x.PHYPayload, 
                                         'RxDelay', x.RxDelay, 
                                         'chan', x.chan,
                                         'data', x.data,
@@ -116,10 +113,10 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # aggregate 'chan' and 'lsnr' arrays, removing NULL values
         df = df.withColumn("chan", when(col("rsig.chan").isNotNull() | col("chan").isNotNull(),
-                                                expr("filter(array_union(coalesce(array(chan), array()), coalesce(rsig.chan, array())), x -> x IS NOT NULL AND x = x)")
+                                            expr("filter(array_union(coalesce(array(chan), array()), coalesce(rsig.chan, array())), x -> x IS NOT NULL AND x = x)")
                                         ).otherwise(None)) \
                 .withColumn("lsnr", when(col("rsig.lsnr").isNotNull() | col("lsnr").isNotNull(),
-                                                expr("filter(array_union(coalesce(array(lsnr), array()), coalesce(rsig.lsnr, array())), x -> x IS NOT NULL AND x = x)")
+                                            expr("filter(array_union(coalesce(array(lsnr), array()), coalesce(rsig.lsnr, array())), x -> x IS NOT NULL AND x = x)")
                                         ).otherwise(None))
         
         # split "chan" by "chan1" and "chan2" and "lsnr" by "lsnr1" and "lsnr2", since Vectors on algorithms
@@ -131,7 +128,6 @@ class RxpkPreProcessing(DataPreProcessing):
         
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
-        
 
         # Create 'DataLen' that corresponds to the length of 'data', 
         # that represents the content of the LoRaWAN message
@@ -143,10 +139,9 @@ class RxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", "DevEUI", "DevNonce", "FCnt", 
-                          "FCtrl", "FHDR",  "FOpts", "FPort", 
-                          "FRMPayload", "MACPayload", "MHDR", "MIC", 
-                          "NetID", "PHYPayload", "RxDelay"]
+        hex_attributes = ["AppEUI", "AppNonce", "DevEUI", "DevNonce",
+                          "FCnt", "FCtrl", "FOpts", "FPort", 
+                          "FRMPayload", "MHDR", "MIC", "NetID", "RxDelay"]
     
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
