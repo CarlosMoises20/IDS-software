@@ -6,7 +6,7 @@ https://spark.apache.org/downloads.html
 
 That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file. 
 
-### To install Python on your local machine
+### To install Python on your local machine (version 3.10 recommended due to compatibility issues)
 https://www.python.org/downloads/
 
 

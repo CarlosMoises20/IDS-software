@@ -1,8 +1,8 @@
 
 import time
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, regexp_extract
-from pyspark.sql.types import StringType, IntegerType
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, concat, regexp_extract, asc, desc
+from pyspark.sql.types import StringType, IntegerType, FloatType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
 from constants import *
@@ -35,7 +35,8 @@ class RxpkPreProcessing(DataPreProcessing):
                                         transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, 
                                         'AppNonce', x.AppNonce, 
                                         'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, 
-                                        'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate, 
+                                        'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate,
+                                        'CFList', x.CFList,  
                                         'DevAddr', x.DevAddr, 
                                         'DevEUI', x.DevEUI,
                                         'DevNonce', x.DevNonce, 
@@ -45,8 +46,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'FCtrlADR', x.FCtrlADR,
                                         'FOpts', x.FOpts, 
                                         'FPort', x.FPort, 
-                                        'FRMPayload', x.FRMPayload, 
-                                        'MHDR', x.MHDR, 
+                                        'FRMPayload', x.FRMPayload,
                                         'MIC', x.MIC, 
                                         'MessageType', CASE 
                                                             WHEN x.MessageType = 'Join Request' THEN 0 
@@ -62,6 +62,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                         'NetID', x.NetID, 
                                         'RxDelay', x.RxDelay, 
                                         'chan', x.chan,
+                                        'codr', x.codr,
                                         'data', x.data,
                                         'datr', x.datr, 
                                         'freq', x.freq, 
@@ -72,6 +73,7 @@ class RxpkPreProcessing(DataPreProcessing):
                                                         'lsnr', rs.lsnr)),
                                         'rssi', x.rssi, 
                                         'size', x.size, 
+                                        'stat', x.stat, 
                                         'tmst', x.tmst ))
                                     """))
 
@@ -87,21 +89,16 @@ class RxpkPreProcessing(DataPreProcessing):
         # and messages with no MessageType are not real LoRaWAN messages
         df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
 
-        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer values
-        df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
-                                        .when(col("FCtrlADR") == False, 0)
-                                        .otherwise(-1)) \
-                .withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
-                                        .when(col("FCtrlACK") == False, 0)
-                                        .otherwise(-1))
+        ### Convert boolean attributes to integer values
+        df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK"])
 
+        # Convert "codr" from string to float
+        str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
+        df = df.withColumn("codr", str_float_udf(col("codr")))
 
         ### Extract SF and BW from "datr" attribute
+        pattern = r"SF(\d+)BW(\d+)"     # regex pattern to extract "SF" and "BW" 
 
-        # regex pattern to extract "SF" and "BW" LoRa parameters from "datr"
-        pattern = r"SF(\d+)BW(\d+)"
-
-        # extract SF and BW from 'datr' attribute
         df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \
                 .withColumn("BW", regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
 
@@ -129,19 +126,37 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
 
-        # Create 'DataLen' that corresponds to the length of 'data', 
+        # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
         # that represents the content of the LoRaWAN message
-        df = df.withColumn("dataLen", length(col("data")))
+        df = df.withColumn("dataLen", length(col("data"))) \
+                .withColumn("FRMPayload_Len", length(col("FRMPayload")))
 
-        # remove 'data' after creating 'dataLen'
-        # TODO: check if "data" is not needed
-        df = df.drop("data")
+        # remove 'data' and 'FRMPayload' after computing their lengths
+        # TODO: check if these are not needed
+        df = df.drop("data", "FRMPayload")
+
+        # create new attributes resulting from "CFList" division
+        reverse_hex_octets_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
+
+        df = df.withColumn("FreqCh4", reverse_hex_octets_udf(expr("substring(CFList, 1, 6)"))) \
+                .withColumn("FreqCh5", reverse_hex_octets_udf(expr("substring(CFList, 7, 6)"))) \
+                .withColumn("FreqCh6", reverse_hex_octets_udf(expr("substring(CFList, 13, 6)"))) \
+                .withColumn("FreqCh7", reverse_hex_octets_udf(expr("substring(CFList, 19, 6)"))) \
+                .withColumn("FreqCh8", reverse_hex_octets_udf(expr("substring(CFList, 25, 6)"))) \
+                .withColumn("CFListType", when((col("CFList").isNull()) | (col("CFList") == ""), -1)
+                                            .otherwise(expr("substring(CFList, 31, 2)")))
+
+        # Remove "CFList" after splitting it
+        df = df.drop("CFList")
+
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", "DevEUI", "DevNonce",
+        hex_attributes = ["AppEUI", "AppNonce", "FreqCh4", "FreqCh5", 
+                          "FreqCh6", "FreqCh7", "FreqCh8",
+                          "CFListType", "DevEUI", "DevNonce",
                           "FCnt", "FCtrl", "FOpts", "FPort", 
-                          "FRMPayload", "MHDR", "MIC", "NetID", "RxDelay"]
+                          "MIC", "NetID", "RxDelay"]
     
         # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute

@@ -3,7 +3,7 @@ import time
 from pyspark.sql.functions import expr, when, col, concat, length, regexp_extract
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType, IntegerType
+from pyspark.sql.types import StringType, IntegerType, FloatType
 from pyspark.ml.feature import Imputer
 from auxiliaryFunctions.general import get_all_attributes_names, format_time
 from constants import *
@@ -16,8 +16,7 @@ class TxpkPreProcessing(DataPreProcessing):
     This function applies pre-processing on data from the dataframe 'df_txpk', for the 'txpk' dataset
 
         - Applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
-            selecting only the attributes that are relevant to build the intended model_numeric for IDS
-            
+            selecting only the attributes that are relevant to build the intended model_numeric for IDS   
 
         - Converts boolean attributes to integer attributes
 
@@ -38,19 +37,17 @@ class TxpkPreProcessing(DataPreProcessing):
         # of attributes inside the 'txpk' struct attribute
         selected_columns = [
             "AppNonce", "CFList", "DLSettingsRX1DRoffset", 
-            "DLSettingsRX2DataRate", "DevAddr", "DevEUI", "FCnt", "FCtrl", 
+            "DLSettingsRX2DataRate", "DevAddr", "FCnt", "FCtrl", 
             "FCtrlACK", "FCtrlADR", "FOpts", "FPort", "FRMPayload",
             "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8", 
-            "MHDR", "MIC", "MessageType", "NetID", 
-            "RxDelay", "txpk.*"
+            "MIC", "MessageType", "NetID", "RxDelay", "txpk.*"
         ]
 
         # Select only the specified columns, removing irrelevant, redundant or correlated attributes
         df = df.select(*selected_columns)
 
-        # Remove irrelevant / redundant attributes that used to be inside 'txpk' struct attribute,
-        # as well as attributes that have always the same value
-        df = df.drop("codr", "imme", "ipol", "modu", "ncrc", "rfch")
+        # Remove irrelevant attributes that used to be inside 'txpk' struct attribute
+        df = df.drop("ipol", "modu")
 
         # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
         # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
@@ -74,21 +71,21 @@ class TxpkPreProcessing(DataPreProcessing):
         # Remove rows with invalid DevAddr and MessageType
         df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
 
-        ### Convert "FCtrlADR" and "FCtrlACK" attributes to integer
-        df = df.withColumn("FCtrlADR", when(col("FCtrlADR") == True, 1)
-                                        .when(col("FCtrlADR") == False, 0)
-                                        .otherwise(-1)) \
-                .withColumn("FCtrlACK", when(col("FCtrlACK") == True, 1)
-                                        .when(col("FCtrlACK") == False, 0)
-                                        .otherwise(-1))
+        ### Convert boolean attributes to integer
+        df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK", "imme", "ncrc"])
 
-        # Create 'dataLen' that corresponds to the length of 'data', 
+        # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
         # that represents the content of the LoRaWAN message
-        df = df.withColumn("dataLen", length(col("data")))
+        df = df.withColumn("dataLen", length(col("data"))) \
+                .withColumn("FRMPayload_Len", length(col("FRMPayload")))
 
-        # remove 'data' after creating 'dataLen'
-        # TODO: check if "data" is not needed
-        df = df.drop("data")
+        # remove 'data' and 'FRMPayload' after computing their lengths
+        # TODO: check if these are not needed
+        df = df.drop("data", "FRMPayload")
+
+        # Convert "codr" from string to float
+        str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
+        df = df.withColumn("codr", str_float_udf(col("codr")))
 
         # regex pattern to extract "SF" and "BW" LoRa parameters from "datr"
         pattern = r"SF(\d+)BW(\d+)"
@@ -102,11 +99,10 @@ class TxpkPreProcessing(DataPreProcessing):
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppNonce", "CFListType", "FCnt", "DevEUI",
-                        "FCtrl", "FCtrlACK", "FOpts", 
-                        "FPort", "FRMPayload", "FreqCh4", "FreqCh5", "FreqCh6",
-                        "FreqCh7", "FreqCh8", "MHDR", "MIC", "NetID",
-                        "RxDelay"]
+        hex_attributes = ["AppNonce", "CFListType", "FCnt",
+                        "FCtrl", "FCtrlACK", "FOpts", "FPort", 
+                        "FreqCh4", "FreqCh5", "FreqCh6",
+                        "FreqCh7", "FreqCh8", "MIC", "NetID", "RxDelay"]
 
         # Convert hexadecimal attributes (string) to decimal (int), since these are values that are calculated
         # this also replaces NULL and empty values with -1 to be supported by the algorithms
@@ -126,7 +122,7 @@ class TxpkPreProcessing(DataPreProcessing):
 
 
         # apply normalization (TODO: check if this is necessary, maybe it will be)
-        df = DataPreProcessing.normalization(df)
+        #df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
 

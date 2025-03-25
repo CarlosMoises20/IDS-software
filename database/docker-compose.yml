@@ -2,9 +2,9 @@ version: '3.8'
 
 services:
   cratedb:
-    image: crate/crate:latest
-    container_name: cratedb_ids
+    image: crate/crate:latest     # Use CrateDB's latest image to create and run the container
+    container_name: cratedb_ids   # Define the name for the container
     ports:
       - "4201:4200"  # Map CrateDB's HTTP port 4200 to 4201
     environment:
-      - CRATE_HEAP_SIZE=1g
+      - CRATE_HEAP_SIZE=1g        # Set the memory limit for CrateDB
