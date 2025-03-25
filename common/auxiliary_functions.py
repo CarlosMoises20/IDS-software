@@ -54,8 +54,6 @@ def bind_dir_files(dataset_root_path, dataset_type):
     # Returns the name of the output file to be used to load dataset as a spark dataframe
     return output_filename
 
-
-
 """
 Auxiliary function to get all attributes names of a spark dataframe schema
 
@@ -83,9 +81,6 @@ def get_all_attributes_names(df_schema, parent_name=""):
             attribute_names.append(field.name)
 
     return attribute_names
-
-
-
 
 # Auxiliary function to print processing time on an adequate format
 def format_time(seconds):

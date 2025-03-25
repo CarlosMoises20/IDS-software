@@ -1,8 +1,8 @@
 from pyspark.sql import SparkSession
-from message_classification import MessageClassification as mc
-from dataset_type import DatasetType
+from processing.message_classification import MessageClassification as mc
+from common.dataset_type import DatasetType
 from concurrent.futures import ThreadPoolExecutor
-from constants import *
+from common.constants import *
 
 
 def execute(dataset_type, spark_session):

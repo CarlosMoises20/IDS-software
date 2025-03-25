@@ -5,7 +5,7 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import pandas as pd
-from auxiliaryFunctions.general import format_time
+from common.auxiliary_functions import format_time
 
 
 class Autoencoder(nn.Module):
@@ -91,14 +91,15 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=15, learning_rate=0.01, weight_decay=0.0001, momentum=0.9, device='cpu'):
+    def train(self, num_epochs=15, learning_rate=0.01, weight_decay=0.00001, momentum=0.9, 
+              device = 'cuda' if torch.cuda.is_available() else 'cpu'):
         
         self.to(device)
         
         optimizer = optim.SGD(self.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
         criterion = nn.MSELoss()  # Autoencoders use MSE loss
         
-        print("Starting training...")
+        print("Starting Autoencoder training...")
         
         start_time = time.time()
 
@@ -110,11 +111,11 @@ class Autoencoder(nn.Module):
 
             for i, (data,) in enumerate(self.__traindataloader):
 
+                optimizer.zero_grad()
+
                 outputs = self(data)
 
-                loss = criterion(data, outputs)
-
-                optimizer.zero_grad()
+                loss = criterion(outputs, data)
                 
                 loss.backward()
                 
@@ -122,16 +123,12 @@ class Autoencoder(nn.Module):
 
                 running_loss += loss.item() 
                 
-                if i % 2000 == 1999:    # print every 2000 mini-batches
-                    print(f'[{epoch + 1}, {i + 1:5d}] loss: {running_loss / 2000:.3f}')
-                    running_loss = 0.0
-                
             
             ep_end = time.time()
 
-            avg_loss = running_loss / len(self.__traindataloader)
+            average_loss = running_loss / len(self.__traindataloader)
 
-            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {avg_loss:.6f}, Time: {format_time(ep_end - ep_start)}")
+            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.6f}, Time: {format_time(ep_end - ep_start)}")
 
 
         end_time = time.time()
@@ -161,7 +158,6 @@ class Autoencoder(nn.Module):
                 total += data.size(0)
                 correct += (predicted == data).sum().item()
 
-        print(f'Accuracy of the network: {100 * correct // total} %')
+        accuracy = 100 * correct // total
 
-
-        # TODO: return the predictions
+        return accuracy

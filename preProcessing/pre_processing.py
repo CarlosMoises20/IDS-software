@@ -1,11 +1,10 @@
 
 import re
-from pyspark.sql.types import StringType, IntegerType, DecimalType
+from pyspark.sql.types import IntegerType, DecimalType
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when, col, expr, lit, udf
-from auxiliaryFunctions.general import get_all_attributes_names
+from pyspark.sql.functions import when, col, expr, lit
+from common.auxiliary_functions import get_all_attributes_names
 from pyspark.ml.feature import MinMaxScaler, VectorAssembler
-from decimal import Decimal, InvalidOperation
 
 class DataPreProcessing(ABC):
 

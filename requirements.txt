@@ -13,3 +13,4 @@ PySimpleGUI==5.0.8.2
 crate>=2.0.0
 torch>=1.10.0
 pyod>=2.0.3
+graphframes>=0.6

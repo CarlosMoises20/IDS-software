@@ -1,9 +1,9 @@
 
 from crate.client import connect
 from pyspark.sql import SparkSession
-from message_classification import MessageClassification as mc
-from dataset_type import DatasetType
-from constants import *
+from processing.message_classification import MessageClassification as mc
+from common.dataset_type import DatasetType
+from common.constants import *
 
 
 # TODO: implement a version that receives new messages in real time (stream processing), using the models ('results')

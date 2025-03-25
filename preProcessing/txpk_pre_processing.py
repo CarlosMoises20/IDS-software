@@ -1,12 +1,12 @@
 
 import time
-from pyspark.sql.functions import expr, when, col, concat, length, regexp_extract
+from pyspark.sql.functions import expr, when, col, length, regexp_extract
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
-from pyspark.sql.types import StringType, IntegerType, FloatType
+from pyspark.sql.types import IntegerType, FloatType
 from pyspark.ml.feature import Imputer
-from auxiliaryFunctions.general import get_all_attributes_names, format_time
-from constants import *
+from common.auxiliary_functions import get_all_attributes_names, format_time
+from common.constants import *
 
 class TxpkPreProcessing(DataPreProcessing):
 

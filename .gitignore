@@ -15,5 +15,6 @@ pyspark-env/*
 # Test files
 test*
 
-# Data files
-*/data*
+# Saved models
+*_SUCCESS*
+*part-000*
