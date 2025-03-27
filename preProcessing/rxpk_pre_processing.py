@@ -1,7 +1,7 @@
 
 import time
 from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, regexp_extract
+from pyspark.sql.functions import expr, col, explode, length, when, col, udf, regexp_extract, lit, asc
 from pyspark.sql.types import StringType, IntegerType, FloatType
 from pyspark.ml.feature import Imputer
 from common.auxiliary_functions import get_all_attributes_names, format_time
@@ -84,11 +84,10 @@ class RxpkPreProcessing(DataPreProcessing):
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")
 
-        # Remove rows with invalid DevAddr and MessageType, since messages with no DevAddr are sent by devices that 
-        # didn't join the LoRaWAN network and, hence, don't present a risk to the network,
-        # and messages with no MessageType are not real LoRaWAN messages
-        df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
-
+        # Replace NULL and empty-string values of DevAddr with "Unknown"
+        df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
+                                        .otherwise(col("DevAddr")))
+        
         ### Convert boolean attributes to integer values
         df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK"])
 
