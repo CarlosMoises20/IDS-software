@@ -80,7 +80,6 @@ class TxpkPreProcessing(DataPreProcessing):
                 .withColumn("FRMPayload_Len", length(col("FRMPayload")))
 
         # remove 'data' and 'FRMPayload' after computing their lengths
-        # TODO: check if these are not needed
         df = df.drop("data", "FRMPayload")
 
         # Convert "codr" from string to float

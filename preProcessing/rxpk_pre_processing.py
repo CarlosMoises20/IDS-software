@@ -131,7 +131,6 @@ class RxpkPreProcessing(DataPreProcessing):
                 .withColumn("FRMPayload_Len", length(col("FRMPayload")))
 
         # remove 'data' and 'FRMPayload' after computing their lengths
-        # TODO: check if these are not needed
         df = df.drop("data", "FRMPayload")
 
         # create new attributes resulting from "CFList" division
@@ -142,12 +141,10 @@ class RxpkPreProcessing(DataPreProcessing):
                 .withColumn("FreqCh6", reverse_hex_octets_udf(expr("substring(CFList, 13, 6)"))) \
                 .withColumn("FreqCh7", reverse_hex_octets_udf(expr("substring(CFList, 19, 6)"))) \
                 .withColumn("FreqCh8", reverse_hex_octets_udf(expr("substring(CFList, 25, 6)"))) \
-                .withColumn("CFListType", when((col("CFList").isNull()) | (col("CFList") == ""), -1)
-                                            .otherwise(expr("substring(CFList, 31, 2)")))
+                .withColumn("CFListType", expr("substring(CFList, 31, 2)"))
 
-        # Remove "CFList" after splitting it
+        # Remove "CFList" after splitting it by "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8" and "CFListType"
         df = df.drop("CFList")
-
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values
@@ -157,8 +154,10 @@ class RxpkPreProcessing(DataPreProcessing):
                           "FCnt", "FCtrl", "FOpts", "FPort", 
                           "MIC", "NetID", "RxDelay"]
     
-        # Convert hexadecimal attributes (string) to numeric (DecimalType), replacing NULL and empty values with -1 since
+        # Convert hexadecimal attributes (string) to numeric (DecimalType), and replace NULL and empty values with -1 since
         # -1 would never be a valid value for an hexadecimal-to-decimal attribute
+        # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
+        # these would be treated as categorical values, which is not the case
         df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
         # get all other attributes of the dataframe

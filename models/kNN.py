@@ -1,13 +1,6 @@
 
+from functions import euclidean_dist
 
-# Function For Finding Euclidean Distance Between Two Rows
-def euclidean_dist(row1, row2):
-    dist = 0
-    for entry in range(len(row1)-1):
-        if row1[entry] == None or row2[entry] == None:
-            return 1e10
-        dist += (float(row1[entry]) - float(row2[entry])) ** 2 
-    return dist
 
 
 # define knn algorithm

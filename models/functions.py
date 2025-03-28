@@ -4,6 +4,24 @@ from scipy.spatial.distance import hamming
 from scipy.stats import entropy
 
 
+# These functions might be used in the future by another algorithms, but they 
+# won't be used directly
+
+
+"""
+Function For Finding Euclidean Distance Between Two Rows
+
+The function returns None if at least one of the rows is None
+
+"""
+def euclidean_dist(row1, row2):
+    dist = 0
+    for entry in range(len(row1)-1):
+        if row1[entry] == None or row2[entry] == None:
+            return 1e10
+        dist += (float(row1[entry]) - float(row2[entry])) ** 2 
+    return dist
+
 
 """
 This function computes the hamming distance between two given strings
@@ -13,7 +31,6 @@ The function returns None if at least one of the strings is None or
 if the strings have different lengths
 
 """
-@staticmethod
 def hamming_distance(str1, str2):
     
     if (str1 is None) or (str2 is None):
@@ -33,7 +50,6 @@ Q is the new probability distribution, the real-time distribution of the random 
     Join-Request
 
 """
-@staticmethod
 def kl_divergence(P, Q):
 
     P = np.array(P, dtype=np.float64)

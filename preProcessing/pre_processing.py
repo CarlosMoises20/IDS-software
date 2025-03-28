@@ -10,7 +10,7 @@ class DataPreProcessing(ABC):
 
 
     # TODO: review this (avoid VectorAssembler if possible, or if that is not possible, find a way to normalize
-    # attributes and return the result in the attributes themselves and remove the columns used exclusively VectorAssembler)
+    # attributes and return the result in the attributes themselves and remove the columns exclusively used for VectorAssembler)
     @staticmethod
     def normalization(df):
 
@@ -28,6 +28,15 @@ class DataPreProcessing(ABC):
 
         return df
     
+    """
+    Method to convert boolean attributes to integer attributes in numeric format (IntegerType())
+    
+        df: spark dataframe that represents the dataset
+        attributes: list of attributes to convert to integer
+        
+        return: spark dataframe with converted attributes
+    
+    """
     @staticmethod
     def bool_to_int(df, attributes):
 
@@ -41,6 +50,16 @@ class DataPreProcessing(ABC):
 
         return df
     
+    """
+    Convert "datr" attribute from string to float
+    
+        Example = "4/5" -> 0.8
+    
+        fraction_str: string that represents a fraction
+        
+        return: float
+        
+    """
     @staticmethod
     def str_to_float(fraction_str):
         try:
