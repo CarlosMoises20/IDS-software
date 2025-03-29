@@ -30,11 +30,11 @@ class MessageClassification:
         # Train and apply the pipeline model to assemble all features
         df_model = pipeline.fit(df_model).transform(df_model)
 
-        # randomly divide dataset into training (85%) and test (15%)
+        # randomly divide dataset into training (80%) and test (20%)
         # and set a seed in order to ensure reproducibility, which is important to 
         # ensure that the model is always trained and tested on the same examples each time the
         # model is run. This is important to compare the model's performance in different situations
-        df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed=522)
+        df_model_train, df_model_test = df_model.randomSplit([0.8, 0.2], seed=522)
 
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=2, seed=522, maxIter=100)

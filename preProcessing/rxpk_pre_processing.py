@@ -88,8 +88,29 @@ class RxpkPreProcessing(DataPreProcessing):
         df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
                                         .otherwise(col("DevAddr")))
         
+        # create new attributes resulting from "CFList" division
+        reverse_hex_octets_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
+
+        df = df.withColumn("FreqCh4", reverse_hex_octets_udf(expr("substring(CFList, 1, 6)"))) \
+                .withColumn("FreqCh5", reverse_hex_octets_udf(expr("substring(CFList, 7, 6)"))) \
+                .withColumn("FreqCh6", reverse_hex_octets_udf(expr("substring(CFList, 13, 6)"))) \
+                .withColumn("FreqCh7", reverse_hex_octets_udf(expr("substring(CFList, 19, 6)"))) \
+                .withColumn("FreqCh8", reverse_hex_octets_udf(expr("substring(CFList, 25, 6)"))) \
+                .withColumn("CFListType", expr("substring(CFList, 31, 2)"))
+
+        # Remove "CFList" after splitting it by "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8" and "CFListType"
+        df = df.drop("CFList")
+        
         ### Convert boolean attributes to integer values
         df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK"])
+
+        # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
+        # that represents the content of the LoRaWAN message
+        df = df.withColumn("dataLen", length(col("data"))) \
+                .withColumn("FRMPayload_Len", length(col("FRMPayload")))
+        
+        # remove 'data' and 'FRMPayload' after computing their lengths
+        df = df.drop("data", "FRMPayload")
 
         # Convert "codr" from string to float
         str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
@@ -124,27 +145,6 @@ class RxpkPreProcessing(DataPreProcessing):
         
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
-
-        # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
-        # that represents the content of the LoRaWAN message
-        df = df.withColumn("dataLen", length(col("data"))) \
-                .withColumn("FRMPayload_Len", length(col("FRMPayload")))
-
-        # remove 'data' and 'FRMPayload' after computing their lengths
-        df = df.drop("data", "FRMPayload")
-
-        # create new attributes resulting from "CFList" division
-        reverse_hex_octets_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
-
-        df = df.withColumn("FreqCh4", reverse_hex_octets_udf(expr("substring(CFList, 1, 6)"))) \
-                .withColumn("FreqCh5", reverse_hex_octets_udf(expr("substring(CFList, 7, 6)"))) \
-                .withColumn("FreqCh6", reverse_hex_octets_udf(expr("substring(CFList, 13, 6)"))) \
-                .withColumn("FreqCh7", reverse_hex_octets_udf(expr("substring(CFList, 19, 6)"))) \
-                .withColumn("FreqCh8", reverse_hex_octets_udf(expr("substring(CFList, 25, 6)"))) \
-                .withColumn("CFListType", expr("substring(CFList, 31, 2)"))
-
-        # Remove "CFList" after splitting it by "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8" and "CFListType"
-        df = df.drop("CFList")
 
         # manually define hexadecimal attributes from the 'df' dataframe that will be
         # converted to decimal to be processed by the algorithms as values

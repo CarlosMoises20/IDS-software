@@ -9,6 +9,10 @@ That will download a zip file. Then, you must follow the instructions on the sit
 ### To install Python on your local machine (version 3.10 recommended due to compatibility issues)
 https://www.python.org/downloads/
 
+### Check the version of Python in your local machine
+ ```python3
+python --version
+```
 
 ### Install the necessary Python packages on your local machine (in root directory)
 ```

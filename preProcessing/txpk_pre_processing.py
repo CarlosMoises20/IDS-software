@@ -1,6 +1,6 @@
 
 import time
-from pyspark.sql.functions import expr, when, col, length, regexp_extract
+from pyspark.sql.functions import expr, when, col, length, regexp_extract, lit
 from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import udf
 from pyspark.sql.types import IntegerType, FloatType
@@ -49,14 +49,6 @@ class TxpkPreProcessing(DataPreProcessing):
         # Remove irrelevant attributes that used to be inside 'txpk' struct attribute
         df = df.drop("ipol", "modu")
 
-        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
-        # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
-        df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
-
-        # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
-        # "FreqCh7", "FreqCh8" and "CFListType", for a more simple processing
-        df = df.drop("CFList")
-        
         # Convert MessageType parameter to its corresponding value in decimal
         df = df.withColumn("MessageType", when(col("MessageType") == "Join Request", 0)
                                           .when(col("MessageType") == "Join Accept", 1)
@@ -68,8 +60,17 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "Proprietary", 7)
                                           .otherwise(-1))
 
-        # Remove rows with invalid DevAddr and MessageType
-        df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != "") & (col("MessageType") != -1))
+        # Replace NULL and empty-string values of DevAddr with "Unknown"
+        df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
+                                        .otherwise(col("DevAddr")))
+
+        # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
+        # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
+        df = df.withColumn("CFListType", expr("substring(CFList, -2, 2)"))
+
+        # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
+        # "FreqCh7", "FreqCh8" and "CFListType", for a more simple processing
+        df = df.drop("CFList")
 
         ### Convert boolean attributes to integer
         df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK", "imme", "ncrc"])
