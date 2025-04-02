@@ -19,3 +19,6 @@ test*
 # Saved models
 *_SUCCESS*
 *part-000*
+
+# Error logs
+*hs_err_pid*
