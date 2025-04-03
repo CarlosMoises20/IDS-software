@@ -4,6 +4,8 @@ from preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import expr, col, explode, length, when, col, udf, regexp_extract, lit, asc
 from pyspark.sql.types import StringType, IntegerType, FloatType
 from pyspark.ml.feature import Imputer
+from pyspark.ml.feature import VectorAssembler
+from pyspark.ml import Pipeline
 from common.auxiliary_functions import get_all_attributes_names, format_time
 from common.constants import *
 
@@ -170,9 +172,8 @@ class RxpkPreProcessing(DataPreProcessing):
 
         df = imputer.fit(df).transform(df)
     
-
-        # apply normalization (TODO: check if this is necessary, maybe it will be)
-        #df = DataPreProcessing.normalization(df)
+        # apply normalization
+        df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
 

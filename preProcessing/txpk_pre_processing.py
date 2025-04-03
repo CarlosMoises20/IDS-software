@@ -120,9 +120,8 @@ class TxpkPreProcessing(DataPreProcessing):
 
         df = imputer.fit(df).transform(df)
 
-
-        # apply normalization (TODO: check if this is necessary, maybe it will be)
-        #df = DataPreProcessing.normalization(df)
+        # apply normalization
+        df = DataPreProcessing.normalization(df)
 
         end_time = time.time()
 

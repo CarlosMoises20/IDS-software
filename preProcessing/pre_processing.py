@@ -9,24 +9,21 @@ from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 class DataPreProcessing(ABC):
 
 
-    # TODO: review this (avoid VectorAssembler if possible, or if that is not possible, find a way to normalize
-    # attributes and return the result in the attributes themselves and remove the columns exclusively used for VectorAssembler)
     @staticmethod
     def normalization(df):
 
         # Normalize all attributes except DevAddr that will not be used for model training, only to identify the model
-        attributes = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr"]))
+        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr"]))
 
-        assembler = VectorAssembler(inputCols=attributes, outputCol="features")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
 
         df = assembler.transform(df)
         
-        scaler = MinMaxScaler(inputCol="features", outputCol="scaled_features")
-        df = scaler.fit(df).transform(df)
+        scaler = MinMaxScaler(inputCol="feat", outputCol="features")
         
-        df = df.drop("features")
+        df = scaler.fit(df).transform(df)
 
-        return df
+        return df.select("DevAddr", "features")
     
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())

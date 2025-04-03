@@ -51,6 +51,8 @@ def bind_dir_files(dataset_root_path, dataset_type):
         with open(output_filename, 'w') as f:
             f.write(combined_logs)
 
+        print(f"File '{output_filename}' created")
+
     # Returns the name of the output file to be used to load dataset as a spark dataframe
     return output_filename
 
