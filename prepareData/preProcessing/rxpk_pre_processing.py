@@ -1,12 +1,7 @@
 
-import time
-from preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, length, when, col, udf, regexp_extract, lit, asc
-from pyspark.sql.types import StringType, IntegerType, FloatType
-from pyspark.ml.feature import Imputer
-from pyspark.ml.feature import VectorAssembler
-from pyspark.ml import Pipeline
-from common.auxiliary_functions import get_all_attributes_names, format_time
+from prepareData.preProcessing.pre_processing import DataPreProcessing
+from pyspark.sql.functions import expr, col, explode, when, col, udf, lit
+from pyspark.sql.types import StringType
 from common.constants import *
 
 
@@ -26,8 +21,6 @@ class RxpkPreProcessing(DataPreProcessing):
     """
     @staticmethod
     def pre_process_data(df):
-
-        start_time = time.time()
 
         ## Feature Selection: remove irrelevant, redundant and correlated attributes
         # apply filter to let pass only relevant attributes inside 'rxpk' and 'rsig' arrays
@@ -86,48 +79,6 @@ class RxpkPreProcessing(DataPreProcessing):
         # this also removes all attributes outside the 'rxpk' array, since these are all irrelevant / redundant
         df = df.select("rxpk.*")
 
-        # Replace NULL and empty-string values of DevAddr with "Unknown"
-        df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
-                                        .otherwise(col("DevAddr")))
-        
-        # create new attributes resulting from "CFList" division
-        reverse_hex_octets_udf = udf(DataPreProcessing.reverse_hex_octets, StringType())
-
-        df = df.withColumn("FreqCh4", reverse_hex_octets_udf(expr("substring(CFList, 1, 6)"))) \
-                .withColumn("FreqCh5", reverse_hex_octets_udf(expr("substring(CFList, 7, 6)"))) \
-                .withColumn("FreqCh6", reverse_hex_octets_udf(expr("substring(CFList, 13, 6)"))) \
-                .withColumn("FreqCh7", reverse_hex_octets_udf(expr("substring(CFList, 19, 6)"))) \
-                .withColumn("FreqCh8", reverse_hex_octets_udf(expr("substring(CFList, 25, 6)"))) \
-                .withColumn("CFListType", expr("substring(CFList, 31, 2)"))
-
-        # Remove "CFList" after splitting it by "FreqCh4", "FreqCh5", "FreqCh6", "FreqCh7", "FreqCh8" and "CFListType"
-        df = df.drop("CFList")
-        
-        ### Convert boolean attributes to integer values
-        df = DataPreProcessing.bool_to_int(df, ["FCtrlADR", "FCtrlACK"])
-
-        # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
-        # that represents the content of the LoRaWAN message
-        df = df.withColumn("dataLen", length(col("data"))) \
-                .withColumn("FRMPayload_Len", length(col("FRMPayload")))
-        
-        # remove 'data' and 'FRMPayload' after computing their lengths
-        df = df.drop("data", "FRMPayload")
-
-        # Convert "codr" from string to float
-        str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
-        df = df.withColumn("codr", str_float_udf(col("codr")))
-
-        ### Extract SF and BW from "datr" attribute
-        pattern = r"SF(\d+)BW(\d+)"     # regex pattern to extract "SF" and "BW" 
-
-        df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \
-                .withColumn("BW", regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
-
-        # Remove "datr" after splitting it by "SF" and "BW"
-        df = df.drop("datr")
-
-
         ### Extract "chan" and "lsnr" from "rsig" attribute
 
         # aggregate 'chan' and 'lsnr' arrays, removing NULL values
@@ -148,36 +99,8 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
 
-        # manually define hexadecimal attributes from the 'df' dataframe that will be
-        # converted to decimal to be processed by the algorithms as values
-        hex_attributes = ["AppEUI", "AppNonce", "FreqCh4", "FreqCh5", 
-                          "FreqCh6", "FreqCh7", "FreqCh8",
-                          "CFListType", "DevEUI", "DevNonce",
-                          "FCnt", "FCtrl", "FOpts", "FPort", 
-                          "MIC", "NetID", "RxDelay"]
-    
-        # Convert hexadecimal attributes (string) to numeric (DecimalType), and replace NULL and empty values with -1 since
-        # -1 would never be a valid value for an hexadecimal-to-decimal attribute
-        # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
-        # these would be treated as categorical values, which is not the case
-        df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
-
-        # get all other attributes of the dataframe
-        remaining_attributes = list(set(get_all_attributes_names(df.schema)) - set(hex_attributes + ["DevAddr"]))
-        
-        # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
-        # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
-        # the mean is the best approach to preserve the distribution and variety of the data
-        imputer = Imputer(inputCols=remaining_attributes, outputCols=remaining_attributes, strategy="mean")
-
-        df = imputer.fit(df).transform(df)
-    
-        # apply normalization
-        df = DataPreProcessing.normalization(df)
-
-        end_time = time.time()
-
-        print("Time of rxpk pre-processing:", format_time(end_time - start_time), "\n\n")
+        # convert "AppEUI" from hexadecimal to decimal (this only exists in RXPK)
+        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI"])
 
         return df
 

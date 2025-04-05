@@ -91,7 +91,7 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=15, learning_rate=0.01, weight_decay=0.00001, momentum=0.9, 
+    def train(self, num_epochs=15, learning_rate=0.8, weight_decay=0.00001, momentum=0.9, 
               device = 'cuda' if torch.cuda.is_available() else 'cpu'):
         
         self.to(device)
@@ -158,6 +158,6 @@ class Autoencoder(nn.Module):
                 total += data.size(0)
                 correct += (predicted == data).sum().item()
 
-        accuracy = 100 * correct // total
+        accuracy = (100 * correct) // total
 
         return accuracy

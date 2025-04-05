@@ -84,7 +84,41 @@ def get_all_attributes_names(df_schema, parent_name=""):
 
     return attribute_names
 
-# Auxiliary function to print processing time on an adequate format
+"""
+Auxiliary function to get all boolean attributes names of a spark dataframe schema
+
+    schema - spark dataframe schema
+    parent_name - name of parent field of an array or struct. Optional, only applicable of the field is array or struct and
+                    used for recursive calls inside the function.
+
+Returns: a array
+
+"""
+def get_boolean_attributes_names(df_schema, parent_name=""):
+    boolean_names = []
+
+    for field in df_schema.fields:
+        full_name = f"{parent_name}.{field.name}" if parent_name else field.name
+
+        if isinstance(field.dataType, ArrayType):
+            if isinstance(field.dataType.elementType, StructType):
+                # Array of structs: recursive call
+                boolean_names.extend(get_boolean_attributes_names(field.dataType.elementType, full_name))
+        
+        elif isinstance(field.dataType, StructType):
+            # Nested struct: recursive call
+            boolean_names.extend(get_boolean_attributes_names(field.dataType, full_name))
+
+        elif isinstance(field.dataType, BooleanType):
+            # It's a boolean field: add full path name
+            boolean_names.append(full_name)
+    
+    return boolean_names
+
+"""
+Auxiliary function to print processing time on an adequate format
+
+"""
 def format_time(seconds):
 
     # Convert seconds to milisseconds (round to integer)

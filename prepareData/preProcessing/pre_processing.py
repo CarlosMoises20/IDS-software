@@ -8,7 +8,12 @@ from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 
 class DataPreProcessing(ABC):
 
+    """
+    Applies normalization of features in scale of 0 to 1
+    This contributes for faster processing by ML algoritms, faster convergence, better clustering
+    and a more consistent input for neural networks 
 
+    """
     @staticmethod
     def normalization(df):
 
