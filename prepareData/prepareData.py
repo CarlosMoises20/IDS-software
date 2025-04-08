@@ -4,6 +4,7 @@ from common.auxiliary_functions import bind_dir_files, get_all_attributes_names,
 from pyspark.sql.functions import asc, when, col, lit, expr, length, regexp_extract, udf
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
+from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
 
 
@@ -98,7 +99,22 @@ def pre_process_general(df):
     return df
 
 
-def prepare_dataset(spark_session, dataset_types):
+"""
+This function is called to apply all necessary pre-processing steps to prepare
+the dataset to be processed by the used ML models on the IDS
+
+It extracts all "rxpk" and "txpk" LoRaWAN messages from the given datasets, that are
+in JSON format, and converts them to a spark dataframe
+
+For that, it receives:
+
+    spark_session: the Spark session used to read all messages in a file and 
+        convert them into a spark dataframe
+
+    dataset_types: the types of dataset ("rxpk" and "txpk")
+
+"""
+def prepare_dataset(spark_session, dataset_types=[DatasetType.RXPK, DatasetType.TXPK]):
 
     start_time = time.time()
 
@@ -108,6 +124,7 @@ def prepare_dataset(spark_session, dataset_types):
     # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
     df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
 
+    # apply pre-processing techniques common to "rxpk" and "txpk"
     df = pre_process_general(df)
 
     end_time = time.time()

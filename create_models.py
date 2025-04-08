@@ -1,7 +1,6 @@
 
 from pyspark.sql import SparkSession
 from processing.message_classification import MessageClassification
-from common.dataset_type import DatasetType
 from common.constants import *
 
 
@@ -21,8 +20,7 @@ if __name__ == '__main__':
     
     #spark_session.sparkContext.setLogLevel("DEBUG")
 
-    mc = MessageClassification(spark_session=spark_session,
-                               dataset_types=[DatasetType.RXPK, DatasetType.TXPK])
+    mc = MessageClassification(spark_session)
     
     result = mc.classify_messages()
 

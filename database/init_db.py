@@ -17,7 +17,6 @@ cursor = db_connect.cursor()
 create_model_table = """
             CREATE TABLE model (
                 dev_addr            BIGINT NOT NULL,
-                dataset_type        VARCHAR(4) NOT NULL CHECK (dataset_type IN ('rxpk', 'txpk')),
                 accuracy            DECIMAL(5,4) NOT NULL CHECK (accuracy >= 0 AND accuracy <= 1),
                 created             TIMESTAMP NOT NULL DEFAULT NOW(),
                 modified            TIMESTAMP NOT NULL DEFAULT NOW(),
@@ -29,7 +28,6 @@ create_model_table = """
 create_fcnt_table = """
                 CREATE TABLE frame_counter (
                     dev_addr            BIGINT NOT NULL,
-                    dataset_type        VARCHAR(4) NOT NULL CHECK (dataset_type IN ('rxpk', 'txpk')),
                     created             TIMESTAMP NOT NULL DEFAULT NOW(),
                     modified            TIMESTAMP NOT NULL DEFAULT NOW(),
                     fcnt                INT NOT NULL,

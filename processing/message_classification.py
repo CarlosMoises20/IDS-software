@@ -15,25 +15,15 @@ import time
 
 class MessageClassification:
 
-    def __init__(self, spark_session, dataset_types):
+    def __init__(self, spark_session):
         self.__spark_session = spark_session
-        self.__dataset_types = dataset_types
 
 
-    def __train_test_model(self, df, dev_addr, column_names, cursor, accuracy_list):
+    def __train_test_model(self, df, dev_addr, accuracy_list, cursor):
         
         # Filter dataset considering the selected DevAddr
         # Remove DevAddr to make processing more efficient, since we don't need it anymore 
         df_model = df.filter(df.DevAddr == dev_addr).drop("DevAddr")
-
-        # Create the VectorAssembler that merges all features of the dataset into a Vector
-        # These feature are, now, all numeric and with the missing values all imputed, so now we can use them
-        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
-
-        pipeline = Pipeline(stages=[assembler])
-
-        # Train and apply the pipeline model to assemble all features
-        df_model = pipeline.fit(df_model).transform(df_model)
 
         # randomly divide dataset into training (80%) and test (20%)
         # and set a seed in order to ensure reproducibility, which is important to 
@@ -44,18 +34,13 @@ class MessageClassification:
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=2, seed=522, maxIter=100)
 
-        k_means_model = k_means.fit(df_model_train)
+        model = k_means.fit(df_model_train)
 
-        k_means_predictions = k_means_model.transform(df_model_test)
+        predictions = model.transform(df_model_test)
 
-        print(k_means_predictions)
+        print(predictions)
 
-        k_means_predictions.select("tmst", "DevAddr", "FCnt").sort(asc("tmst")).show(truncate=False, vertical=True)
-
-
-        """
         # TODO: fix and complete 
-
         
         # Evaluate the model
         evaluator = BinaryClassificationEvaluator(labelCol="intrusion", metricName="areaUnderROC",
@@ -66,20 +51,20 @@ class MessageClassification:
         accuracy_list.append(accuracy)
 
         # Check if model of 'DevAddr' for the specified dataset type already exists
-        cursor.execute("SELECT * FROM model WHERE dev_addr = ? AND dataset_type = ?", [dev_addr, dataset_type.value["name"]])
+        cursor.execute("SELECT * FROM model WHERE dev_addr = ?", [dev_addr])
 
         # If exists, update it
         if cursor.rowcount > 0:
-            cursor.execute("UPDATE model SET model = ?, accuracy = ? WHERE dev_addr = ? AND dataset_type = ?", 
-                            [model, accuracy, dev_addr, dataset_type.value["name"]])
+            cursor.execute("UPDATE model SET model = ?, accuracy = ? WHERE dev_addr = ?", 
+                            [model, accuracy, dev_addr])
         
         # If not, insert it
         else:
             # TODO: fix
-            cursor.execute("INSERT INTO model(dev_addr, dataset_type, model, accuracy) VALUES (?, ?, ?, ?)", 
-                            [dev_addr, dataset_type.value["name"], model, accuracy])
+            cursor.execute("INSERT INTO model(dev_addr, model, accuracy) VALUES (?, ?, ?)", 
+                            [dev_addr, model, accuracy])
 
-        """
+        
 
 
     """
@@ -95,7 +80,10 @@ class MessageClassification:
     def classify_messages(self):
 
         # pre-processing: prepare dataset
-        df = prepare_dataset(self.__spark_session, self.__dataset_types)
+        df = prepare_dataset(self.__spark_session)
+
+        # Divide dataframe processing into partitions to make it faster for ML processing
+        df = df.repartition(200)
         
         # Initialize SparkContext for models' parallel processing
         sc = SparkContext.getOrCreate()
@@ -109,10 +97,6 @@ class MessageClassification:
         # Convert to a list of integers
         dev_addr_list = [row.DevAddr for row in dev_addr_list.collect()]
 
-        # get, in a list of strings, the names of all attributes names to assemble (excluding DevAddr)
-        # since they are all now numeric
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr"]))
-
         # list of all models' accuracy to be used to return the mean accuracy of all models
         accuracy_list = []
 
@@ -121,20 +105,12 @@ class MessageClassification:
 
         cursor = db_connection.cursor()
 
-        # Use SparkContext for parallel processing of all models
-        dev_addr_rdd = sc.parallelize(dev_addr_list)
-
-        # Create a specific model for each device (DevAddr), paralellizing the process to make it faster,
-        # since these processes are independent from each other
-        dev_addr_rdd.map(
-            lambda dev_addr: self.__train_test_model(
-                    df, dev_addr, column_names, cursor, accuracy_list
-                )
-        ).collect()
+        for dev_addr in dev_addr_list:
+            self.__train_test_model(df, dev_addr, accuracy_list, cursor)
 
         # Close connection to CrateDB
-        cursor.close()
-        db_connection.close()
+        #cursor.close()
+        #db_connection.close()
 
         end_time = time.time()
 
