@@ -13,7 +13,7 @@ into a single log file of each type of LoRaWAN message
 It returns the name of the output file to be used to load dataset as a spark dataframe
 
 """
-def bind_dir_files(dataset_root_path, dataset_type):
+def bind_dir_files(spark_session, dataset_root_path, dataset_type):
 
     dataset_root_path = os.fsencode(dataset_root_path)
 
@@ -31,11 +31,11 @@ def bind_dir_files(dataset_root_path, dataset_type):
         all_logs = []           
 
         # Filter files based on the dataset type
-        dataset_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
+        filenames_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
                     for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value["name"])]
 
         # Loop through all files in the directory
-        for filename in dataset_from_type:
+        for filename in filenames_from_type:
             with open(filename, 'r') as f:
                 all_logs.append(f.read())     # Append the contents of the file to the list
 
@@ -53,8 +53,26 @@ def bind_dir_files(dataset_root_path, dataset_type):
 
         print(f"File '{output_filename}' created")
 
-    # Returns the name of the output file to be used to load dataset as a spark dataframe
-    return output_filename
+
+    # Define the output Parquet filename
+    parquet_filename = output_filename.replace(".log", ".parquet")
+
+    if os.path.exists(parquet_filename):
+        print(f"Parquet file {parquet_filename} already exists. Skipping generation")
+
+    else:
+
+        # Read the .log file as a text DataFrame
+        df = spark_session.read.json(output_filename)
+
+        # Write DataFrame to Parquet
+        df.write.parquet(parquet_filename)
+
+        print(f"File '{parquet_filename}' created")
+
+    # Returns the name of the output parquet file to be used to load dataset as a spark dataframe
+    return parquet_filename
+
 
 """
 Auxiliary function to get all attributes names of a spark dataframe schema
@@ -83,6 +101,7 @@ def get_all_attributes_names(df_schema, parent_name=""):
             attribute_names.append(field.name)
 
     return attribute_names
+
 
 """
 Auxiliary function to get all boolean attributes names of a spark dataframe schema
@@ -115,6 +134,7 @@ def get_boolean_attributes_names(df_schema, parent_name=""):
     
     return boolean_names
 
+
 """
 Auxiliary function to print processing time on an adequate format
 
@@ -146,4 +166,4 @@ def format_time(seconds):
             minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
             secs = seconds % 60                             # Seconds as the rest of the division of total by number of seconds in a minute
             return f"{hours} h {minutes} min {secs} s "     # Minutes, hours and seconds
-        
+

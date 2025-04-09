@@ -1,7 +1,7 @@
 
 import time
 from common.auxiliary_functions import bind_dir_files, get_all_attributes_names, get_boolean_attributes_names, format_time
-from pyspark.sql.functions import asc, when, col, lit, expr, length, regexp_extract, udf
+from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.dataset_type import DatasetType
@@ -13,10 +13,10 @@ def pre_process_type(spark_session, dataset_type, dataset_root_path="./datasets"
 
     ### Bind all log files into a single log file if it doesn't exist yet,
     ### to simplify data processing
-    combined_logs_filename = bind_dir_files(dataset_root_path, dataset_type)
+    combined_logs_filename = bind_dir_files(spark_session, dataset_root_path, dataset_type)
 
     # Load the dataset into a Spark Dataframe
-    df = spark_session.read.json(combined_logs_filename)
+    df = spark_session.read.parquet(combined_logs_filename)
 
     ### Apply pre-processing techniques only specified for the dataset type
     return dataset_type.value["pre_processing_class"].pre_process_data(df)
@@ -28,16 +28,19 @@ def pre_process_general(df):
     ### Apply transformations to attributes
 
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
-    # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ 
+    # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
     df = df.withColumn("CFListType", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
                                         .otherwise(expr("substring(CFList, -2, 2)")))
 
     # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
-    # "FreqCh7", "FreqCh8" and "CFListType", for a more simple processing
+    # "FreqCh7", "FreqCh8" (on TXPK; in RXPK it's not necessary) and "CFListType" (in both RXPK and TXPK), 
+    # for a more simple processing
     df = df.drop("CFList")
 
     # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
-    # that represents the content of the LoRaWAN message
+    # that represents the content of the LoRaWAN message; we only need their lengths to detect anomalies in the data size
+    # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
+    # which is not supposed
     df = df.withColumn("dataLen", length(col("data"))) \
             .withColumn("FRMPayload_Len", length(col("FRMPayload")))
     
@@ -45,15 +48,16 @@ def pre_process_general(df):
     df = df.drop("data", "FRMPayload")
 
     # Replace NULL and empty-string values of DevAddr with "Unknown"
+    # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
+    # targeted by some sort of attack in the LoRaWAN physical layer
     df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
                                     .otherwise(col("DevAddr")))
     
-
     # Convert "codr" from string to float
     str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
     df = df.withColumn("codr", str_float_udf(col("codr")))
 
-    ### Extract SF and BW from "datr" attribute
+    ### Extract values of LoRa parameters SF and BW from "datr" attribute
     pattern = r"SF(\d+)BW(\d+)"     # regex pattern to extract "SF" and "BW" 
 
     df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \

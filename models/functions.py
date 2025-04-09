@@ -62,6 +62,9 @@ def kl_divergence(P, Q):
     return entropy(P, Q, base=2)  # Using log base 2 for better interpretability
 
 
-# Sigmoid Activation function
+"""
+Sigmoid Activation function
+
+"""
 def sigmoid(X):
     return 1 / (1 + np.exp(-X))

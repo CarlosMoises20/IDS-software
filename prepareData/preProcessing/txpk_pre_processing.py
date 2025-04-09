@@ -8,7 +8,6 @@ class TxpkPreProcessing(DataPreProcessing):
 
 
     """
-
     This function applies pre-processing on data from the dataframe 'df_txpk', for the 'txpk' dataset
 
         - Applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
@@ -21,7 +20,6 @@ class TxpkPreProcessing(DataPreProcessing):
         - Verifies if fields are correctly calculated, creating new attributes that indicate if the field is correctly calculated
 
         - Converts hexadecimal attributes to decimal
-
 
     """
     @staticmethod

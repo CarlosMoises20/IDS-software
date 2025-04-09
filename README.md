@@ -31,25 +31,6 @@ pip install -r ./requirements.txt
 #### NOTE: Properly define the environment variables on your local machine
 
 
-### To initialize CrateDB, you must first install Docker on your local machine
-On Windows 10/11: https://docs.docker.com/desktop/setup/install/windows-install/
-
-On Linux: https://docs.docker.com/desktop/setup/install/linux/ 
-
-On Mac: https://docs.docker.com/desktop/setup/install/mac-install/  
-
-
-### Then, run the following commands to create the CrateDB docker container where all data will be stored 
-```
-cd ./database
-docker compose up
-```
-
-### To create tables in the database, run the corresponding script with the following commands
-```
-cd ./database 
-python ./init_db.py
-```
 
 ### Train and test the models, and store them on the database (in root directory)
 ```python3
@@ -61,17 +42,4 @@ python .\message_classification.py
 python .\real_time_msg_processing.py
 ```
 If you want to stop the application, just force it (Ctrl + C in Windows)
-
-
-### If you want to clean all data in the database (without removing the tables), run the corresponding script with the following commands
-```
-cd ./database 
-python ./clean_db.py
-```
-
-### If you want to remove the container from your local machine, run the following commands
-```
-cd ./database
-docker compose down
-```
 

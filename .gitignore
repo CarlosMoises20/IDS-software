@@ -22,3 +22,6 @@ test*
 
 # Error logs
 *hs_err_pid*
+
+# MLFlow Runs
+mlruns*
