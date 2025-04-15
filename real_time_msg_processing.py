@@ -1,8 +1,7 @@
 
 from crate.client import connect
 from pyspark.sql import SparkSession
-from processing.message_classification import MessageClassification as mc
-from common.dataset_type import DatasetType
+from processing.message_classification import MessageClassification
 from common.constants import *
 
 
@@ -24,19 +23,14 @@ if __name__ == '__main__':
                             .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
                             .getOrCreate()
-    
-    # Connect with database (CrateDB)
-    db_connection = connect(CRATEDB_URI)
-    cursor = db_connection.cursor()
 
 
-    # TODO: run the application, opening a connection to receive messages in real-time, that only ends when requested
+    # Initialize class used for network intrusion detection
+    mc = MessageClassification(spark_session)
 
-
-    # TODO: use database connection to retrieve 'RXPK' and 'TXPK' models
+    # TODO: implement a function that classifies new messages in real time based on the corresponding models, probably in this way
         # 1 - reads the message
-        # 2 - determines if message is 'rxpk' or 'txpk', and based on that, define dataset_type for that message
-        # 3 - the dataset_type will determine the model that will be used to process the message and also the type of processing performed
-        # 4 - convert the message to a dataframe
+        # 2 - converts the message to a dataframe
+        # 3 - verifies the schema to check if its "RXPK" or "TXPK"
         # 5 - apply pre-processing using the corresponding class (RxpkPreProcessing or TxpkPreProcessing)
-        # 6 - classify the message using the corresponding model retrieved from database
+        # 6 - classify the message using the corresponding model retrieved from MLFlow, based on DevAddr

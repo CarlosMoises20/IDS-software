@@ -4,18 +4,18 @@ from pyspark.sql.types import *
 
 
 """
-Auxiliary function to bind all log files inside an indicated directory
-into a single log file of each type of LoRaWAN message
+Auxiliary function to aggregate all log files inside a directory,
+into a single file corresponding to each type of LoRaWAN message
 
     dataset_root_path (string) - path to the directory containing the log files
-    dataset_type (DatasetType enum) - type of dataset to be processed (DatasetType.RXPK or DatasetType.TXPK)
+    dataset_type (DatasetType enum) - type of dataset to be processed (DatasetType.RXPK or DatasetType.TXPK in this case)
 
 It returns the name of the output file to be used to load dataset as a spark dataframe
 
 """
-def bind_dir_files(spark_session, dataset_root_path, dataset_type):
+def bind_dir_files(spark_session, dataset_type):
 
-    dataset_root_path = os.fsencode(dataset_root_path)
+    dataset_root_path = os.fsencode("./datasets")
 
     # Define the name of the file where all logs corresponding 
     # to the dataset type 'dataset_type' will be stored
@@ -61,7 +61,6 @@ def bind_dir_files(spark_session, dataset_root_path, dataset_type):
         print(f"Parquet file {parquet_filename} already exists. Skipping generation")
 
     else:
-
         # Read the .log file as a text DataFrame
         df = spark_session.read.json(output_filename)
 
@@ -71,6 +70,7 @@ def bind_dir_files(spark_session, dataset_root_path, dataset_type):
         print(f"File '{parquet_filename}' created")
 
     # Returns the name of the output parquet file to be used to load dataset as a spark dataframe
+    # This is done since processing in spark using parquet files is faster than if log files with JSON format were used 
     return parquet_filename
 
 

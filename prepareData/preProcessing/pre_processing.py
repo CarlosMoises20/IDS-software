@@ -8,9 +8,17 @@ from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 class DataPreProcessing(ABC):
 
     """
-    Applies normalization of features in scale of 0 to 1
-    This contributes for faster processing by ML algoritms, faster convergence, better clustering
-    and a more consistent input for neural networks 
+    Applies normalization of features to a scale between 0 and 1.
+    
+    This improves the performance of machine learning algorithms by enabling faster convergence, better clustering,
+    and more consistent input for neural networks.
+
+    Without normalization, features with wider value ranges can dominate those with smaller ranges, 
+    due to their higher variance. By normalizing all features to the same scale, each one contributes equally 
+    to the learning process.
+
+    Note: The 'DevAddr' column is excluded from normalization, as it is only used to identify the model,
+    not for training.
 
     """
     @staticmethod
@@ -28,6 +36,7 @@ class DataPreProcessing(ABC):
         df = scaler.fit(df).transform(df)
 
         return df.select("DevAddr", "features")
+    
     
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())

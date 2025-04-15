@@ -1,16 +1,16 @@
 
 from common.auxiliary_functions import format_time
-from common.constants import CRATEDB_URI
-import mlflow
+import mlflow, time, shutil, os
 import mlflow.pytorch as mlflow_pytorch
 import mlflow.pyspark.ml as mlflow_pyspark
 from mlflow.tracking import MlflowClient
-from prepareData.prepareData import prepare_dataset
+from mlflow.models import infer_signature
+from prepareData.prepareData import prepare_past_dataset
+from models.autoencoder import Autoencoder
 from pyspark.ml.clustering import KMeans
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvaluator, MulticlassClassificationEvaluator
 from pyspark.ml.classification import RandomForestClassifier
-from pyspark import SparkContext
-import time
+from concurrent.futures import ProcessPoolExecutor
 
 
 class MessageClassification:
@@ -31,18 +31,24 @@ class MessageClassification:
         )
         
         if not runs:
-            return None
+            return None, None
 
         run_id = runs[0].info.run_id
         
         model_uri = f"runs:/{run_id}/model"
         
-        model = mlflow.spark.load_model(model_uri)
-        
-        return model
+        try:
+            model = mlflow.spark.load_model(model_uri)
+        except:
+            model = None
 
-    # This function ensures that there are always sufficient samples for both training and testing
-    # considering the total number of examples in the dataframe corresponding to the device
+        return model, run_id
+
+    """
+    This function ensures that there are always sufficient samples for both training and testing
+    considering the total number of examples in the dataframe corresponding to the device
+    
+    """
     def sample_random_split(self, df_model):
 
         total_count = df_model.count()
@@ -59,7 +65,12 @@ class MessageClassification:
         return df_model_train, df_model_test
 
 
-    def __train_test_model(self, df, dev_addr, accuracy_list):
+    """
+    This function creates a ML model based on a given DevAddr, and stores it on MLFlow
+    It uses, as input, all samples of the dataframe 'df' whose DevAddr is equal to 'dev_addr'
+
+    """
+    def create_model(self, df, dev_addr, accuracy_list=None):
         
         # Filter dataset considering the selected DevAddr
         # Remove DevAddr to make processing more efficient, since we don't need it anymore 
@@ -71,14 +82,20 @@ class MessageClassification:
         # model is run. This is important to compare the model's performance in different situations
         df_model_train, df_model_test = self.sample_random_split(df_model)
 
-        # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
-        k_means = KMeans(k=2, seed=522, maxIter=100)
+        ae = Autoencoder(df_model_train, df_model_test)
 
+        ae.train(num_epochs=50)
+
+        #ae.test()
+
+        """
+        # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
+        k_means = KMeans(k=3, seed=522, maxIter=100)
+
+        # TODO: think if covering this with a try/except block wouldn't be better
         model = k_means.fit(df_model_train)
 
         predictions = model.transform(df_model_test)
-
-        predictions.show(truncate=False, vertical=True)
         
         # Evaluate the model
         evaluator = ClusteringEvaluator()
@@ -87,25 +104,48 @@ class MessageClassification:
 
         accuracy_list.append(accuracy)
 
+        """
+
+
+        """
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        mlflow_retrieved_model = self.get_model_by_devaddr(dev_addr)
+        mlflow_retrieved_model, old_run_id = self.get_model_by_devaddr(dev_addr)
+
+        signature = infer_signature(df_model_test, df_model)
 
         # If a model associated to the device already exists, delete it to replace it with
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
         if mlflow_retrieved_model is not None:
-            old_run_id = mlflow_retrieved_model
             self.__mlflowclient.delete_run(old_run_id)
             print(f"Old model from device {dev_addr} deleted.")
+
+            # Get experiment ID of run
+            run_info = mlflow.get_run(old_run_id).info
+            experiment_id = run_info.experiment_id
+
+            # Artefact local path
+            run_path = os.path.join("mlruns", experiment_id, old_run_id)
+
+            # If the path exists, delete it
+            if os.path.exists(run_path):
+                shutil.rmtree(run_path)
+                print(f"Artefact directory deleted: {run_path}")
+
+            else:
+                print(f"Artefact directory not found: {run_path}")
   
-        with mlflow.start_run(run_name=f"Model_{dev_addr})"):
+        # Create model based on DevAddr and store it as an artifact using MLFlow
+        with mlflow.start_run(run_name=f"Model_Device_{dev_addr}"):
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.log_metric("accuracy", accuracy)
             mlflow_pyspark.autolog()
-            mlflow.spark.log_model(model, "model")
+            mlflow.spark.log_model(model, "model", signature=signature)
 
-        print(f"Model for {dev_addr} saved successfully")
+
+        print(f"Model for end-device with DevAddr {dev_addr} saved successfully")
+        """
         
 
 
@@ -115,17 +155,14 @@ class MessageClassification:
     It receives the spark session (spark_session) that handles the dataset processing and
     the corresponding dataset type (dataset_type) defined by DatasetType Enum
 
-    It returns the processing results, namely the accuracy and the confusion matrix that show the
-    model performance
+    It stores the models as artifacts using MLFlow, as well as their associated informations 
+    such as metric evaluations and the associated DevAddr 
 
     """
-    def classify_messages(self):
+    def create_ml_models(self):
 
-        # pre-processing: prepare dataset
-        df = prepare_dataset(self.__spark_session)
-
-        # Divide dataframe processing into partitions to make it faster for ML processing
-        df = df.repartition(200)
+        # pre-processing: prepare past dataset
+        df = prepare_past_dataset(self.__spark_session)
 
         ### Begin processing
         start_time = time.time()
@@ -139,20 +176,17 @@ class MessageClassification:
         # list of all models' accuracy to be used to return the mean accuracy of all models
         accuracy_list = []
 
-        ### Initialize connection with CrateDB
-        #db_connection = connect(CRATEDB_URI)
-
-        #cursor = db_connection.cursor()
-
-        # TODO: parallelize the creation of all models
-
-        for dev_addr in dev_addr_list:
-            self.__train_test_model(df, dev_addr, accuracy_list)
-
-        # Close connection to CrateDB
-        #cursor.close()
-        #db_connection.close()
-
+        # create all models in parallel to accelerate the code execution, since these are all independent
+        # and we are dealing with a lot of models (over 4000 models)
+        # the number of processes running in parallel is the number of models created
+        with ProcessPoolExecutor(max_workers=min(len(dev_addr_list), os.cpu_count())) as executor:
+            futures = [executor.submit(self.create_model(df, dev_addr, accuracy_list))
+                       for dev_addr in dev_addr_list]
+            
+            # Waits until all threads get completed
+            for future in futures:
+                future.result()
+    
         end_time = time.time()
 
         avg_accuracy = (sum(accuracy_list) / len(accuracy_list)) * 100
@@ -161,10 +195,5 @@ class MessageClassification:
 
         # Print the total time of pre-processing; the time is in seconds, minutes or hours
         print("Time of processing: ", format_time(end_time - start_time), "\n\n")
-
-        avg_accuracy = 30
-
-        # TODO: change return for a general confusion matrix??
-        return avg_accuracy
 
         

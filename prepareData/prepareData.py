@@ -5,17 +5,18 @@ from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, 
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.dataset_type import DatasetType
+from common.constants import SPARK_NUM_PARTITIONS
 from pyspark.ml.feature import Imputer
 
 
 #### Pre-processing steps specified for the dataset type
-def pre_process_type(spark_session, dataset_type, dataset_root_path="./datasets"):
+def pre_process_type(spark_session, dataset_type):
 
     ### Bind all log files into a single log file if it doesn't exist yet,
     ### to simplify data processing
-    combined_logs_filename = bind_dir_files(spark_session, dataset_root_path, dataset_type)
+    combined_logs_filename = bind_dir_files(spark_session, dataset_type)
 
-    # Load the dataset into a Spark Dataframe
+    # Load the parquet dataset into a Spark Dataframe
     df = spark_session.read.parquet(combined_logs_filename)
 
     ### Apply pre-processing techniques only specified for the dataset type
@@ -118,15 +119,21 @@ For that, it receives:
     dataset_types: the types of dataset ("rxpk" and "txpk")
 
 """
-def prepare_dataset(spark_session, dataset_types=[DatasetType.RXPK, DatasetType.TXPK]):
+def prepare_past_dataset(spark_session):
 
     start_time = time.time()
 
     df_rxpk, df_txpk = (pre_process_type(spark_session, dataset_type) 
-                            for dataset_type in dataset_types)
+                            for dataset_type in [key for key in DatasetType])
 
     # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
     df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
+
+    df = df.coalesce(numPartitions=int(SPARK_NUM_PARTITIONS))
+
+    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
+    # especially in repeated computations
+    df.cache()
 
     # apply pre-processing techniques common to "rxpk" and "txpk"
     df = pre_process_general(df)

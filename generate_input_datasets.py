@@ -1,35 +1,33 @@
 
-import os
-from pyspark.sql import SparkSession
-from processing.message_classification import MessageClassification
+## This script generates the datasets used to load all LoRaWAN messages to train and test ML models
+
+import time
+from common.auxiliary_functions import bind_dir_files, format_time
+from common.dataset_type import DatasetType
 from common.constants import *
+from pyspark.sql import SparkSession
 
 
-if __name__ == '__main__':
+start_time = time.time()
 
-    # Initialize Spark Session
-    spark_session = SparkSession.builder \
+spark_session = SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
                             .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
                             .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
                             .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
-                            .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
                             .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \
                             .config("spark.executor.memoryOverhead", SPARK_EXECUTOR_MEMORY_OVERHEAD) \
                             .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
-                            .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
-                            .config("spark.serializer", SPARK_SERIALIZER) \
                             .getOrCreate()
-    
-    #spark_session.sparkContext.setLogLevel("DEBUG")
 
-    # Initialize the class used for network intrusion detection
-    mc = MessageClassification(spark_session)
-    
-    # call function to create ML models based on past data (batch processing)
-    mc.create_ml_models()
+filename_rxpk, filename_txpk = (bind_dir_files(spark_session=spark_session, 
+                                               dataset_type=dataset_type) for dataset_type in [key for key in list(DatasetType)])
 
-    # Stop the Spark Session
-    spark_session.stop()
+spark_session.stop()
+
+end_time = time.time()
+
+print(f"Time of generation (or not) of files '{filename_rxpk}' and '{filename_txpk}':",
+      format_time(end_time - start_time))

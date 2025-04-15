@@ -30,6 +30,10 @@ pip install -r ./requirements.txt
 
 #### NOTE: Properly define the environment variables on your local machine
 
+### If you want to generate the input datasets in separate, run the following command (in root directory)
+```python3
+python .\generate_input_datasets.py
+```
 
 
 ### Train and test the models, and store them on the database (in root directory)
