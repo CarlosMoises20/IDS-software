@@ -1,27 +1,13 @@
 
-import os
-from pyspark.sql import SparkSession
 from processing.message_classification import MessageClassification
 from common.constants import *
+from common.auxiliary_functions import create_spark_session
 
 
 if __name__ == '__main__':
 
     # Initialize Spark Session
-    spark_session = SparkSession.builder \
-                            .appName(SPARK_APP_NAME) \
-                            .config("spark.ui.port", SPARK_PORT) \
-                            .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
-                            .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
-                            .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
-                            .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
-                            .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \
-                            .config("spark.executor.memoryOverhead", SPARK_EXECUTOR_MEMORY_OVERHEAD) \
-                            .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
-                            .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
-                            .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
-                            .config("spark.serializer", SPARK_SERIALIZER) \
-                            .getOrCreate()
+    spark_session = create_spark_session()
     
     #spark_session.sparkContext.setLogLevel("DEBUG")
 

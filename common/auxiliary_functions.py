@@ -1,6 +1,29 @@
 
 import os
 from pyspark.sql.types import *
+from common.constants import *
+from pyspark.sql import SparkSession
+
+
+"""
+Auxiliary function to create spark session
+
+"""
+def create_spark_session():
+    return SparkSession.builder \
+                            .appName(SPARK_APP_NAME) \
+                            .config("spark.ui.port", SPARK_PORT) \
+                            .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
+                            .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
+                            .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
+                            .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
+                            .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \
+                            .config("spark.executor.memoryOverhead", SPARK_EXECUTOR_MEMORY_OVERHEAD) \
+                            .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
+                            .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
+                            .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
+                            .config("spark.serializer", SPARK_SERIALIZER) \
+                            .getOrCreate()
 
 
 """
@@ -19,7 +42,7 @@ def bind_dir_files(spark_session, dataset_type):
 
     # Define the name of the file where all logs corresponding 
     # to the dataset type 'dataset_type' will be stored
-    output_filename = f'./combinedDatasets/combined_logs_{dataset_type.value["name"]}.log'
+    output_filename = f'./generatedDatasets/combined_logs_{dataset_type.value["name"]}.log'
 
     # Skip file generation if it already exists
     if os.path.exists(output_filename):

@@ -7,9 +7,10 @@ from mlflow.tracking import MlflowClient
 from mlflow.models import infer_signature
 from prepareData.prepareData import prepare_past_dataset
 from models.autoencoder import Autoencoder
+from common.constants import SPARK_NUM_PARTITIONS
 from pyspark.ml.clustering import KMeans
 from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvaluator, MulticlassClassificationEvaluator
-from pyspark.ml.classification import RandomForestClassifier
+from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from concurrent.futures import ProcessPoolExecutor
 
 
@@ -76,19 +77,52 @@ class MessageClassification:
         # Remove DevAddr to make processing more efficient, since we don't need it anymore 
         df_model = df.filter(df.DevAddr == dev_addr).drop("DevAddr")
 
+        ae = Autoencoder(self.__spark_session, df_model, dev_addr)
+
+        ae.train()
+
+        df_model = ae.label_data_by_reconstruction_error(threshold=0.0375)
+
+
         # randomly divide dataset into training and test, according to the total number of examples 
         # and set a seed in order to ensure reproducibility, which is important to 
         # ensure that the model is always trained and tested on the same examples each time the
         # model is run. This is important to compare the model's performance in different situations
         df_model_train, df_model_test = self.sample_random_split(df_model)
 
-        ae = Autoencoder(df_model_train, df_model_test)
 
-        ae.train(num_epochs=50)
+        rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
+        
+        rf_model = rf.fit(df_model_train)
 
-        #ae.test()
+        results = rf_model.evaluate(df_model_test)
 
+
+
+        
+        """ LOGISTIC REGRESSION
+        
+        lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
+                                regParam=0.1, elasticNetParam=1.0,
+                                family="multinomial", maxIter=50)
+        
+
+        lr_model = lr.fit(df_model_train)
+
+        results = lr_model.evaluate(df_model_test)
+        
         """
+        
+        print(f"accuracy: {results.accuracy:.2f}")
+        print(f"precision for each label: {results.precisionByLabel}")
+        results.predictions.show(15, truncate=False, vertical=True)
+        
+        
+        
+
+
+        """  KMEANS
+
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=3, seed=522, maxIter=100)
 
@@ -106,8 +140,7 @@ class MessageClassification:
 
         """
 
-
-        """
+        """  SAVE MODEL ON MLFLOW 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
         mlflow_retrieved_model, old_run_id = self.get_model_by_devaddr(dev_addr)
@@ -145,6 +178,7 @@ class MessageClassification:
 
 
         print(f"Model for end-device with DevAddr {dev_addr} saved successfully")
+
         """
         
 
@@ -164,6 +198,9 @@ class MessageClassification:
         # pre-processing: prepare past dataset
         df = prepare_past_dataset(self.__spark_session)
 
+        # Splits the dataframe into "SPARK_NUM_PARTITIONS" partitions during pre-processing
+        df = df.coalesce(numPartitions=int(SPARK_NUM_PARTITIONS))
+
         ### Begin processing
         start_time = time.time()
 
@@ -178,8 +215,7 @@ class MessageClassification:
 
         # create all models in parallel to accelerate the code execution, since these are all independent
         # and we are dealing with a lot of models (over 4000 models)
-        # the number of processes running in parallel is the number of models created
-        with ProcessPoolExecutor(max_workers=min(len(dev_addr_list), os.cpu_count())) as executor:
+        with ProcessPoolExecutor(max_workers=os.cpu_count()) as executor:
             futures = [executor.submit(self.create_model(df, dev_addr, accuracy_list))
                        for dev_addr in dev_addr_list]
             

@@ -36,9 +36,14 @@ python .\generate_input_datasets.py
 ```
 
 
-### Train and test the models, and store them on the database (in root directory)
+### Create the models (train and test), and save them as an MLFlow artifact (in root directory)
 ```python3
-python .\message_classification.py
+python .\create_models.py
+```
+
+### Create a specific model based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"), and save it as an MLFlow artifact (in root directory)
+```python3
+python .\create_device_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N}
 ```
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)

@@ -1,42 +1,28 @@
 
-import time
-import torch
+import time, torch, os
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
-import pandas as pd
 import numpy as np
-from models.cnn import CNN_Decoder, CNN_Encoder
 from common.auxiliary_functions import format_time
-
-"""
-class Network(nn.Module):
-
-    def __init__(self, output_size):
-        super(Network, self).__init__()
-        self.encoder = CNN_Encoder(output_size)
-        self.decoder = CNN_Decoder(output_size)
-
-    def encode(self, x):
-        return self.encoder(x)
-
-    def decode(self, z):
-        return self.decoder(z)
-
-    def forward(self, x):
-        z = self.encode(x.view(-1, 784))
-        return self.decode(z)
-"""
+from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
 
 
 class Autoencoder(nn.Module):
     
-    def __init__(self, df_train, df_test):
+    def __init__(self, spark_session, df, dev_addr):
 
         super(Autoencoder, self).__init__()
 
+        self.__df = df
+
+        self.__spark_session = spark_session
+
+        self.__dev_addr = dev_addr
+
         # Calculate the "features" vector size
-        self.__input_size = df_train.select("features").first()["features"].size
+        self.__input_size = df.select("features").first()["features"].size
 
         self.__enc = nn.Sequential(
             nn.Linear(self.__input_size, 512),  
@@ -68,15 +54,9 @@ class Autoencoder(nn.Module):
             nn.Sigmoid() 
         )
 
-        self.__dataloader = self.__prepare_data(df_train)
-
-        #self.__testdataloader = self.__prepare_data(df_test)
+        self.__dataloader = self.__prepare_data(df)
 
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
-        #self.model = Network(output_size=128)
-
-        self.to(self.device)
 
         self.__criterion = nn.MSELoss()
 
@@ -138,34 +118,25 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=30, learning_rate=0.7, weight_decay=0.00001, momentum=0.9):
+    def train(self, num_epochs=20, learning_rate=0.75, weight_decay=0.00001, momentum=0.8):
+
+        self.to(self.device)
         
-        #self.train()
+        super().train()
 
         optimizer = optim.SGD(self.parameters(), lr=learning_rate, weight_decay=weight_decay, momentum=momentum)
-        
-        print("Starting Autoencoder training...")
-        
-        start_time = time.time()
 
         for epoch in range(num_epochs):
             
             ep_start = time.time()
-
             running_loss = 0.0
 
-            for i, (data,) in enumerate(self.__dataloader):
-
+            for _, (data,) in enumerate(self.__dataloader):
                 optimizer.zero_grad()
-
                 outputs = self(data)
-
                 loss = self.__criterion(outputs, data)
-                
-                loss.backward()
-                
+                loss.backward()  
                 optimizer.step()
-
                 running_loss += loss.item()                 
             
             ep_end = time.time()
@@ -175,30 +146,60 @@ class Autoencoder(nn.Module):
             print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.6f}%, Time: {format_time(ep_end - ep_start)}")
 
 
-        end_time = time.time()
-        
-        print("Training complete! Total time of training was", format_time(end_time - start_time), "\n\n")
-
-
     """
-    TODO: this function probably isn't necessary, since this algorithm isn't used for classification
     Test the Autoencoder model on test data.
 
     """
-    """
-    def test(self):
+    def __compute_reconstruction_errors(self):
 
-        #self.eval()
-
-        total_loss = 0.0
+        super().eval()
+        errors = []
 
         with torch.no_grad():
-            for (data,) in self.__testdataloader:
-                outputs = self(data)
-                loss = self.__criterion(outputs, data)
-                total_loss += loss.item()
+            for (data,) in self.__dataloader:
+                output = self(data)
+                batch_errors = torch.mean((output - data) ** 2, dim=1)  # MSE per sample
+                errors.extend(batch_errors.cpu().numpy())  # convert to list
 
-        average_loss = total_loss / len(self.__testdataloader)
-        print(f"Test MSE Loss: {average_loss:.6f}")
-        return average_loss
+        return errors
+
+
     """
+    Applies the trained model to compute reconstruction errors and label each example.
+
+    Returns:
+        DataFrame with original data, reconstruction error, and predicted label (0=normal, 1=anomaly)
+
+    """
+    def label_data_by_reconstruction_error(self, threshold=None):
+
+        errors = self.__compute_reconstruction_errors()
+
+        # If no threshold provided, use mean + 2*std as default
+        if threshold is None:
+            mean = np.mean(errors)
+            std = np.std(errors)
+            threshold = mean + 2 * std
+
+        # Label based on threshold
+        labels = [1 if err > threshold else 0 for err in errors]
+
+        schema = StructType([
+            StructField("reconstruction_error", FloatType(), False),
+            StructField("intrusion", IntegerType(), False)
+        ])
+
+        errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
+        errors_df = (self.__spark_session).createDataFrame(errors_labels, schema)
+
+        # Add columns to original df (you can use withColumn if aligning by index is guaranteed)
+        df_with_errors = (self.__df).withColumn("row_idx", F.monotonically_increasing_id())
+        errors_df = errors_df.withColumn("row_idx", F.monotonically_increasing_id())
+
+        result_df = df_with_errors.join(errors_df, on="row_idx").drop("row_idx")
+
+        csv_filename = f"./generatedDatasets/labeled_autoencoder_output_device_{self.__dev_addr}.csv"
+
+        result_df.toPandas().to_csv(csv_filename, index=False)
+
+        return result_df

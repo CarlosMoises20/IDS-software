@@ -1,7 +1,7 @@
 
 # Outputs
 output*/*
-combinedDatasets/*
+generatedDatasets/*
 *metadata
 
 # Artifacts
@@ -20,7 +20,7 @@ test*
 *_SUCCESS*
 *part-000*
 
-# Error logs
+# Virtual Machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
 *hs_err_pid*
 
 # MLFlow Runs

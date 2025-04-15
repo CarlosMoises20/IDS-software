@@ -5,7 +5,6 @@ from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, 
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.dataset_type import DatasetType
-from common.constants import SPARK_NUM_PARTITIONS
 from pyspark.ml.feature import Imputer
 
 
@@ -128,12 +127,13 @@ def prepare_past_dataset(spark_session):
 
     # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
     df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
-
-    df = df.coalesce(numPartitions=int(SPARK_NUM_PARTITIONS))
-
+    
     # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
     # especially in repeated computations
     df.cache()
+    
+    # Splits the dataframe into 5 partitions during pre-processing
+    df = df.coalesce(numPartitions=5)
 
     # apply pre-processing techniques common to "rxpk" and "txpk"
     df = pre_process_general(df)
