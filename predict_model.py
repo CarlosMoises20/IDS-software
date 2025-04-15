@@ -21,7 +21,8 @@ DEVADDR = '0000BF53'
 
 #TABLE = "BF53_with_content_of_A010"
 #TABLE = "intrusions"
-TABLE = 'sensors_2'
+#TABLE = 'sensors_2'
+TABLE = 'sensors'
 #TABLE = "original"
 
 DELETE = True

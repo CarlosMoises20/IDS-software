@@ -8,3 +8,16 @@ Sets up database schema through SQL tables
 
 # GUI.py
 Implements a Graphical User Interface (GUI) for an Intrusion Detection System using PySimpleGUI. It interacts with a CrateDB database to retrieve, display, and manage data related to LoRaWAN sensors and network events. The system helps the user to view network metrics, handle potential doubts, and flag possible network intrusions.
+
+
+
+# dataset.py
+Generates the input dataset (out.log)
+
+
+# loader.py
+Inserts messages into the database
+
+
+# extract_measures.py
+Writes in a csv file the results after detection (flag set to 0)
