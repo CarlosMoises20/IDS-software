@@ -14,7 +14,7 @@ if __name__ == '__main__':
     # Initialize the class used for network intrusion detection
     mc = MessageClassification(spark_session)
     
-    # call function to create ML models based on past data (batch processing)
+    # call function to create ML models based on past data
     mc.create_ml_models()
 
     # Stop the Spark Session

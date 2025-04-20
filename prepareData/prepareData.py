@@ -4,6 +4,7 @@ from common.auxiliary_functions import bind_dir_files, get_all_attributes_names,
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
+from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
 from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
 
@@ -11,7 +12,7 @@ from pyspark.ml.feature import Imputer
 #### Pre-processing steps specified for the dataset type
 def pre_process_type(spark_session, dataset_type):
 
-    ### Bind all log files into a single log file if it doesn't exist yet,
+    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
     ### to simplify data processing
     combined_logs_filename = bind_dir_files(spark_session, dataset_type)
 
@@ -23,9 +24,8 @@ def pre_process_type(spark_session, dataset_type):
 
 
 #### Pre-processing steps common for both dataset types
+### Apply transformations to attributes
 def pre_process_general(df):
-
-    ### Apply transformations to attributes
 
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
     # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
@@ -100,6 +100,10 @@ def pre_process_general(df):
     # apply normalization
     df = DataPreProcessing.normalization(df)
 
+    # add column for "intrusion" with a static value (0), which will later be updated when creating and
+    # applying ML models
+    df = df.withColumn("intrusion", lit(0))
+
     return df
 
 
@@ -110,12 +114,8 @@ the dataset to be processed by the used ML models on the IDS
 It extracts all "rxpk" and "txpk" LoRaWAN messages from the given datasets, that are
 in JSON format, and converts them to a spark dataframe
 
-For that, it receives:
-
     spark_session: the Spark session used to read all messages in a file and 
         convert them into a spark dataframe
-
-    dataset_types: the types of dataset ("rxpk" and "txpk")
 
 """
 def prepare_past_dataset(spark_session):
@@ -132,8 +132,8 @@ def prepare_past_dataset(spark_session):
     # especially in repeated computations
     df.cache()
     
-    # Splits the dataframe into 5 partitions during pre-processing
-    df = df.coalesce(numPartitions=5)
+    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
+    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
 
     # apply pre-processing techniques common to "rxpk" and "txpk"
     df = pre_process_general(df)

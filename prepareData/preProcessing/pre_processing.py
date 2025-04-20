@@ -35,7 +35,7 @@ class DataPreProcessing(ABC):
         
         df = scaler.fit(df).transform(df)
 
-        return df.select("DevAddr", "features")
+        return df.drop("feat")
     
     
     """

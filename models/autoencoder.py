@@ -11,18 +11,21 @@ from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
 
 class Autoencoder(nn.Module):
     
-    def __init__(self, spark_session, df, dev_addr):
+    def __init__(self, pdf, dev_addr):
 
         super(Autoencoder, self).__init__()
 
-        self.__df = df
+        self.__pdf = pdf
 
-        self.__spark_session = spark_session
+        print(pdf["features"])
+
+        #
+        #self.__spark_session = spark_session
 
         self.__dev_addr = dev_addr
 
         # Calculate the "features" vector size
-        self.__input_size = df.select("features").first()["features"].size
+        self.__input_size = int(pdf["features"][0]["size"])
 
         self.__enc = nn.Sequential(
             nn.Linear(self.__input_size, 512),  
@@ -54,9 +57,9 @@ class Autoencoder(nn.Module):
             nn.Sigmoid() 
         )
 
-        self.__dataloader = self.__prepare_data(df)
+        self.__dataloader = self.__prepare_data(pdf)
 
-        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.__device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
         self.__criterion = nn.MSELoss()
 
@@ -75,10 +78,16 @@ class Autoencoder(nn.Module):
         pytorch dataloader: dataloader with transformed data
 
     """
-    def __prepare_data(self, df):
+    def __prepare_data(self, pdf):
+
+        # TODO: continue bug fixing from this point
+        for i, f in enumerate(pdf["features"]):
+            values = f["values"] if isinstance(f, dict) else f.toArray()
+            if len(values) != self.__input_size:
+                print(f"[ERROR] Feature at index {i} has size {len(values)} but expected {self.__input_size}")
 
         # Collecct the dataframe pyspark vectors and convert then into numpy format
-        features = np.array(df.select("features").rdd.map(lambda row: row.features.toArray()).collect())
+        features = np.array([np.array(f["values"]) if isinstance(f, dict) else f.toArray() for f in pdf["features"]])
 
         # Convert data to pytorch tensors
         features_tensor = torch.tensor(features, dtype=torch.float32)
@@ -118,9 +127,9 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=20, learning_rate=0.75, weight_decay=0.00001, momentum=0.8):
+    def train(self, num_epochs=30, learning_rate=0.75, weight_decay=0.00001, momentum=0.8):
 
-        self.to(self.device)
+        self.to(self.__device)
         
         super().train()
 
@@ -171,15 +180,15 @@ class Autoencoder(nn.Module):
         DataFrame with original data, reconstruction error, and predicted label (0=normal, 1=anomaly)
 
     """
-    def label_data_by_reconstruction_error(self, threshold=None):
+    def label_data_by_reconstruction_error(self):
 
         errors = self.__compute_reconstruction_errors()
 
-        # If no threshold provided, use mean + 2*std as default
-        if threshold is None:
-            mean = np.mean(errors)
-            std = np.std(errors)
-            threshold = mean + 2 * std
+        # Threshold is mean + 2*std, to determine intrusions that correspond to a reconstruction error
+        # over the threshold
+        mean = np.mean(errors)
+        std = np.std(errors)
+        threshold = mean + 2 * std
 
         # Label based on threshold
         labels = [1 if err > threshold else 0 for err in errors]
@@ -189,7 +198,11 @@ class Autoencoder(nn.Module):
             StructField("intrusion", IntegerType(), False)
         ])
 
-        errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
+        # TODO: fix this... update column "intrusion" based on reconstruction error
+
+        return errors
+
+        """errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
         errors_df = (self.__spark_session).createDataFrame(errors_labels, schema)
 
         # Add columns to original df (you can use withColumn if aligning by index is guaranteed)
@@ -202,4 +215,4 @@ class Autoencoder(nn.Module):
 
         result_df.toPandas().to_csv(csv_filename, index=False)
 
-        return result_df
+        return result_df"""

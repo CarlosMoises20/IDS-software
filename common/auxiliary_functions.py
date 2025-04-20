@@ -13,7 +13,7 @@ def create_spark_session():
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
-                            .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
+                            .config("spark.sql.shuffle.partitions", SPARK_PROCESSING_NUM_PARTITIONS)  \
                             .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
                             .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
                             .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
@@ -75,7 +75,6 @@ def bind_dir_files(spark_session, dataset_type):
             f.write(combined_logs)
 
         print(f"File '{output_filename}' created")
-
 
     # Define the output Parquet filename
     parquet_filename = output_filename.replace(".log", ".parquet")
@@ -174,10 +173,10 @@ def format_time(seconds):
 
     else:
         # Function to round the value of seconds to integer
-        seconds = round(seconds)
+        seconds = round(seconds, 3)
     
         if seconds < 60:
-            return f"{seconds:.2f} s "                      # Seconds
+            return f"{seconds:.3f} s "                      # Seconds
         
         elif seconds < 3600:
             minutes = seconds // 60                         # Minute as the integer part of the division of total by number of seconds in a minute
