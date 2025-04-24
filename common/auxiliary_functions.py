@@ -13,7 +13,7 @@ def create_spark_session():
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
-                            .config("spark.sql.shuffle.partitions", SPARK_PROCESSING_NUM_PARTITIONS)  \
+                            .config("spark.sql.shuffle.partitions", SPARK_PRE_PROCESSING_NUM_PARTITIONS)  \
                             .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
                             .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
                             .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
@@ -27,11 +27,9 @@ def create_spark_session():
 
 
 """
-Auxiliary function to aggregate all log files inside a directory,
-into a single file corresponding to each type of LoRaWAN message
+Auxiliary function to aggregate all log files inside a directory, into a single file
 
     dataset_root_path (string) - path to the directory containing the log files
-    dataset_type (DatasetType enum) - type of dataset to be processed (DatasetType.RXPK or DatasetType.TXPK in this case)
 
 It returns the name of the output file to be used to load dataset as a spark dataframe
 
@@ -42,7 +40,7 @@ def bind_dir_files(spark_session, dataset_type):
 
     # Define the name of the file where all logs corresponding 
     # to the dataset type 'dataset_type' will be stored
-    output_filename = f'./generatedDatasets/combined_logs_{dataset_type.value["name"]}.log'
+    output_filename = f'./generatedDatasets/combined_lorawan_logs.log'
 
     # Skip file generation if it already exists
     if os.path.exists(output_filename):
@@ -53,12 +51,16 @@ def bind_dir_files(spark_session, dataset_type):
         # Create a list to store the content of different files
         all_logs = []           
 
-        # Filter files based on the dataset type
-        filenames_from_type = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
-                    for file in os.listdir(dataset_root_path) if file.decode().startswith(dataset_type.value["name"])]
+        # Filter files inside the directory 'dataset_root_path' based on the
+        # given dataset types, whose file names start with
+        # "rxpk" or "txpk"
+        filename_list = [os.path.join(os.fsdecode(dataset_root_path), os.fsdecode(file))
+                        for file in os.listdir(dataset_root_path) 
+                            if file.decode().startswith(tuple(dt.value["name"] for dt in dataset_type))
+                    ]
 
-        # Loop through all files in the directory
-        for filename in filenames_from_type:
+        # Write logs in the files
+        for filename in filename_list:
             with open(filename, 'r') as f:
                 all_logs.append(f.read())     # Append the contents of the file to the list
 
@@ -75,6 +77,7 @@ def bind_dir_files(spark_session, dataset_type):
             f.write(combined_logs)
 
         print(f"File '{output_filename}' created")
+
 
     # Define the output Parquet filename
     parquet_filename = output_filename.replace(".log", ".parquet")
@@ -158,7 +161,8 @@ def get_boolean_attributes_names(df_schema, parent_name=""):
 
 
 """
-Auxiliary function to print processing time on an adequate format
+Auxiliary function to print processing time on an adequate format, in hours, minutes and seconds,
+or milisseconds if "seconds" is a decimal lower than 1
 
 """
 def format_time(seconds):
@@ -167,25 +171,38 @@ def format_time(seconds):
     milisseconds = round(seconds * 1000)
 
     # If the time is less than 1 second and arrendondated value of milisseconds is less than 1000 milisseconds
-    # For example: seconds = 0.9999 -> milisseconds = 999.9 =~ 1000 and time will be printed in seconds
+    # For example: seconds = 0.99999 -> milisseconds = 999.99 -> round(999.99) = 1000 and time will be printed in seconds (1s)
     if milisseconds < 1000:
         return f"{milisseconds} ms"      # Milisseconds
 
     else:
         # Function to round the value of seconds to integer
-        seconds = round(seconds, 3)
-    
+        seconds = round(seconds)                
+
+        # If the number of seconds is between 1 and 59
         if seconds < 60:
-            return f"{seconds:.3f} s "                      # Seconds
+            return f"{seconds} s"                   # Seconds
         
+        # If the number of seconds is between 60 and 3599
         elif seconds < 3600:
-            minutes = seconds // 60                         # Minute as the integer part of the division of total by number of seconds in a minute
-            secs = seconds % 60                             # Seconds as the rest of the division of total by number of seconds in a minute
-            return f"{minutes} min {secs} s "               # Minutes and seconds
+            minutes = seconds // 60                 # Minute as the integer part of the division of total by number of seconds in a minute
+            secs = seconds % 60                     # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
+            
+            if secs == 0:                           # If "secs" are multiple of 60
+                return f"{minutes} min"             # Only minutes when "minutes" are multiples of 60
+            
+            return f"{minutes} min {secs} s"        # Format in minutes and seconds
+
+        # If the number of seconds is 3600 or higher        
+        hours = seconds // 3600                         # Hour as the integer part of the division of total by number of seconds in a hour
+        minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
+        secs = seconds % 60                             # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
         
-        else:
-            hours = seconds // 3600                         # Hour as the integer part of the division of total by number of seconds in a hour
-            minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
-            secs = seconds % 60                             # Seconds as the rest of the division of total by number of seconds in a minute
-            return f"{hours} h {minutes} min {secs} s "     # Minutes, hours and seconds
+        if secs == 0:                                   # If "secs" are multiple of 3600
+            if minutes == 0:                            # If "minutes" are multiple of 60
+                return f"{hours} h"                     # Only hours when "minutes" are multiple of 60 and "secs" are multiple of 3600
+            
+            return f"{hours} h {minutes} min"           # Only hours and minutes when "secs" are multiple of 60
+            
+        return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
 

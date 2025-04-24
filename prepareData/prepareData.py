@@ -5,23 +5,8 @@ from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, 
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
-from pyspark.ml.functions import vector_to_array
 from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
-
-
-#### Pre-processing steps specified for the dataset type
-def pre_process_type(spark_session, dataset_type):
-
-    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
-    ### to simplify data processing
-    combined_logs_filename = bind_dir_files(spark_session, dataset_type)
-
-    # Load the parquet dataset into a Spark Dataframe
-    df = spark_session.read.parquet(combined_logs_filename)
-
-    ### Apply pre-processing techniques only specified for the dataset type
-    return dataset_type.value["pre_processing_class"].pre_process_data(df)
 
 
 #### Pre-processing steps common for both dataset types
@@ -101,13 +86,41 @@ def pre_process_general(df):
     # apply normalization
     df = DataPreProcessing.normalization(df)
 
-    # add column for "intrusion" with a static value (0), which will later be updated when creating and
-    # applying ML models
-    # convert "features" to an array to be used when necessary by some algorithms
-    # add column for "reconstruction_error" with a static value that will later be updated in Autoencoder
-    df = df.withColumn("intrusion", lit(0)) \
-            .withColumn("features_dense", vector_to_array("features")) \
-            .withColumn("reconstruction_error", lit(0.0))
+    return df
+
+
+
+"""
+This function is called to apply all necessary pre-processing steps to prepare
+the dataset to be processed by the used ML models on the IDS
+
+It extracts all "rxpk" and "txpk" LoRaWAN messages from the given datasets, that are
+in JSON format, and converts them to a spark dataframe
+
+    spark_session: the Spark session used to read all messages in a file and 
+        convert them into a spark dataframe
+
+"""
+def prepare_dataframe(df):
+
+    # separate 'rxpk' samples and 'txpk' samples to apply pre-processing steps that are
+    # specific to each type of LoRaWAN message
+    df_rxpk, df_txpk = (dataset_type.value["pre_processing_class"].pre_process_data(
+                            df.filter(col(dataset_type.value["name"]).isNotNull())
+                        )   for dataset_type in [key for key in DatasetType])
+
+    # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
+    df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
+    
+    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
+    # especially in repeated computations
+    df.cache()
+    
+    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
+    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
+
+    # apply pre-processing techniques common to "rxpk" and "txpk"
+    df = pre_process_general(df)
 
     return df
 
@@ -123,25 +136,18 @@ in JSON format, and converts them to a spark dataframe
         convert them into a spark dataframe
 
 """
-def prepare_past_dataset(spark_session):
+def prepare_data(spark_session):
 
     start_time = time.time()
 
-    df_rxpk, df_txpk = (pre_process_type(spark_session, dataset_type) 
-                            for dataset_type in [key for key in DatasetType])
+    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
+    ### to simplify data processing and make it more efficient
+    combined_logs_filename = bind_dir_files(spark_session, DatasetType)
 
-    # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
-    df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
-    
-    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
-    # especially in repeated computations
-    df.cache()
-    
-    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
-    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
+    # Load the parquet dataset into a Spark Dataframe
+    df = spark_session.read.parquet(combined_logs_filename)
 
-    # apply pre-processing techniques common to "rxpk" and "txpk"
-    df = pre_process_general(df)
+    df = prepare_dataframe(df)
 
     end_time = time.time()
 
@@ -149,3 +155,4 @@ def prepare_past_dataset(spark_session):
     print("Total time of pre-processing:", format_time(end_time - start_time), "\n\n")
 
     return df
+

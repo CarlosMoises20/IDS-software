@@ -1,23 +1,27 @@
-
-import time, torch
+import time, torch, os
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from common.auxiliary_functions import format_time
+from pyspark.sql import functions as F
+from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
 
 
 class Autoencoder(nn.Module):
     
-    def __init__(self, pdf, dev_addr):
+    def __init__(self, spark_session, df_model, dev_addr):
 
         super(Autoencoder, self).__init__()
 
-        self.__pdf = pdf
+        self.__spark_session = spark_session
+
+        self.__df_model = df_model
 
         self.__dev_addr = dev_addr
 
-        self.__input_size = int(pdf["features"][0]["size"])
+        # Calculate the "features" vector size
+        self.__input_size = df_model.select("features").first()["features"].size
 
         self.__enc = nn.Sequential(
             nn.Linear(self.__input_size, 512),  
@@ -49,7 +53,7 @@ class Autoencoder(nn.Module):
             nn.Sigmoid() 
         )
 
-        self.__dataloader = self.__prepare_data()
+        self.__dataloader = self.__prepare_data(df_model)
 
         self.__device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -64,16 +68,19 @@ class Autoencoder(nn.Module):
     Assumes the DataFrame has a column 'features' with normalized feature vectors.
     
     Args:
-        df (pyspark dataframe): dataframe to be transformed into a dataloader
+        df_model (pyspark dataframe): dataframe to be transformed into a dataloader
 
     Returns:
         pytorch dataloader: dataloader with transformed data
 
     """
-    def __prepare_data(self):
+    def __prepare_data(self, df_model):
+
+        # Collecct the dataframe pyspark vectors and convert then into numpy format
+        features = np.array(df_model.select("features").rdd.map(lambda row: row.features.toArray()).collect())
 
         # Convert data to pytorch tensors
-        features_tensor = torch.tensor(self.__pdf["features_dense"], dtype=torch.float32)
+        features_tensor = torch.tensor(features, dtype=torch.float32)
 
         # Dataset PyTorch
         dataset = TensorDataset(features_tensor)
@@ -110,7 +117,7 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=30, learning_rate=0.75, weight_decay=0.00001, momentum=0.8):
+    def train(self, num_epochs=20, learning_rate=0.75, weight_decay=0.00001, momentum=0.8):
 
         self.to(self.__device)
         
@@ -120,7 +127,9 @@ class Autoencoder(nn.Module):
 
         for epoch in range(num_epochs):
             
-            ep_start = time.time()
+            # NOTE: Uncomment the commented lines to print accuracy and processing time of each epoch
+
+            #ep_start = time.time()
             running_loss = 0.0
 
             for _, (data,) in enumerate(self.__dataloader):
@@ -131,11 +140,11 @@ class Autoencoder(nn.Module):
                 optimizer.step()
                 running_loss += loss.item()                 
             
-            ep_end = time.time()
+            #ep_end = time.time()
 
-            average_loss = (running_loss / len(self.__dataloader)) * 100
+            #average_loss = (running_loss / len(self.__dataloader)) * 100
 
-            print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.6f}%, Time: {format_time(ep_end - ep_start)}")
+            #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.6f}%, Time: {format_time(ep_end - ep_start)}")
 
 
     """
@@ -163,25 +172,43 @@ class Autoencoder(nn.Module):
         DataFrame with original data, reconstruction error, and predicted label (0=normal, 1=anomaly)
 
     """
-    def label_data_by_reconstruction_error(self):
+    def label_data_by_reconstruction_error(self, threshold=None):
 
         errors = self.__compute_reconstruction_errors()
 
-        # Threshold is mean + 2*std, to determine intrusions that correspond to a reconstruction error
-        # over the threshold
-        mean = np.mean(errors)
-        std = np.std(errors)
-        threshold = mean + 2 * std
+        # If no threshold provided, use mean + 2*std as default
+        if threshold is None:
+            mean = np.mean(errors)
+            std = np.std(errors)
+            threshold = mean + 2 * std
+
+        print(f"AE threshold for device {self.__dev_addr}: {round(threshold, 5)}")
 
         # Label based on threshold
         labels = [1 if err > threshold else 0 for err in errors]
 
-        # Add new columns to the original pandas DataFrame
-        self.__pdf["reconstruction_error"] = errors
-        self.__pdf["intrusion"] = labels
 
-        # Save labeled dataset to CSV
+        # TODO: try a more efficient approach that does the same: create the dataframe to be used
+        # in supervised learning (on this current case, Random Forest)
+
+        schema = StructType([
+            StructField("reconstruction_error", FloatType(), False),
+            StructField("intrusion", IntegerType(), False)
+        ])
+
+        self.__df_model.coalesce(numPartitions=800)
+
+        errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
+        errors_df_model = (self.__spark_session).createDataFrame(errors_labels, schema)
+
+        # Add columns to original df_model (you can use withColumn if aligning by index is guaranteed)
+        df_model_with_errors = (self.__df_model).withColumn("row_idx", F.monotonically_increasing_id())
+        errors_df_model = errors_df_model.withColumn("row_idx", F.monotonically_increasing_id())
+
+        result_df_model = df_model_with_errors.join(errors_df_model, on="row_idx").drop("row_idx")
+
         csv_filename = f"./generatedDatasets/labeled_autoencoder_output_device_{self.__dev_addr}.csv"
-        self.__pdf.to_csv(csv_filename, index=False)
 
-        return self.__pdf
+        result_df_model.drop("features").toPandas().to_csv(csv_filename, index=False)
+
+        return result_df_model

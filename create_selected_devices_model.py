@@ -2,11 +2,8 @@
 import argparse
 from pyspark.sql.types import *
 from common.auxiliary_functions import *
-from prepareData.prepareData import prepare_past_dataset
 from models.functions import *
 from processing.message_classification import MessageClassification
-from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-import time, os
 
 
 if __name__ == '__main__':

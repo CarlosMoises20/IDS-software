@@ -4,7 +4,10 @@ This repository contains the base software implementation for the Intrusion Dete
 ### To install Apache Spark on your local machine
 https://spark.apache.org/downloads.html
 
-That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file. 
+That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file.
+
+You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
+
 
 ### To install Python on your local machine (version 3.10 recommended due to compatibility issues)
 https://www.python.org/downloads/
@@ -36,14 +39,14 @@ python .\generate_input_datasets.py
 ```
 
 
-### Create the models (train and test), and save them as an MLFlow artifact (in root directory)
+### Create all devices' models (train and test), and save them as an MLFlow artifact (in root directory)
 ```python3
-python .\create_models.py
+python .\create_all_devices_models.py
 ```
 
-### Create a specific model based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
+### Create models based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
 ```python3
-python .\create_device_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N}
+python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N}
 ```
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
@@ -52,3 +55,43 @@ python .\real_time_msg_processing.py
 ```
 If you want to stop the application, just force it (Ctrl + C in Windows)
 
+
+## NOTE 1: If you want to use Spark on Docker
+
+### Install Docker Desktop
+
+On Windows 10/11: https://docs.docker.com/desktop/setup/install/windows-install/
+
+On Linux: https://docs.docker.com/desktop/setup/install/linux/
+
+On Mac: https://docs.docker.com/desktop/setup/install/mac-install/
+
+
+### Pull Spark Docker image and create a container
+
+Link: https://hub.docker.com/_/spark
+
+```
+docker pull <name of image>
+docker docker run -d --name spark-master \
+  -h spark-master \
+  -p 8085:8080 \
+  -p 7077:7077 \
+  <name of image> \
+  spark-class org.apache.spark.deploy.master.Master
+```
+
+#### Check all existing docker images
+```
+docker images
+```
+
+#### Check all existing docker containers
+```
+docker ps -a
+```
+
+#### Check all running docker containers
+```
+docker ps
+```
