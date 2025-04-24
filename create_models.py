@@ -9,6 +9,7 @@ if __name__ == '__main__':
     # Initialize Spark Session
     spark_session = create_spark_session()
     
+    # If you want to see spark errors in debug level on console during the script running
     #spark_session.sparkContext.setLogLevel("DEBUG")
 
     # Initialize the class used for network intrusion detection

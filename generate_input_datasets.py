@@ -13,7 +13,7 @@ start_time = time.time()
 spark_session = SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
-                            .config("spark.sql.shuffle.partitions", SPARK_NUM_PARTITIONS)  \
+                            .config("spark.sql.shuffle.partitions", SPARK_PROCESSING_NUM_PARTITIONS)  \
                             .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
                             .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
                             .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \

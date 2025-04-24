@@ -41,7 +41,7 @@ python .\generate_input_datasets.py
 python .\create_models.py
 ```
 
-### Create a specific model based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"), and save it as an MLFlow artifact (in root directory)
+### Create a specific model based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
 ```python3
 python .\create_device_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N}
 ```

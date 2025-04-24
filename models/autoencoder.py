@@ -1,12 +1,10 @@
 
-import time, torch, os
+import time, torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from common.auxiliary_functions import format_time
-from pyspark.sql import functions as F
-from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
 
 
 class Autoencoder(nn.Module):
@@ -17,14 +15,8 @@ class Autoencoder(nn.Module):
 
         self.__pdf = pdf
 
-        print(pdf["features"])
-
-        #
-        #self.__spark_session = spark_session
-
         self.__dev_addr = dev_addr
 
-        # Calculate the "features" vector size
         self.__input_size = int(pdf["features"][0]["size"])
 
         self.__enc = nn.Sequential(
@@ -57,7 +49,7 @@ class Autoencoder(nn.Module):
             nn.Sigmoid() 
         )
 
-        self.__dataloader = self.__prepare_data(pdf)
+        self.__dataloader = self.__prepare_data()
 
         self.__device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -78,19 +70,10 @@ class Autoencoder(nn.Module):
         pytorch dataloader: dataloader with transformed data
 
     """
-    def __prepare_data(self, pdf):
-
-        # TODO: continue bug fixing from this point
-        for i, f in enumerate(pdf["features"]):
-            values = f["values"] if isinstance(f, dict) else f.toArray()
-            if len(values) != self.__input_size:
-                print(f"[ERROR] Feature at index {i} has size {len(values)} but expected {self.__input_size}")
-
-        # Collecct the dataframe pyspark vectors and convert then into numpy format
-        features = np.array([np.array(f["values"]) if isinstance(f, dict) else f.toArray() for f in pdf["features"]])
+    def __prepare_data(self):
 
         # Convert data to pytorch tensors
-        features_tensor = torch.tensor(features, dtype=torch.float32)
+        features_tensor = torch.tensor(self.__pdf["features_dense"], dtype=torch.float32)
 
         # Dataset PyTorch
         dataset = TensorDataset(features_tensor)
@@ -193,26 +176,12 @@ class Autoencoder(nn.Module):
         # Label based on threshold
         labels = [1 if err > threshold else 0 for err in errors]
 
-        schema = StructType([
-            StructField("reconstruction_error", FloatType(), False),
-            StructField("intrusion", IntegerType(), False)
-        ])
+        # Add new columns to the original pandas DataFrame
+        self.__pdf["reconstruction_error"] = errors
+        self.__pdf["intrusion"] = labels
 
-        # TODO: fix this... update column "intrusion" based on reconstruction error
-
-        return errors
-
-        """errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
-        errors_df = (self.__spark_session).createDataFrame(errors_labels, schema)
-
-        # Add columns to original df (you can use withColumn if aligning by index is guaranteed)
-        df_with_errors = (self.__df).withColumn("row_idx", F.monotonically_increasing_id())
-        errors_df = errors_df.withColumn("row_idx", F.monotonically_increasing_id())
-
-        result_df = df_with_errors.join(errors_df, on="row_idx").drop("row_idx")
-
+        # Save labeled dataset to CSV
         csv_filename = f"./generatedDatasets/labeled_autoencoder_output_device_{self.__dev_addr}.csv"
+        self.__pdf.to_csv(csv_filename, index=False)
 
-        result_df.toPandas().to_csv(csv_filename, index=False)
-
-        return result_df"""
+        return self.__pdf

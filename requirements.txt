@@ -16,3 +16,4 @@ graphframes>=0.6
 mlflow>=2.21.2
 paramiko>=3.5.1
 cryptography>=41.0.7
+sklearn==1.6.1

@@ -5,6 +5,7 @@ from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, 
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
+from pyspark.ml.functions import vector_to_array
 from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
 
@@ -102,7 +103,11 @@ def pre_process_general(df):
 
     # add column for "intrusion" with a static value (0), which will later be updated when creating and
     # applying ML models
-    df = df.withColumn("intrusion", lit(0))
+    # convert "features" to an array to be used when necessary by some algorithms
+    # add column for "reconstruction_error" with a static value that will later be updated in Autoencoder
+    df = df.withColumn("intrusion", lit(0)) \
+            .withColumn("features_dense", vector_to_array("features")) \
+            .withColumn("reconstruction_error", lit(0.0))
 
     return df
 
