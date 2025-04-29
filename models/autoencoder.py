@@ -182,7 +182,7 @@ class Autoencoder(nn.Module):
             std = np.std(errors)
             threshold = mean + 2 * std
 
-        print(f"AE threshold for device {self.__dev_addr}: {round(threshold, 5)}")
+        #print(f"AE threshold for device {self.__dev_addr}: {round(threshold, 5)}")
 
         # Label based on threshold
         labels = [1 if err > threshold else 0 for err in errors]

@@ -10,6 +10,7 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvalu
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 import mlflow.pyspark.ml as mlflow_pyspark_ml
 from mlflow.models import infer_signature
+from models.kNN import KNN
 import mlflow, shutil, os
 from pyspark.sql.streaming import DataStreamReader
 
@@ -133,7 +134,7 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def create_model(self, df_model, dev_addr):
+    def __create_model(self, df_model, dev_addr):
 
         start_time = time.time()
 
@@ -149,30 +150,43 @@ class MessageClassification:
         # model is run. This is important to compare the model's performance in different situations
         df_model_train, df_model_test = self.__sample_random_split(df_model=df, seed=522)
 
+        #KNN #TODO
+        
+        knn = KNN(k=20, train_data=df_model_train, test_data=df_model_test)
+
+        model = knn.train()
+        
+        results = knn.test()
+        
+
+        """ RANDOM FOREST
+        
         # Apply Random Forest to detect intrusions based on the created label on Autoencoder
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
-        rf_model = rf.fit(df_model_train)
+        model = rf.fit(df_model_train)"""
 
         if df_model_test is not None:
-            results = rf_model.evaluate(df_model_test)
+            results = model.evaluate(df_model_test)
             accuracy = results.accuracy
 
         
-        """ LOGISTIC REGRESSION
+        """ #LOGISTIC REGRESSION
         
         lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
                                 regParam=0.1, elasticNetParam=1.0,
                                 family="multinomial", maxIter=50)
         
 
-        lr_model = lr.fit(df_train)
+        model = lr.fit(df_model_train)
 
-        results = lr_model.evaluate(df_test)
+        if df_model_test is not None:
+            results = model.evaluate(df_model_test)
+            accuracy = results.accuracy
         
         """
         
         
-        """  KMEANS
+        """  #KMEANS
 
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=3, seed=522, maxIter=100)
@@ -187,16 +201,13 @@ class MessageClassification:
         
         accuracy = evaluator.evaluate(predictions)
 
-        accuracy_list.append(accuracy)
-
         """
 
         
         if results is not None:
             print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
 
-        # Store the model on MLFlow and replace the old model if it exists
-        self.__store_model(dev_addr, df, df_model_test, rf_model, accuracy)
+        self.__store_model(dev_addr, df, df_model_test, model, accuracy)
 
         end_time = time.time()
 
@@ -204,7 +215,7 @@ class MessageClassification:
 
 
     """
-    Function to execute the IDS
+    Function to create models for some of all devices
 
     It receives the spark session (spark_session) that handles the dataset processing and
     the corresponding dataset type (dataset_type) defined by DatasetType Enum
@@ -242,18 +253,15 @@ class MessageClassification:
             # whose DevAddr does not belong to the list defined by the user
             df = df.filter(df.DevAddr.isin(dev_addr_list))
 
-
         # create each model in sequence
         for dev_addr in dev_addr_list:
             df_model = df.filter(df.DevAddr == dev_addr)
-            self.create_model(df_model, dev_addr)
+            self.__create_model(df_model, dev_addr)
         
-    
         end_time = time.time()
 
         # Print the total time of pre-processing; the time is in seconds, minutes or hours
         print("Total time of processing:", format_time(end_time - start_time), "\n\n")
-
 
 
     """
@@ -279,11 +287,16 @@ class MessageClassification:
             # 2 - converts the message to a dataframe row
             # 3 - apply pre-processing on the received message calling the function "prepare_dataframe(df)"
             # 4 - classify the message using the corresponding model retrieved from MLFlow, based on DevAddr
-            #       4a - if the model does not exist, create it 
-            #                 (call self.__store_model with the given parameters)
-            #       4b - use "predict" to classify the message using the corresponding model
+            #       4a - call self.__get_model_by_dev_addr with the given parameters to check if the model exists
+            #       4b - if the model does not exist, create it (self.__create_model) and store it on MLFlow; there will be no replaced model
+            #                since the created model to be stored on MLFlow is the first one
+            #       4c - use "predict" to classify the message using the corresponding model
             # 5 - aggregate the received and classified messages in a dataframe 'df_new_msgs' using 'union'
             # 6 - after receiving and classifying X messages (100, 200, etc), re-train the model calling function fit(df_new_msgs)
+            #       6a - retrieve old model from MLFlow using self.__get_model_by_dev_addr
+            #       6b - then just call "fit" and "transform" using the retrieved model from MLFlow, then replace the old model with the new model,
+            #               calling self.__store_model; this allows the new model to learn new patterns (new intrusions) from the new data, the new
+            #               LoRaWAN messages
             # 7 - it eventually waits to Ctrl + C or something, to close the socket
         
         pass
