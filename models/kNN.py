@@ -10,7 +10,7 @@ class KNN:
         self.__test_data = test_data
 
 
-    """ TODO review and complete
+    """ 
     Stores the training data.
     Expects train_data as a list of Row objects with 'features' and 'intrusion' fields.
     
@@ -20,14 +20,14 @@ class KNN:
         return self
 
 
-    """ TODO review
+    """ 
     Predicts the label for a single observation.
     
     """
     def predict(self, observation):
         
         if self.__train_data is None:
-            raise ValueError("Model has not been trained yet.")
+            raise ValueError("There is no data available for training")
 
         distances = []
         obs_features = observation["features"]
@@ -44,12 +44,16 @@ class KNN:
         return prediction
 
 
-    """ TODO review
+    """ 
     Evaluates the model on a labeled test dataset.
     Returns accuracy and total samples.
     
     """
     def test(self):
+
+        if self.__test_data is None:
+            raise ValueError("No test data provided for evaluation.")
+
         correct = 0
 
         for obs in self.__test_data:

@@ -17,3 +17,4 @@ SPARK_PROCESSING_NUM_PARTITIONS = "30"
 SPARK_FILES_MAX_PARTITION_BYTES = "134217728"
 SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                          # best approach to handle the big weight of Deep-Learning processing
 SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     # If using MLlib or saving/loading models
+#SPARK_KNN_PACKAGE = "saurfang:spark-knn:0.3.0"
