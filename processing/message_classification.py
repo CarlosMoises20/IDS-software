@@ -10,8 +10,8 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvalu
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 import mlflow.pyspark.ml as mlflow_pyspark_ml
 from mlflow.models import infer_signature
-from models.kNN_classification import *
 import mlflow, shutil, os
+#from hnswlib_spark.knn import HnswSimilarity as KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
 
 
@@ -25,6 +25,9 @@ class MessageClassification:
     """
     This function returns the MLFlow model based on the associated DevAddr, received in the
     parameter
+
+    It returns a tuple with the model itself as a MLFlow artifact, and the id of the corresponding
+    run in MLFlow
     
     """
     def __get_model_by_devaddr(self, dev_addr):
@@ -122,7 +125,8 @@ class MessageClassification:
         # Create model based on DevAddr and store it as an artifact using MLFlow
         with mlflow.start_run(run_name=f"Model_Device_{dev_addr}"):
             mlflow.set_tag("DevAddr", dev_addr)
-            mlflow.log_metric("accuracy", accuracy)
+            if accuracy is not None:
+                mlflow.log_metric("accuracy", accuracy) 
             mlflow_pyspark_ml.autolog()
             mlflow.spark.log_model(model, "model", signature=signature)
 
@@ -152,16 +156,11 @@ class MessageClassification:
 
         # KNN # TODO complete
         
-        #knn = KNN(k=20, train_data=df_model_train, test_data=df_model_test)
-        knn = KNNClassifier(featuresCol="features", labelCol="intrusion")       # TODO see prediction column
+        #knn = KNNClassifier(k=20, featuresCol="features", labelCol="intrusion")       # TODO see prediction column
 
-        model = knn.fit(dataset=df_model_train)
+        #model = knn.fit(dataset=df_model_train)
 
-        predicted = model.transform(df_model_test)
-
-        #model = knn.train()
-        
-        #results = knn.test()
+        #df = model.transform(df_model_test)
         
 
         """ #RANDOM FOREST
@@ -170,9 +169,11 @@ class MessageClassification:
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
         model = rf.fit(df_model_train)"""
 
-        #if df_model_test is not None:
-        #    results = model.evaluate(df_model_test)
-        #    accuracy = results.accuracy
+        """if df_model_test is not None:
+            results = model.evaluate(df_model_test)
+            accuracy = results.accuracy
+        else:
+            accuracy = None"""
 
         
         """ #LOGISTIC REGRESSION

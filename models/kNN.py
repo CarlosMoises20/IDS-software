@@ -2,28 +2,37 @@
 from models.functions import euclidean_dist
 
 
+from pyspark.ml.wrapper import JavaEstimator, JavaModel
+from pyspark.ml.param.shared import *
+from pyspark.mllib.common import inherit_doc
+from pyspark import keyword_only
 
-class KNN:
+
+# source: ....
+
+
+
+"""class KNN:
     def __init__(self, k, train_data, test_data):
         self.__k = k
         self.__train_data = train_data
         self.__test_data = test_data
 
 
-    """ 
+     
     Stores the training data.
     Expects train_data as a list of Row objects with 'features' and 'intrusion' fields.
     
-    """
+    
     def train(self):
         
         return self
 
 
-    """ 
+     
     Predicts the label for a single observation.
     
-    """
+    
     def predict(self, observation):
         
         if self.__train_data is None:
@@ -44,11 +53,11 @@ class KNN:
         return prediction
 
 
-    """ 
+     
     Evaluates the model on a labeled test dataset.
     Returns accuracy and total samples.
     
-    """
+    
     def test(self):
 
         if self.__test_data is None:
@@ -69,8 +78,7 @@ class KNN:
         return {
             "accuracy": accuracy,
             "total_samples": total
-        }
-
+        }"""
 
 
 
@@ -91,6 +99,7 @@ class KNN:
     accuracy_knn = acc / len(test_data)
 
     return accuracy_knn"""
+
 
 
 """def kNN(k, observation, train_data_list):
