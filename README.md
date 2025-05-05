@@ -8,21 +8,20 @@ That will download a zip file. Then, you must follow the instructions on the sit
 
 You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
 
+### To install Java on your local machine (version 11 recommended to avoid compatibility issues; as an alternative, version 11), using the link below
+https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
-### To install Python on your local machine (version 3.10 recommended due to compatibility issues)
-https://www.python.org/downloads/
-
-### Check the version of Python in your local machine
- ```python3
-python --version
+### Check Java version in your local machine to ensure that it was correctly installed
+ ```
+java --version
 ```
 
-### If pip is not automatically installed on your local machine after installing Python
-Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux)
+### To install Python on your local machine (version 3.10 recommended to avoid compatibility issues)
+https://www.python.org/downloads/
 
-Then run the following command
+### Check Python version in your local machine to ensure that it was correctly installed
  ```python3
-python ./get-pip.py
+python --version
 ```
 
 
