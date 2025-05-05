@@ -11,7 +11,7 @@ from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 import mlflow.pyspark.ml as mlflow_pyspark_ml
 from mlflow.models import infer_signature
 import mlflow, shutil, os
-#from hnswlib_spark.knn import HnswSimilarity as KNNClassifier
+from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
 
 
@@ -92,7 +92,7 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, df, df_model_test, model, accuracy):
+    def __store_model(self, dev_addr, df, df_model_train, df_model_test, model, accuracy):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
@@ -125,10 +125,18 @@ class MessageClassification:
         # Create model based on DevAddr and store it as an artifact using MLFlow
         with mlflow.start_run(run_name=f"Model_Device_{dev_addr}"):
             mlflow.set_tag("DevAddr", dev_addr)
-            if accuracy is not None:
-                mlflow.log_metric("accuracy", accuracy) 
             mlflow_pyspark_ml.autolog()
-            mlflow.spark.log_model(model, "model", signature=signature)
+            
+            # for every algorithms except kNN, store the model as artifact
+            #mlflow.spark.log_model(model, "model", signature=signature)
+
+            # for kNN, store the dataframe as a parquet file
+            df_model_train.write.parquet(f"model_{dev_addr}.parquet")
+            mlflow.log_artifact(f"model_{dev_addr}.parquet")
+            
+            
+            if accuracy is not None:
+                mlflow.log_metric("accuracy", accuracy)
 
 
     """
@@ -154,16 +162,17 @@ class MessageClassification:
         # model is run. This is important to compare the model's performance in different situations
         df_model_train, df_model_test = self.__sample_random_split(df_model=df, seed=522)
 
-        # KNN # TODO complete
+        # KNN TODO complete
         
-        #knn = KNNClassifier(k=20, featuresCol="features", labelCol="intrusion")       # TODO see prediction column
+        knn = KNNClassifier(k=20, train_df=df_model_train,
+                            test_df=df_model_test, featuresCol="features", 
+                            labelCol="intrusion")
 
-        #model = knn.fit(dataset=df_model_train)
-
-        #df = model.transform(df_model_test)
+        results = knn.test()
+        accuracy = results["accuracy"]
         
 
-        """ #RANDOM FOREST
+        """ # RANDOM FOREST
         
         # Apply Random Forest to detect intrusions based on the created label on Autoencoder
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
@@ -176,7 +185,7 @@ class MessageClassification:
             accuracy = None"""
 
         
-        """ #LOGISTIC REGRESSION
+        """ # LOGISTIC REGRESSION
         
         lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
                                 regParam=0.1, elasticNetParam=1.0,
@@ -192,7 +201,7 @@ class MessageClassification:
         """
         
         
-        """  #KMEANS
+        """  # KMEANS
 
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=3, seed=522, maxIter=100)
@@ -210,10 +219,10 @@ class MessageClassification:
         """
 
         
-        #if results is not None:
-        #    print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
+        if results is not None:
+            print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
 
-        #self.__store_model(dev_addr, df, df_model_test, model, accuracy)
+        self.__store_model(dev_addr, df, df_model_train, df_model_test, None, accuracy)
 
         end_time = time.time()
 

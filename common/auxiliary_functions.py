@@ -23,8 +23,8 @@ def create_spark_session():
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.serializer", SPARK_SERIALIZER) \
-                            .config("spark.jars.packages", SPARK_KNN_PACKAGE) \
                             .getOrCreate()
+                            
 
 
 """

@@ -9,7 +9,7 @@ from scipy.stats import entropy
 
 
 """
-Function For Finding Euclidean Distance Between Two Rows
+Function For Finding Euclidean Distance Between Two Rows in a Pyspark dataframe
 
 The function returns None if at least one of the rows is None
 

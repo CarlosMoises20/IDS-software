@@ -6,45 +6,43 @@ from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.param.shared import *
 from pyspark.mllib.common import inherit_doc
 from pyspark import keyword_only
+from models.functions import euclidean_dist
 
 
-# source: ....
 
 
+class KNNClassifier:
 
-"""class KNN:
-    def __init__(self, k, train_data, test_data):
+    """
+    It initializes the KNN model.
+    
+    Parameters:
+        k (int): The number of neighbors to consider.
+        train_data (pyspark dataframe): The training data.
+        test_data (pyspark dataframe): The test data.
+
+    """
+    def __init__(self, k, train_df, test_df, featuresCol, labelCol):
         self.__k = k
-        self.__train_data = train_data
-        self.__test_data = test_data
+        self.__train_data = train_df.toPandas()
+        self.__test_data = test_df.toPandas()
+        self.__featuresCol = featuresCol
+        self.__labelCol = labelCol
 
-
-     
-    Stores the training data.
-    Expects train_data as a list of Row objects with 'features' and 'intrusion' fields.
-    
-    
-    def train(self):
-        
-        return self
-
-
-     
+ 
+    """
     Predicts the label for a single observation.
     
-    
+    """
     def predict(self, observation):
-        
-        if self.__train_data is None:
-            raise ValueError("There is no data available for training")
 
         distances = []
-        obs_features = observation["features"]
+        obs_features = observation[self.__featuresCol]
 
         for train_obs in self.__train_data:
-            train_features = train_obs["features"]
+            train_features = train_obs[self.__featuresCol]
             distance = sum((a - b) ** 2 for a, b in zip(obs_features, train_features)) ** 0.5
-            distances.append((distance, train_obs["intrusion"]))
+            distances.append((distance, train_obs[self.__labelCol]))
 
         distances.sort(key=lambda x: x[0])
         nearest_labels = [label for _, label in distances[:self.__k]]
@@ -52,22 +50,19 @@ from pyspark import keyword_only
 
         return prediction
 
-
      
+    """
     Evaluates the model on a labeled test dataset.
     Returns accuracy and total samples.
     
-    
+    """
     def test(self):
-
-        if self.__test_data is None:
-            raise ValueError("No test data provided for evaluation.")
 
         correct = 0
 
         for obs in self.__test_data:
             pred = self.predict(obs)
-            true_label = obs["intrusion"]
+            true_label = obs[self.__labelCol]
 
             if pred == true_label:
                 correct += 1
@@ -78,7 +73,7 @@ from pyspark import keyword_only
         return {
             "accuracy": accuracy,
             "total_samples": total
-        }"""
+        }
 
 
 
