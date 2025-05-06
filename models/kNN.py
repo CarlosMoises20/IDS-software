@@ -37,12 +37,12 @@ class KNNClassifier:
     def predict(self, observation):
 
         distances = []
-        obs_features = observation[self.__featuresCol]
+        obs_features = getattr(observation, self.__featuresCol)
 
         for train_obs in self.__train_data:
-            train_features = train_obs[self.__featuresCol]
+            train_features = getattr(train_obs, self.__featuresCol)
             distance = sum((a - b) ** 2 for a, b in zip(obs_features, train_features)) ** 0.5
-            distances.append((distance, train_obs[self.__labelCol]))
+            distances.append((distance, getattr(train_obs, self.__labelCol)))
 
         distances.sort(key=lambda x: x[0])
         nearest_labels = [label for _, label in distances[:self.__k]]

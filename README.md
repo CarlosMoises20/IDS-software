@@ -24,6 +24,13 @@ https://www.python.org/downloads/
 python --version
 ```
 
+### If pip is not automatically installed on your local machine after installing Python
+Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux)
+
+Then run the following command
+```python
+python ./get-pip.py
+```
 
 ### Install the necessary Python packages on your local machine (in root directory)
 ```
