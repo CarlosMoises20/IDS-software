@@ -1,7 +1,7 @@
 
 import time
 from common.auxiliary_functions import bind_dir_files, bind_separate_dir_files, get_all_attributes_names, get_boolean_attributes_names, format_time
-from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf
+from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
@@ -74,9 +74,24 @@ def pre_process_general(df):
     
     df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
+    all_attributes = get_all_attributes_names(df.schema)
+
     # get all other attributes of the dataframe
-    remaining_attributes = list(set(get_all_attributes_names(df.schema)) - 
+    remaining_attributes = list(set(all_attributes) - 
                                 set(hex_attributes + boolean_attributes + ["DevAddr"]))
+    
+    # Remove columns where all values are null
+    non_null_columns = [
+        c for c in df.columns
+        if df.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] > 0
+    ]
+
+    df = df.select(non_null_columns)
+
+    null_columns = list(set(all_attributes) - set(non_null_columns))
+
+    # remove columns whose rows are all NULL
+    remaining_attributes = list(set(remaining_attributes) - set(null_columns))
     
     # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
@@ -116,9 +131,32 @@ def prepare_dataframe(df):
     df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
 
     # apply pre-processing techniques common to "rxpk" and "txpk"
-    df = pre_process_general(df)
+    return pre_process_general(df)
+
+
+"""
+Loads the data from the available datasets, receiving the current Spark session as parameter
+
+"""
+def load_data(spark_session):
+
+    start_time = time.time()
+
+    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
+    ### to simplify data processing and make it more efficient
+    combined_logs_filename = bind_dir_files(spark_session, DatasetType)
+
+    # Load the parquet dataset into a Spark Dataframe
+    df = spark_session.read.parquet(combined_logs_filename)
+
+    end_time = time.time()
+
+    # Print the total time; the time is in seconds, minutes or hours
+    print("Total time of data loading:", format_time(end_time - start_time), "\n\n")
 
     return df
+
+
 
 
 """
@@ -132,30 +170,22 @@ in JSON format, and converts them to a spark dataframe
         convert them into a spark dataframe
 
 """
-def prepare_data(spark_session):
+def prepare_data(df, dev_addr=None):
 
     start_time = time.time()
 
-    ######## SINGLE LOG FILE ########
-    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
-    ### to simplify data processing and make it more efficient
-    combined_logs_filename = bind_dir_files(spark_session, DatasetType)
+    if dev_addr is not None:
 
-    # Load the parquet dataset into a Spark Dataframe
-    df = spark_session.read.parquet(combined_logs_filename)
-
-    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
-    # especially in repeated computations
-    df = df.cache()
-
-    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
-    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
+        # When dev_addr_list is specified, remove, from the dataset, rows 
+        # whose DevAddr does not belong to the list defined by the user
+        df = df.filter(df.DevAddr == dev_addr)
 
     df = prepare_dataframe(df)
 
     end_time = time.time()
 
     # Print the total time of pre-processing; the time is in seconds, minutes or hours
+    print("Pre-processing on dev_addr", dev_addr) if dev_addr is not None else print("")
     print("Total time of pre-processing:", format_time(end_time - start_time), "\n\n")
 
     return df

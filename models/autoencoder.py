@@ -4,7 +4,7 @@ import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from common.auxiliary_functions import format_time
-from pyspark.sql import functions as F
+from pyspark.sql import Row, functions as F
 from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
 
 
@@ -191,21 +191,18 @@ class Autoencoder(nn.Module):
         # TODO: try a more efficient approach that does the same: create the dataframe to be used
         # in supervised learning (on this current case, Random Forest)
 
-        schema = StructType([
-            StructField("reconstruction_error", FloatType(), False),
-            StructField("intrusion", IntegerType(), False)
-        ])
-
-        self.__df_model.coalesce(numPartitions=800)
-
         errors_labels = [(float(err), int(lbl)) for err, lbl in zip(errors, labels)]
-        errors_df_model = (self.__spark_session).createDataFrame(errors_labels, schema)
 
-        # Add columns to original df_model (you can use withColumn if aligning by index is guaranteed)
-        df_model_with_errors = (self.__df_model).withColumn("row_idx", F.monotonically_increasing_id())
-        errors_df_model = errors_df_model.withColumn("row_idx", F.monotonically_increasing_id())
-
-        result_df_model = df_model_with_errors.join(errors_df_model, on="row_idx").drop("row_idx")
+        errors_rdd = self.__spark_session.sparkContext.parallelize(errors_labels)
+        errors_rdd_indexed = errors_rdd.zipWithIndex().map(
+            lambda x: Row(reconstruction_error=x[0][0], intrusion=x[0][1], row_idx=x[1])
+        )
+        errors_df_model = self.__spark_session.createDataFrame(errors_rdd_indexed)
+       
+        df_model_indexed = self.__df_model.rdd.zipWithIndex().map(lambda x: Row(**x[0].asDict(), row_idx=x[1]))
+        df_model_with_index = self.__spark_session.createDataFrame(df_model_indexed)
+        
+        result_df_model = df_model_with_index.join(errors_df_model, on="row_idx").drop("row_idx")
 
         csv_filename = f"./generatedDatasets/labeled_autoencoder_output_device_{self.__dev_addr}.csv"
 

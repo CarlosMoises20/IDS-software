@@ -1,6 +1,6 @@
 
 import time
-from prepareData.prepareData import prepare_data
+from prepareData.prepareData import prepare_data, load_data
 from common.auxiliary_functions import format_time
 from common.constants import SPARK_PROCESSING_NUM_PARTITIONS
 from mlflow.tracking import MlflowClient
@@ -131,8 +131,9 @@ class MessageClassification:
             #mlflow.spark.log_model(model, "model", signature=signature)
 
             # for kNN, store the dataframe as a parquet file
-            df_model_train.write.parquet(f"./generatedDatasets/model_{dev_addr}.parquet")
-            mlflow.log_artifact(f"model_{dev_addr}.parquet")
+            dataset_model_path = f"./generatedDatasets/model_{dev_addr}.parquet"
+            df_model_train.write.mode("overwrite").parquet(dataset_model_path)
+            mlflow.log_artifact(dataset_model_path)
             
             if accuracy is not None:
                 mlflow.log_metric("accuracy", accuracy)
@@ -149,20 +150,21 @@ class MessageClassification:
 
         start_time = time.time()
 
+        # Apply autoencoder to build a label based on the reconstruction error
+
         ae = Autoencoder(self.__spark_session, df_model, dev_addr)
 
         ae.train()
 
-        df = ae.label_data_by_reconstruction_error()
+        df_model = ae.label_data_by_reconstruction_error()
 
         # randomly divide dataset into training and test, according to the total number of examples 
         # and set a seed in order to ensure reproducibility, which is important to 
         # ensure that the model is always trained and tested on the same examples each time the
         # model is run. This is important to compare the model's performance in different situations
-        df_model_train, df_model_test = self.__sample_random_split(df_model=df, seed=522)
+        df_model_train, df_model_test = self.__sample_random_split(df_model=df_model, seed=522)
 
-        # KNN TODO complete
-        
+        # KNN
         knn = KNNClassifier(k=20, train_df=df_model_train,
                             test_df=df_model_test, featuresCol="features", 
                             labelCol="intrusion")
@@ -171,13 +173,13 @@ class MessageClassification:
         accuracy = results["accuracy"]
         
 
-        """ # RANDOM FOREST
+        """# RANDOM FOREST
         
         # Apply Random Forest to detect intrusions based on the created label on Autoencoder
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
-        model = rf.fit(df_model_train)"""
+        model = rf.fit(df_model_train)
 
-        """if df_model_test is not None:
+        if df_model_test is not None:
             results = model.evaluate(df_model_test)
             accuracy = results.accuracy
         else:
@@ -221,7 +223,7 @@ class MessageClassification:
         if results is not None:
             print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
 
-        self.__store_model(dev_addr, df, df_model_train, df_model_test, None, accuracy)
+        self.__store_model(dev_addr, df_model, df_model_train, df_model_test, None, accuracy)
 
         end_time = time.time()
 
@@ -244,14 +246,18 @@ class MessageClassification:
     """
     def create_ml_models(self, dev_addr_list=None):
 
-        # pre-processing: prepare past dataset
-        df = prepare_data(self.__spark_session)
+        ### Begin processing
+        start_time = time.time()
+
+        # load data
+        df = load_data(self.__spark_session)
+
+        # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
+        # especially in repeated computations
+        df = df.cache()
 
         # Splits the dataframe into "SPARK_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
         df = df.coalesce(numPartitions=int(SPARK_PROCESSING_NUM_PARTITIONS))
-
-        ### Begin processing
-        start_time = time.time()
 
         # When dev_addr_list is not specified, models of all devices are created
         if dev_addr_list is None:
@@ -262,20 +268,16 @@ class MessageClassification:
             # Convert to a list of integers
             dev_addr_list = [row.DevAddr for row in dev_addr_list.collect()]
 
-        else:
-            # When dev_addr_list is specified, remove, from the dataset, rows 
-            # whose DevAddr does not belong to the list defined by the user
-            df = df.filter(df.DevAddr.isin(dev_addr_list))
-
         # create each model in sequence
         for dev_addr in dev_addr_list:
-            df_model = df.filter(df.DevAddr == dev_addr)
-            self.__create_model(df_model, dev_addr)
+            df_model = prepare_data(df, dev_addr)           # Pre-Processing
+            print(df_model.count())
+            self.__create_model(df_model, dev_addr)         # Processing
         
         end_time = time.time()
 
-        # Print the total time of pre-processing; the time is in seconds, minutes or hours
-        print("Total time of processing:", format_time(end_time - start_time), "\n\n")
+        # Print the total time; the time is in seconds, minutes or hours
+        print("Total time of pre-processing + processing:", format_time(end_time - start_time), "\n\n")
 
 
     """
