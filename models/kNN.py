@@ -1,7 +1,5 @@
 
 from models.functions import euclidean_dist
-
-
 from pyspark.ml.wrapper import JavaEstimator, JavaModel
 from pyspark.ml.param.shared import *
 from pyspark.mllib.common import inherit_doc
@@ -37,12 +35,12 @@ class KNNClassifier:
     def predict(self, observation):
 
         distances = []
-        obs_features = getattr(observation, self.__featuresCol)
+        obs_features = observation[self.__featuresCol]
 
-        for train_obs in self.__train_data:
-            train_features = getattr(train_obs, self.__featuresCol)
+        for _, train_obs in self.__train_data.iterrows():
+            train_features = train_obs[self.__featuresCol]
             distance = sum((a - b) ** 2 for a, b in zip(obs_features, train_features)) ** 0.5
-            distances.append((distance, getattr(train_obs, self.__labelCol)))
+            distances.append((distance, train_obs[self.__labelCol]))
 
         distances.sort(key=lambda x: x[0])
         nearest_labels = [label for _, label in distances[:self.__k]]
@@ -60,9 +58,9 @@ class KNNClassifier:
 
         correct = 0
 
-        for obs in self.__test_data:
-            pred = self.predict(obs)
-            true_label = obs[self.__labelCol]
+        for _, test_obs in self.__test_data.iterrows():
+            pred = self.predict(test_obs)
+            true_label = test_obs[self.__labelCol]
 
             if pred == true_label:
                 correct += 1

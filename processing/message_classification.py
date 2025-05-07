@@ -131,9 +131,8 @@ class MessageClassification:
             #mlflow.spark.log_model(model, "model", signature=signature)
 
             # for kNN, store the dataframe as a parquet file
-            df_model_train.write.parquet(f"model_{dev_addr}.parquet")
+            df_model_train.write.parquet(f"./generatedDatasets/model_{dev_addr}.parquet")
             mlflow.log_artifact(f"model_{dev_addr}.parquet")
-            
             
             if accuracy is not None:
                 mlflow.log_metric("accuracy", accuracy)

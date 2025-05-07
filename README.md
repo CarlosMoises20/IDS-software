@@ -8,8 +8,8 @@ That will download a zip file. Then, you must follow the instructions on the sit
 
 You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
 
-### To install Java on your local machine (version 11 recommended to avoid compatibility issues; as an alternative, version 11), using the link below
-https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
+### To install Java on your local machine (version 17 is the most recommended), using the link below
+https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html
 
 ### Check Java version in your local machine to ensure that it was correctly installed
  ```

@@ -1,12 +1,14 @@
 
 import time
-from common.auxiliary_functions import bind_dir_files, get_all_attributes_names, get_boolean_attributes_names, format_time
+from common.auxiliary_functions import bind_dir_files, bind_separate_dir_files, get_all_attributes_names, get_boolean_attributes_names, format_time
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
 from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
+
+
 
 
 #### Pre-processing steps common for both dataset types
@@ -103,6 +105,7 @@ in JSON format, and converts them to a spark dataframe
 """
 def prepare_dataframe(df):
 
+    ### SINGLE LOG FILE
     # separate 'rxpk' samples and 'txpk' samples to apply pre-processing steps that are
     # specific to each type of LoRaWAN message
     df_rxpk, df_txpk = (dataset_type.value["pre_processing_class"].pre_process_data(
@@ -111,13 +114,6 @@ def prepare_dataframe(df):
 
     # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
     df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
-    
-    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
-    # especially in repeated computations
-    df.cache()
-    
-    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
-    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
 
     # apply pre-processing techniques common to "rxpk" and "txpk"
     df = pre_process_general(df)
@@ -140,12 +136,20 @@ def prepare_data(spark_session):
 
     start_time = time.time()
 
+    ######## SINGLE LOG FILE ########
     ### Bind all log files of a specific type into a single file if it doesn't exist yet,
     ### to simplify data processing and make it more efficient
     combined_logs_filename = bind_dir_files(spark_session, DatasetType)
 
     # Load the parquet dataset into a Spark Dataframe
     df = spark_session.read.parquet(combined_logs_filename)
+
+    # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
+    # especially in repeated computations
+    df = df.cache()
+
+    # Splits the dataframe into "SPARK_PRE_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
+    df = df.coalesce(numPartitions=int(SPARK_PRE_PROCESSING_NUM_PARTITIONS))
 
     df = prepare_dataframe(df)
 
