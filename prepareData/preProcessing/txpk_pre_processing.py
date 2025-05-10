@@ -51,6 +51,10 @@ class TxpkPreProcessing(DataPreProcessing):
                                           .when(col("MessageType") == "RFU", 6)
                                           .when(col("MessageType") == "Proprietary", 7)
                                           .otherwise(-1))
+        
+        # convert attributes from hexadecimal to decimal that only exist in RXPK
+        df = DataPreProcessing.hex_to_decimal(df, ["FreqCh4", "FreqCh5", 
+                                            "FreqCh6", "FreqCh7", "FreqCh8",])
 
         return df
 

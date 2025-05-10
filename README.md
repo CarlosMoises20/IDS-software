@@ -39,16 +39,11 @@ pip install -r ./requirements.txt
 
 #### NOTE: Properly define the environment variables on your local machine
 
-### If you want to generate the input datasets in separate, run the following command (in root directory)
+### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory)
 ```python3
 python .\generate_input_datasets.py
 ```
 
-
-### Create all devices' models (train and test), and save them as an MLFlow artifact (in root directory)
-```python3
-python .\create_all_devices_models.py
-```
 
 ### Create models based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
 ```python3

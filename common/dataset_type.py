@@ -3,7 +3,7 @@ from prepareData.preProcessing.rxpk_pre_processing import RxpkPreProcessing
 from prepareData.preProcessing.txpk_pre_processing import TxpkPreProcessing
 
 """
-Class that defines all types of LoRaWAN datasets
+Class that defines all types of LoRaWAN messages in datasets
 
 """
 class DatasetType(Enum):

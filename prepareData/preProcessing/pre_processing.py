@@ -2,7 +2,7 @@
 from pyspark.sql.types import IntegerType, DecimalType
 from abc import ABC, abstractmethod
 from pyspark.sql.functions import when, col, expr, lit
-from common.auxiliary_functions import get_all_attributes_names
+from common.spark_functions import get_all_attributes_names
 from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 
 class DataPreProcessing(ABC):

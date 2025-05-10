@@ -1,19 +1,32 @@
 
 import time
-from common.auxiliary_functions import bind_dir_files, bind_separate_dir_files, get_all_attributes_names, get_boolean_attributes_names, format_time
+from common.auxiliary_functions import format_time
+from common.spark_functions import get_boolean_attributes_names, sample_random_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
-from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
-from common.dataset_type import DatasetType
 from pyspark.ml.feature import Imputer
 
 
+"""
+Applies pre-processing steps specified for each dataset type ("rxpk" and "txpk")
+Binds the results and prepares the whole dataframe with pre-processing steps common for all
+"rxpk" and "txpk" samples of the entire dataframe
+
+"""
+def pre_process_type(df, dataset_type):
+
+    # separate 'rxpk' samples or 'txpk' samples to apply pre-processing steps that are
+    # specific to each type of LoRaWAN message
+    df = dataset_type.value["pre_processing_class"].pre_process_data(df)
 
 
-#### Pre-processing steps common for both dataset types
-### Apply transformations to attributes
-def pre_process_general(df):
+    # Replace NULL and empty-string values of DevAddr with "Unknown"
+    # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
+    # targeted by some sort of attack in the LoRaWAN physical layer
+    df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
+                                    .otherwise(col("DevAddr")))
+    
 
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
     # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
@@ -34,12 +47,6 @@ def pre_process_general(df):
     
     # remove 'data' and 'FRMPayload' after computing their lengths
     df = df.drop("data", "FRMPayload")
-
-    # Replace NULL and empty-string values of DevAddr with "Unknown"
-    # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
-    # targeted by some sort of attack in the LoRaWAN physical layer
-    df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
-                                    .otherwise(col("DevAddr")))
     
     # Convert "codr" from string to float
     str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
@@ -66,121 +73,68 @@ def pre_process_general(df):
     # this also replaces NULL and empty values with -1 to be supported by the algorithms
     # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
     # these would be treated as categorical values, which is not the case
-    hex_attributes = ["AppNonce", "FreqCh4", "FreqCh5", 
-                        "FreqCh6", "FreqCh7", "FreqCh8",
-                        "CFListType", "DevEUI", "DevNonce",
+    hex_attributes = ["AppNonce", "CFListType",
                         "FCnt", "FCtrl", "FOpts", "FPort", 
                         "MIC", "NetID", "RxDelay"]
-    
-    df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-    all_attributes = get_all_attributes_names(df.schema)
+    return DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-    # get all other attributes of the dataframe
-    remaining_attributes = list(set(all_attributes) - 
-                                set(hex_attributes + boolean_attributes + ["DevAddr"]))
+
+"""
+Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
+a specific device, if specified
+
+"""
+def prepare_df_for_device(df_train, df_test, dev_addr=None):
+
+    start_time = time.time()
+
+    # When dev_addr is specified, remove, from the dataset, rows 
+    # whose DevAddr is not the one defined by the user
+    if dev_addr is not None:
+        df_train = df_train.filter(df_train.DevAddr == dev_addr)
+        df_test = df_test.filter(df_test.DevAddr == dev_addr)
+
+        df_train_count = df_train.count()
+        df_test_count = df_test.count()
+
+        if df_train_count == 0 or df_test_count == 0 or df_train_count < df_test_count:
+            
+            print(f"[INFO] Adjusting sample split due to imbalance or empty datasets...")
+
+            # Binds training and testing datasets
+            df_model = df_train.unionByName(df_test)
+
+            # Applies new division in training and testing based in dataset size rules
+            df_train, df_test = sample_random_split(df_model, seed=422)
     
+
     # Remove columns where all values are null
-    non_null_columns = [
-        c for c in df.columns
-        if df.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] > 0
+    non_null_columns_train = [
+        c for c in df_train.columns
+        if (df_train.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
     ]
 
-    df = df.select(non_null_columns)
+    non_null_columns_test = [
+        c for c in df_test.columns
+        if (df_test.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+    ]
 
-    null_columns = list(set(all_attributes) - set(non_null_columns))
+    df_train, df_test = df_train.select(non_null_columns_train), df_test.select(non_null_columns_test)
 
-    # remove columns whose rows are all NULL
-    remaining_attributes = list(set(remaining_attributes) - set(null_columns))
+    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr"]))
+    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr"]))
     
-    # for the other numeric attributes, replace NULL and empty values with the mean, because these are values
+    # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
     # the mean is the best approach to preserve the distribution and variety of the data
-    imputer = Imputer(inputCols=remaining_attributes, outputCols=remaining_attributes, strategy="mean")
+    imputer_train = Imputer(inputCols=non_null_columns_train, outputCols=non_null_columns_train, strategy="mean")
+    imputer_test = Imputer(inputCols=non_null_columns_test, outputCols=non_null_columns_test, strategy="mean")
 
-    df = imputer.fit(df).transform(df)
+    df_train, df_test = imputer_train.fit(df_train).transform(df_train), imputer_test.fit(df_test).transform(df_test)
 
     # apply normalization
-    df = DataPreProcessing.normalization(df)
-
-    return df
-
-
-
-"""
-This function is called to apply all necessary pre-processing steps to prepare
-the dataset to be processed by the used ML models on the IDS
-
-It extracts all "rxpk" and "txpk" LoRaWAN messages from the given datasets, that are
-in JSON format, and converts them to a spark dataframe
-
-    spark_session: the Spark session used to read all messages in a file and 
-        convert them into a spark dataframe
-
-"""
-def prepare_dataframe(df):
-
-    ### SINGLE LOG FILE
-    # separate 'rxpk' samples and 'txpk' samples to apply pre-processing steps that are
-    # specific to each type of LoRaWAN message
-    df_rxpk, df_txpk = (dataset_type.value["pre_processing_class"].pre_process_data(
-                            df.filter(col(dataset_type.value["name"]).isNotNull())
-                        )   for dataset_type in [key for key in DatasetType])
-
-    # after pre-processing, combine 'rxpk' and 'txpk' dataframes in just one  
-    df = df_rxpk.unionByName(df_txpk, allowMissingColumns=True)
-
-    # apply pre-processing techniques common to "rxpk" and "txpk"
-    return pre_process_general(df)
-
-
-"""
-Loads the data from the available datasets, receiving the current Spark session as parameter
-
-"""
-def load_data(spark_session):
-
-    start_time = time.time()
-
-    ### Bind all log files of a specific type into a single file if it doesn't exist yet,
-    ### to simplify data processing and make it more efficient
-    combined_logs_filename = bind_dir_files(spark_session, DatasetType)
-
-    # Load the parquet dataset into a Spark Dataframe
-    df = spark_session.read.parquet(combined_logs_filename)
-
-    end_time = time.time()
-
-    # Print the total time; the time is in seconds, minutes or hours
-    print("Total time of data loading:", format_time(end_time - start_time), "\n\n")
-
-    return df
-
-
-
-
-"""
-This function is called to apply all necessary pre-processing steps to prepare
-the dataset to be processed by the used ML models on the IDS
-
-It extracts all "rxpk" and "txpk" LoRaWAN messages from the given datasets, that are
-in JSON format, and converts them to a spark dataframe
-
-    spark_session: the Spark session used to read all messages in a file and 
-        convert them into a spark dataframe
-
-"""
-def prepare_data(df, dev_addr=None):
-
-    start_time = time.time()
-
-    if dev_addr is not None:
-
-        # When dev_addr_list is specified, remove, from the dataset, rows 
-        # whose DevAddr does not belong to the list defined by the user
-        df = df.filter(df.DevAddr == dev_addr)
-
-    df = prepare_dataframe(df)
+    df_train, df_test = DataPreProcessing.normalization(df_train), DataPreProcessing.normalization(df_test)
 
     end_time = time.time()
 
@@ -188,5 +142,5 @@ def prepare_data(df, dev_addr=None):
     print("Pre-processing on dev_addr", dev_addr) if dev_addr is not None else print("")
     print("Total time of pre-processing:", format_time(end_time - start_time), "\n\n")
 
-    return df
+    return df_train, df_test
 

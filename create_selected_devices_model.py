@@ -1,9 +1,11 @@
 
 import argparse
 from pyspark.sql.types import *
-from common.auxiliary_functions import *
+from common.spark_functions import create_spark_session
+from generate_input_datasets import generate_input_datasets
 from models.functions import *
 from processing.message_classification import MessageClassification
+from common.input_dataset_format import DatasetFormatType
 
 
 if __name__ == '__main__':
@@ -19,6 +21,8 @@ if __name__ == '__main__':
     
     # If you want to see spark errors in debug level on console during the script running
     #spark_session.sparkContext.setLogLevel("DEBUG")
+
+    generate_input_datasets(spark_session, DatasetFormatType.JSON)
 
     mc = MessageClassification(spark_session)
 

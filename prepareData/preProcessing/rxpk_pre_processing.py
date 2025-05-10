@@ -1,7 +1,6 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, when, col, udf, lit
-from pyspark.sql.types import StringType
+from pyspark.sql.functions import expr, col, explode, when, col
 from common.constants import *
 
 
@@ -99,8 +98,8 @@ class RxpkPreProcessing(DataPreProcessing):
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
 
-        # convert "AppEUI" from hexadecimal to decimal (this only exists in RXPK)
-        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI"])
+        # convert attributes from hexadecimal to decimal that only exist in RXPK
+        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "DevEUI", "DevNonce"])
 
         return df
 

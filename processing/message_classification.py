@@ -1,8 +1,9 @@
 
-import time
-from prepareData.prepareData import prepare_data, load_data
+import time, mlflow, shutil, os
+from common.dataset_type import DatasetType
+from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
-from common.constants import SPARK_PROCESSING_NUM_PARTITIONS
+from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
 from mlflow.tracking import MlflowClient
 from models.autoencoder import Autoencoder
 from pyspark.ml.clustering import KMeans
@@ -10,7 +11,6 @@ from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvalu
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 import mlflow.pyspark.ml as mlflow_pyspark_ml
 from mlflow.models import infer_signature
-import mlflow, shutil, os
 from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
 
@@ -30,12 +30,12 @@ class MessageClassification:
     run in MLFlow
     
     """
-    def __get_model_by_devaddr(self, dev_addr):
+    def __get_model_by_devaddr_and_dataset_type(self, dev_addr, dataset_type):
         
         # Search the model according to DevAddr
         runs = self.__mlflowclient.search_runs(
             experiment_ids=["0"],
-            filter_string=f"tags.DevAddr = '{dev_addr}'",
+            filter_string=f"tags.DevAddr = '{dev_addr}' and tags.MessageType = '{dataset_type}'",
             order_by=["metrics.accuracy DESC"],  # ou outro critério
             max_results=1
         )
@@ -55,36 +55,6 @@ class MessageClassification:
         return model, run_id
 
 
-    """
-    This function ensures that there are always sufficient samples for both training and testing
-    considering the total number of examples in the dataframe corresponding to the device, if
-    the total number of samples is larger than 1
-
-    """
-    def __sample_random_split(self, df_model, seed):
-
-        # Count the total number of samples to be used by the model
-        total_count = df_model.count()
-
-        # If there is only one sample for the device, use that sample for training, 
-        # and don't apply testing for that model
-        if total_count == 1:
-            df_model_train, df_model_test = df_model, None
-
-        # If there are between 2 and 9 samples, split the samples for training and testing by 50-50
-        elif total_count < 10:
-            df_model_train, df_model_test = df_model.randomSplit([0.5, 0.5], seed=seed)
-
-        # If there are between 10 and 20 samples, split the samples for training and testing by 70-30
-        elif total_count < 20:
-            df_model_train, df_model_test = df_model.randomSplit([0.7, 0.3], seed=seed)
-
-        # If there are 20 or more samples, split the samples for training and testing by 85-15
-        else:
-            df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed=seed)
-
-        return df_model_train, df_model_test
-
 
     """
     Auxiliary function that stores on MLFlow the model based on DevAddr, replacing the old model if it exists
@@ -92,13 +62,13 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, df, df_model_train, df_model_test, model, accuracy):
+    def __store_model(self, dev_addr, df_model_train, model, accuracy, dataset_type):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        mlflow_retrieved_model, old_run_id = self.__get_model_by_devaddr(dev_addr)
-
-        signature = infer_signature(df_model_test, df)
+        mlflow_retrieved_model, old_run_id = self.__get_model_by_devaddr_and_dataset_type(
+            dev_addr, dataset_type.value["name"]
+        )
 
         # If a model associated to the device already exists, delete it to replace it with
         # the new model, so that the system is always with the newest model in order to 
@@ -123,17 +93,18 @@ class MessageClassification:
                 print(f"Artefact directory not found: {run_path}")
 
         # Create model based on DevAddr and store it as an artifact using MLFlow
-        with mlflow.start_run(run_name=f"Model_Device_{dev_addr}"):
+        with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"]}'):
             mlflow.set_tag("DevAddr", dev_addr)
+            mlflow.set_tag("MessageType", dataset_type)
             mlflow_pyspark_ml.autolog()
             
             # for every algorithms except kNN, store the model as artifact
-            #mlflow.spark.log_model(model, "model", signature=signature)
+            mlflow.spark.log_model(model, "model")
 
             # for kNN, store the dataframe as a parquet file
-            dataset_model_path = f"./generatedDatasets/model_{dev_addr}.parquet"
-            df_model_train.write.mode("overwrite").parquet(dataset_model_path)
-            mlflow.log_artifact(dataset_model_path)
+            #dataset_model_path = f'./generatedDatasets/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
+            #df_model_train.write.mode("overwrite").parquet(dataset_model_path)
+            #mlflow.log_artifact(dataset_model_path)
             
             if accuracy is not None:
                 mlflow.log_metric("accuracy", accuracy)
@@ -146,34 +117,28 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def __create_model(self, df_model, dev_addr):
+    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type):
 
         start_time = time.time()
 
         # Apply autoencoder to build a label based on the reconstruction error
 
-        ae = Autoencoder(self.__spark_session, df_model, dev_addr)
+        ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr)
 
         ae.train()
 
-        df_model = ae.label_data_by_reconstruction_error()
+        df_model_train, df_model_test = ae.label_data_by_reconstruction_error()
 
-        # randomly divide dataset into training and test, according to the total number of examples 
-        # and set a seed in order to ensure reproducibility, which is important to 
-        # ensure that the model is always trained and tested on the same examples each time the
-        # model is run. This is important to compare the model's performance in different situations
-        df_model_train, df_model_test = self.__sample_random_split(df_model=df_model, seed=522)
-
-        # KNN
+        """# KNN
         knn = KNNClassifier(k=20, train_df=df_model_train,
                             test_df=df_model_test, featuresCol="features", 
                             labelCol="intrusion")
 
         results = knn.test()
-        accuracy = results["accuracy"]
+        accuracy = results["accuracy"]"""
         
 
-        """# RANDOM FOREST
+        # RANDOM FOREST
         
         # Apply Random Forest to detect intrusions based on the created label on Autoencoder
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
@@ -183,23 +148,20 @@ class MessageClassification:
             results = model.evaluate(df_model_test)
             accuracy = results.accuracy
         else:
-            accuracy = None"""
+            accuracy = None
 
         
-        """ # LOGISTIC REGRESSION
+        """# LOGISTIC REGRESSION
         
         lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
                                 regParam=0.1, elasticNetParam=1.0,
                                 family="multinomial", maxIter=50)
-        
 
         model = lr.fit(df_model_train)
 
         if df_model_test is not None:
             results = model.evaluate(df_model_test)
-            accuracy = results.accuracy
-        
-        """
+            accuracy = results.accuracy"""
         
         
         """  # KMEANS
@@ -223,11 +185,11 @@ class MessageClassification:
         if results is not None:
             print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
 
-        self.__store_model(dev_addr, df_model, df_model_train, df_model_test, None, accuracy)
+        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         end_time = time.time()
 
-        print(f"Model for end-device with DevAddr {dev_addr} saved successfully and created in {format_time(end_time - start_time)}")
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"]} saved successfully and created in {format_time(end_time - start_time)}')
 
 
     """
@@ -244,35 +206,26 @@ class MessageClassification:
                         devices will be created
 
     """
-    def create_ml_models(self, dev_addr_list=None):
+    def create_ml_models(self, dev_addr_list):
 
         ### Begin processing
         start_time = time.time()
 
-        # load data
-        df = load_data(self.__spark_session)
-
-        # Caching saves time by retrieving data from memory instead of always retrieving from the sources,
-        # especially in repeated computations
-        df = df.cache()
-
-        # Splits the dataframe into "SPARK_PROCESSING_NUM_PARTITIONS" partitions during pre-processing
-        df = df.coalesce(numPartitions=int(SPARK_PROCESSING_NUM_PARTITIONS))
-
-        # When dev_addr_list is not specified, models of all devices are created
-        if dev_addr_list is None:
-
-            # Cast DevAddr column to integer and get distinct values
-            dev_addr_list = df.select("DevAddr").filter(df["DevAddr"].isNotNull()).distinct()
-
-            # Convert to a list of integers
-            dev_addr_list = [row.DevAddr for row in dev_addr_list.collect()]
-
         # create each model in sequence
         for dev_addr in dev_addr_list:
-            df_model = prepare_data(df, dev_addr)           # Pre-Processing
-            print(df_model.count())
-            self.__create_model(df_model, dev_addr)         # Processing
+            for dt in DatasetType:
+
+                df_train = self.__spark_session.read.json(
+                    f'./generatedDatasets/{dt.value["name"]}/lorawan_dataset_train.json'
+                )
+
+                df_test = self.__spark_session.read.json(
+                    f'./generatedDatasets/{dt.value["name"]}/lorawan_dataset_test.json'
+                )
+
+                df_model_train, df_model_test = prepare_df_for_device(df_train, df_test, dev_addr)  # Pre-Processing
+
+                self.__create_model(df_model_train, df_model_test, dev_addr, dt)         # Processing
         
         end_time = time.time()
 
