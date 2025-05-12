@@ -155,24 +155,18 @@ class Autoencoder(nn.Module):
     Test the Autoencoder model on test data.
 
     """
-    def __compute_reconstruction_errors(self):
+    def __compute_reconstruction_errors(self, dataloader):
 
         super().eval()
-        errors_train = []
-        errors_test = []
+        errors = []
 
         with torch.no_grad():
-            for (data,) in self.__traindataloader:
+            for (data,) in dataloader:
                 output = self(data)
                 batch_errors = torch.mean((output - data) ** 2, dim=1)  # MSE per sample
-                errors_train.extend(batch_errors.cpu().numpy())  # convert to list
+                errors.extend(batch_errors.cpu().numpy())  # convert to list
 
-            for (data,) in self.__testdataloader:
-                output = self(data)
-                batch_errors = torch.mean((output - data) ** 2, dim=1)  # MSE per sample
-                errors_test.extend(batch_errors.cpu().numpy())  # convert to list
-
-        return errors_train, errors_test
+        return errors
 
 
     def __label_data(self, errors, df_model):
@@ -222,7 +216,8 @@ class Autoencoder(nn.Module):
     """
     def label_data_by_reconstruction_error(self):
 
-        errors_train, errors_test = self.__compute_reconstruction_errors()
+        errors_train = self.__compute_reconstruction_errors(self.__traindataloader)
+        errors_test = self.__compute_reconstruction_errors(self.__testdataloader)
 
         result_df_train = self.__label_data(errors_train, self.__df_model_train)
         result_df_test = self.__label_data(errors_test, self.__df_model_test)

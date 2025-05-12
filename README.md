@@ -39,20 +39,20 @@ pip install -r ./requirements.txt
 
 #### NOTE: Properly define the environment variables on your local machine
 
-### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory)
+### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET)
 ```python3
-python .\generate_input_datasets.py
+python .\generate_input_datasets.py --dataset_format ("json" or "parquet")
 ```
 
 
 ### Create models based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
 ```python3
-python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N}
+python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} --dataset_format ("json" or "parquet")
 ```
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
  ```python3
-python .\real_time_msg_processing.py
+python .\real_time_msg_processing.py --dataset_format ("json" or "parquet")
 ```
 If you want to stop the application, just force it (Ctrl + C in Windows)
 

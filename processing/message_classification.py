@@ -3,13 +3,12 @@ import time, mlflow, shutil, os
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
-from common.constants import SPARK_PRE_PROCESSING_NUM_PARTITIONS
 from mlflow.tracking import MlflowClient
 from models.autoencoder import Autoencoder
 from pyspark.ml.clustering import KMeans
-from pyspark.ml.evaluation import BinaryClassificationEvaluator, ClusteringEvaluator, MulticlassClassificationEvaluator
+from pyspark.sql.functions import col
+from common.spark_functions import get_boolean_attributes_names, sample_random_split
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
-import mlflow.pyspark.ml as mlflow_pyspark_ml
 from mlflow.models import infer_signature
 from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
@@ -55,7 +54,6 @@ class MessageClassification:
         return model, run_id
 
 
-
     """
     Auxiliary function that stores on MLFlow the model based on DevAddr, replacing the old model if it exists
     This model is used on training and testing, whether on only creating models based on past data, or for classifying
@@ -96,15 +94,14 @@ class MessageClassification:
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"]}'):
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dataset_type)
-            mlflow_pyspark_ml.autolog()
             
             # for every algorithms except kNN, store the model as artifact
             mlflow.spark.log_model(model, "model")
 
-            # for kNN, store the dataframe as a parquet file
-            #dataset_model_path = f'./generatedDatasets/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
-            #df_model_train.write.mode("overwrite").parquet(dataset_model_path)
-            #mlflow.log_artifact(dataset_model_path)
+            # store the training dataframe as a parquet file
+            dataset_model_path = f'./df_tmp/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
+            df_model_train.write.mode("overwrite").parquet(dataset_model_path)
+            mlflow.log_artifact(dataset_model_path, artifact_path="training_dataset")
             
             if accuracy is not None:
                 mlflow.log_metric("accuracy", accuracy)
@@ -122,14 +119,13 @@ class MessageClassification:
         start_time = time.time()
 
         # Apply autoencoder to build a label based on the reconstruction error
-
         ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr)
 
         ae.train()
 
         df_model_train, df_model_test = ae.label_data_by_reconstruction_error()
 
-        """# KNN
+        """### KNN
         knn = KNNClassifier(k=20, train_df=df_model_train,
                             test_df=df_model_test, featuresCol="features", 
                             labelCol="intrusion")
@@ -138,7 +134,7 @@ class MessageClassification:
         accuracy = results["accuracy"]"""
         
 
-        # RANDOM FOREST
+        ### RANDOM FOREST
         
         # Apply Random Forest to detect intrusions based on the created label on Autoencoder
         rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
@@ -151,7 +147,7 @@ class MessageClassification:
             accuracy = None
 
         
-        """# LOGISTIC REGRESSION
+        """### LOGISTIC REGRESSION
         
         lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
                                 regParam=0.1, elasticNetParam=1.0,
@@ -164,7 +160,7 @@ class MessageClassification:
             accuracy = results.accuracy"""
         
         
-        """  # KMEANS
+        """### KMEANS
 
         # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
         k_means = KMeans(k=3, seed=522, maxIter=100)
@@ -189,7 +185,9 @@ class MessageClassification:
 
         end_time = time.time()
 
-        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"]} saved successfully and created in {format_time(end_time - start_time)}')
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}')
+
+
 
 
     """
@@ -213,19 +211,14 @@ class MessageClassification:
 
         # create each model in sequence
         for dev_addr in dev_addr_list:
-            for dt in DatasetType:
 
-                df_train = self.__spark_session.read.json(
-                    f'./generatedDatasets/{dt.value["name"]}/lorawan_dataset_train.json'
-                )
+            for dataset_type in DatasetType:
 
-                df_test = self.__spark_session.read.json(
-                    f'./generatedDatasets/{dt.value["name"]}/lorawan_dataset_test.json'
-                )
+                # Pre-Processing
+                df_model_train, df_model_test = prepare_df_for_device(self.__spark_session, dataset_type, dev_addr)  
 
-                df_model_train, df_model_test = prepare_df_for_device(df_train, df_test, dev_addr)  # Pre-Processing
-
-                self.__create_model(df_model_train, df_model_test, dev_addr, dt)         # Processing
+                # Processing
+                self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type)         
         
         end_time = time.time()
 
@@ -255,16 +248,19 @@ class MessageClassification:
             # 1 - reads the message (see how to do it later)
             # 2 - converts the message to a dataframe row
             # 3 - apply pre-processing on the received message calling the function "prepare_dataframe(df)"
-            # 4 - classify the message using the corresponding model retrieved from MLFlow, based on DevAddr
+            # 4 - classify the message using the corresponding model retrieved from MLFlow, based on DevAddr and message type
             #       4a - call self.__get_model_by_dev_addr with the given parameters to check if the model exists
             #       4b - if the model does not exist, create it (self.__create_model) and store it on MLFlow; there will be no replaced model
             #                since the created model to be stored on MLFlow is the first one
             #       4c - use "predict" to classify the message using the corresponding model
             # 5 - aggregate the received and classified messages in a dataframe 'df_new_msgs' using 'union'
-            # 6 - after receiving and classifying X messages (100, 200, etc), re-train the model calling function fit(df_new_msgs)
+            # 6 - after receiving and classifying X messages (100, 200, etc), re-train the model
             #       6a - retrieve old model from MLFlow using self.__get_model_by_dev_addr
-            #       6b - then just call "fit" and "transform" using the retrieved model from MLFlow, then replace the old model with the new model,
-            #               calling self.__store_model; this allows the new model to learn new patterns (new intrusions) from the new data, the new
+            #       6b - download the artifact corresponding to the dataset used to train the old model
+            #           """mlflow.artifacts.download_artifacts(run_id=<RUN_ID>, artifact_path="training_dataset")"""
+            #       6c - convert the dataset to a dataframe and bind it to the new messages
+            #       6d - use the binded dataframe to create a new model that will replace the old model, calling "fit"
+            #       6e - replace the old model calling self.__store_model; this allows the new stored model to learn new patterns (new intrusions) from the new data, the new
             #               LoRaWAN messages
             # 7 - it eventually waits to Ctrl + C or something, to close the socket
         

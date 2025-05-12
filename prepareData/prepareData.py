@@ -85,42 +85,43 @@ Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device, if specified
 
 """
-def prepare_df_for_device(df_train, df_test, dev_addr=None):
+def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
 
     start_time = time.time()
 
-    # When dev_addr is specified, remove, from the dataset, rows 
-    # whose DevAddr is not the one defined by the user
-    if dev_addr is not None:
-        df_train = df_train.filter(df_train.DevAddr == dev_addr)
-        df_test = df_test.filter(df_test.DevAddr == dev_addr)
+    df_model_train = spark_session.read.json(
+        f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.json'
+    ).filter(col("DevAddr") == dev_addr)
 
-        df_train_count = df_train.count()
-        df_test_count = df_test.count()
+    df_model_test = spark_session.read.json(
+        f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.json'
+    ).filter(col("DevAddr") == dev_addr)
 
-        if df_train_count == 0 or df_test_count == 0 or df_train_count < df_test_count:
-            
-            print(f"[INFO] Adjusting sample split due to imbalance or empty datasets...")
+    df_model_train_count = df_model_train.count()
+    df_model_test_count = df_model_test.count()
 
-            # Binds training and testing datasets
-            df_model = df_train.unionByName(df_test)
+    if df_model_train_count == 0 or df_model_test_count == 0 or df_model_train_count < df_model_test_count:
+        
+        print(f"[INFO] Adjusting sample split due to imbalance or empty datasets...")
 
-            # Applies new division in training and testing based in dataset size rules
-            df_train, df_test = sample_random_split(df_model, seed=422)
-    
+        # Binds training and testing datasets
+        df_model = df_model_train.unionByName(df_model_test)
+
+        # Applies new division in training and testing based in dataset size rules
+        df_model_train, df_model_test = sample_random_split(df_model, seed=422)
 
     # Remove columns where all values are null
     non_null_columns_train = [
-        c for c in df_train.columns
-        if (df_train.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+        c for c in df_model_train.columns
+        if (df_model_train.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
     ]
 
     non_null_columns_test = [
-        c for c in df_test.columns
-        if (df_test.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+        c for c in df_model_test.columns
+        if (df_model_test.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
     ]
 
-    df_train, df_test = df_train.select(non_null_columns_train), df_test.select(non_null_columns_test)
+    df_model_train, df_model_test = df_model_train.select(non_null_columns_train), df_model_test.select(non_null_columns_test)
 
     non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr"]))
     non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr"]))
@@ -131,16 +132,17 @@ def prepare_df_for_device(df_train, df_test, dev_addr=None):
     imputer_train = Imputer(inputCols=non_null_columns_train, outputCols=non_null_columns_train, strategy="mean")
     imputer_test = Imputer(inputCols=non_null_columns_test, outputCols=non_null_columns_test, strategy="mean")
 
-    df_train, df_test = imputer_train.fit(df_train).transform(df_train), imputer_test.fit(df_test).transform(df_test)
+    df_model_train, df_model_test = imputer_train.fit(df_model_train).transform(df_model_train), imputer_test.fit(df_model_test).transform(df_model_test)
 
     # apply normalization
-    df_train, df_test = DataPreProcessing.normalization(df_train), DataPreProcessing.normalization(df_test)
+    df_model_train, df_model_test = DataPreProcessing.normalization(df_model_train), DataPreProcessing.normalization(df_model_test)
 
     end_time = time.time()
 
     # Print the total time of pre-processing; the time is in seconds, minutes or hours
     print("Pre-processing on dev_addr", dev_addr) if dev_addr is not None else print("")
+    print("Pre-processing on dataset_type", dataset_type.value["name"].upper())
     print("Total time of pre-processing:", format_time(end_time - start_time), "\n\n")
 
-    return df_train, df_test
+    return df_model_train, df_model_test
 
