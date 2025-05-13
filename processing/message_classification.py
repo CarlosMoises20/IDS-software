@@ -65,7 +65,7 @@ class MessageClassification:
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
         mlflow_retrieved_model, old_run_id = self.__get_model_by_devaddr_and_dataset_type(
-            dev_addr, dataset_type.value["name"]
+            dev_addr, dataset_type
         )
 
         # If a model associated to the device already exists, delete it to replace it with
@@ -96,7 +96,8 @@ class MessageClassification:
             mlflow.set_tag("MessageType", dataset_type)
             
             # for every algorithms except kNN, store the model as artifact
-            mlflow.spark.log_model(model, "model")
+            if model is not None:
+                mlflow.spark.log_model(model, "model") 
 
             # store the training dataframe as a parquet file
             dataset_model_path = f'./df_tmp/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
@@ -125,69 +126,44 @@ class MessageClassification:
 
         df_model_train, df_model_test = ae.label_data_by_reconstruction_error()
 
-        """### KNN
-        knn = KNNClassifier(k=20, train_df=df_model_train,
-                            test_df=df_model_test, featuresCol="features", 
-                            labelCol="intrusion")
+        model, accuracy = None, None
 
-        results = knn.test()
-        accuracy = results["accuracy"]"""
-        
+        ### Apply supervised learning to detect intrusions based on the created label on Autoencoder
 
-        ### RANDOM FOREST
-        
-        # Apply Random Forest to detect intrusions based on the created label on Autoencoder
-        rf = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
-        model = rf.fit(df_model_train)
+        # kNN is the best algorithm for small datasets, but due to its computationally intensive performs, is not
+        # adequate for medium or large datasets
+        if df_model_train.count() < 500:
 
-        if df_model_test is not None:
-            results = model.evaluate(df_model_test)
-            accuracy = results.accuracy
+            ### KNN 
+            knn = KNNClassifier(k=5, train_df=df_model_train,
+                                test_df=df_model_test, featuresCol="features", 
+                                labelCol="intrusion")
+
+            accuracy = knn.test()
+
         else:
-            accuracy = None
+            
+            ### RANDOM FOREST
+            algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
 
-        
-        """### LOGISTIC REGRESSION
-        
-        lr = LogisticRegression(featuresCol="features", labelCol="intrusion", 
-                                regParam=0.1, elasticNetParam=1.0,
-                                family="multinomial", maxIter=50)
+            ### LOGISTIC REGRESSION
+            """algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
+                                    family="multinomial", maxIter=50)"""
+            
+            model = algorithm.fit(df_model_train)
 
-        model = lr.fit(df_model_train)
+            if df_model_test is not None:
+                results = model.evaluate(df_model_test)
+                accuracy = results.accuracy
 
-        if df_model_test is not None:
-            results = model.evaluate(df_model_test)
-            accuracy = results.accuracy"""
-        
-        
-        """### KMEANS
-
-        # Apply clustering (KMeans or, as alternative, DBSCAN) to divide samples into clusters according to the density
-        k_means = KMeans(k=3, seed=522, maxIter=100)
-
-        # TODO: think if covering this with a try/except block wouldn't be better
-        model = k_means.fit(df_train)
-
-        predictions = model.transform(df_test)
-        
-        # Evaluate the model
-        evaluator = ClusteringEvaluator()
-        
-        accuracy = evaluator.evaluate(predictions)
-
-        """
-
-        
-        if results is not None:
-            print(f"accuracy for model of device {dev_addr}: {round((accuracy * 100), 2)}%")
+        if accuracy is not None:
+            print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         end_time = time.time()
 
-        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}')
-
-
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}\n\n\n')
 
 
     """
@@ -214,16 +190,21 @@ class MessageClassification:
 
             for dataset_type in DatasetType:
 
-                # Pre-Processing
+                # Pre-Processing phase
                 df_model_train, df_model_test = prepare_df_for_device(self.__spark_session, dataset_type, dev_addr)  
 
-                # Processing
-                self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type)         
+                # If there are samples for the device, the model will be created
+                if (df_model_train, df_model_test) != (None, None):
+
+                    # Processing phase
+                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type)         
         
         end_time = time.time()
 
         # Print the total time; the time is in seconds, minutes or hours
         print("Total time of pre-processing + processing:", format_time(end_time - start_time), "\n\n")
+
+
 
 
     """
@@ -259,9 +240,10 @@ class MessageClassification:
             #       6b - download the artifact corresponding to the dataset used to train the old model
             #           """mlflow.artifacts.download_artifacts(run_id=<RUN_ID>, artifact_path="training_dataset")"""
             #       6c - convert the dataset to a dataframe and bind it to the new messages
-            #       6d - use the binded dataframe to create a new model that will replace the old model, calling "fit"
+            #       6d - use the binded dataframe to create a new model that will replace the old model, calling "fit" on an already processed and labelled dataset
             #       6e - replace the old model calling self.__store_model; this allows the new stored model to learn new patterns (new intrusions) from the new data, the new
-            #               LoRaWAN messages
+            #               LoRaWAN messages; 
+            #       6f - also store the new dataset used for training as an artifact, replacing the old dataset
             # 7 - it eventually waits to Ctrl + C or something, to close the socket
         
         pass

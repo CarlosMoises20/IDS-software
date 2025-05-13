@@ -31,7 +31,7 @@ considering the total number of examples in the dataframe corresponding to the d
 the total number of samples is larger than 1
 
 """
-def sample_random_split(df_model, seed):
+def sample_random_split(df_model, seed=422):
 
     # Count the total number of samples to be used by the model
     total_count = df_model.count()
@@ -43,15 +43,15 @@ def sample_random_split(df_model, seed):
 
     # If there are between 2 and 9 samples, split the samples for training and testing by 50-50
     elif total_count < 10:
-        df_model_train, df_model_test = df_model.randomSplit([0.5, 0.5], seed=seed)
+        df_model_train, df_model_test = df_model.randomSplit([0.5, 0.5], seed)
 
     # If there are between 10 and 20 samples, split the samples for training and testing by 70-30
     elif total_count < 20:
-        df_model_train, df_model_test = df_model.randomSplit([0.7, 0.3], seed=seed)
+        df_model_train, df_model_test = df_model.randomSplit([0.7, 0.3], seed)
 
     # If there are 20 or more samples, split the samples for training and testing by 85-15
     else:
-        df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed=seed)
+        df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed)
 
     return df_model_train, df_model_test
 

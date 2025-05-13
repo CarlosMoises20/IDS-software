@@ -31,19 +31,19 @@ def generate_input_datasets(spark_session, format):
 
             df = pre_process_type(df, dataset_type)
 
-            df_train, df_test = sample_random_split(df_model=df, seed=422)
+            df_train, df_test = sample_random_split(df)
 
             if format == "json":
 
-                df_train.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.{format}')
+                df_train.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.json')
                 
-                df_test.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.{format}')
+                df_test.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.json')
 
             if format == "parquet":
 
-                df_train.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.{format}')
+                df_train.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.parquet')
                 
-                df_test.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.{format}')
+                df_test.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.parquet')
 
 
             print(f'{format.upper()} files for {dataset_type.value["name"].upper()} generated')

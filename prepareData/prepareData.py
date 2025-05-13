@@ -85,7 +85,7 @@ Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device, if specified
 
 """
-def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
+def prepare_df_for_device(spark_session, dataset_type, dev_addr):
 
     start_time = time.time()
 
@@ -97,9 +97,25 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
         f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.json'
     ).filter(col("DevAddr") == dev_addr)
 
+    df_model_train = df_model_train.cache()
+    df_model_test = df_model_test.cache()
+
     df_model_train_count = df_model_train.count()
     df_model_test_count = df_model_test.count()
 
+    # NOTE: uncomment these two lines to print the number of training and testing samples for the device after sample redistribution
+    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train_count}')
+    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test_count}')
+
+    # If there are no samples for the device, it's not possible to create a model since there is
+    # no data to be used to train the model
+    if df_model_train_count == 0 and df_model_test_count == 0:
+        print(f'There are no samples for the device {dev_addr} in {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
+        return None, None
+
+    # If there are samples for the device but there is imbalance in the number of training and testing samples,
+    # it's necessary to apply a new division of all the samples in training and testing in order to have sufficient
+    # samples specially for training
     if df_model_train_count == 0 or df_model_test_count == 0 or df_model_train_count < df_model_test_count:
         
         print(f"[INFO] Adjusting sample split due to imbalance or empty datasets...")
@@ -108,7 +124,11 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
         df_model = df_model_train.unionByName(df_model_test)
 
         # Applies new division in training and testing based in dataset size rules
-        df_model_train, df_model_test = sample_random_split(df_model, seed=422)
+        df_model_train, df_model_test = sample_random_split(df_model)
+
+    # NOTE: uncomment these two lines to print the number of training and testing samples for the device after sample redistribution
+    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr} after sample redistribution: {df_model_train.count()}')
+    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr} after sample redistribution: {df_model_test.count()}')
 
     # Remove columns where all values are null
     non_null_columns_train = [
@@ -121,7 +141,8 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
         if (df_model_test.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
     ]
 
-    df_model_train, df_model_test = df_model_train.select(non_null_columns_train), df_model_test.select(non_null_columns_test)
+    df_model_train = df_model_train.select(non_null_columns_train)
+    df_model_test = df_model_test.select(non_null_columns_test)
 
     non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr"]))
     non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr"]))
@@ -139,10 +160,8 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr=None):
 
     end_time = time.time()
 
-    # Print the total time of pre-processing; the time is in seconds, minutes or hours
-    print("Pre-processing on dev_addr", dev_addr) if dev_addr is not None else print("")
-    print("Pre-processing on dataset_type", dataset_type.value["name"].upper())
-    print("Total time of pre-processing:", format_time(end_time - start_time), "\n\n")
+    # Print the total time of pre-processing
+    print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
     return df_model_train, df_model_test
 

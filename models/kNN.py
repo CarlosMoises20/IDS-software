@@ -68,10 +68,7 @@ class KNNClassifier:
         total = len(self.__test_data)
         accuracy = correct / total if total > 0 else 0.0
 
-        return {
-            "accuracy": accuracy,
-            "total_samples": total
-        }
+        return accuracy
 
 
 
