@@ -15,12 +15,20 @@ This function generates input datasets, already with pre-processing applied to p
 """
 def generate_input_datasets(spark_session, format):
 
+    start_time = time.time()
+
+    generated = False
+
     for dataset_type in [key for key in DatasetType]:
 
-        if os.path.exists(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.{format}') and \
-            os.path.exists(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.{format}'):
+        train_dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.{format}'
+        test_dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.{format}'
 
-            print("Input datasets for", dataset_type.value["name"].upper(), "in format", format.upper(), 
+        # This condition avoids consuming time on reading the dataset and pre-processing to generate new datasets, 
+        # if both datasets already exist 
+        if os.path.exists(train_dataset_path) and os.path.exists(test_dataset_path):
+
+            print("Input training dataset for", dataset_type.value["name"].upper(), "in format", format.upper(), 
                   "already exist. Skipping generation")
 
         else:
@@ -35,18 +43,42 @@ def generate_input_datasets(spark_session, format):
 
             if format == "json":
 
-                df_train.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.json')
+                if not os.path.exists(train_dataset_path):
+                    df_train.write.mode("overwrite").json(train_dataset_path)
+
+                else:
+                    print(f'Train {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
                 
-                df_test.write.mode("overwrite").json(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.json')
+                if not os.path.exists(test_dataset_path):
+                    df_test.write.mode("overwrite").json(test_dataset_path)
+
+                else:
+                    print(f'Test {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
 
             if format == "parquet":
 
-                df_train.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.parquet')
-                
-                df_test.write.mode("overwrite").parquet(f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.parquet')
+                if not os.path.exists(train_dataset_path):
+                    df_train.write.mode("overwrite").parquet(train_dataset_path)
 
+                else:
+                    print(f'Train {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
+
+                if not os.path.exists(test_dataset_path):
+                    df_test.write.mode("overwrite").parquet(test_dataset_path)
+
+                else:
+                    print(f'Test {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
 
             print(f'{format.upper()} files for {dataset_type.value["name"].upper()} generated')
+
+            generated = True
+
+    end_time = time.time()
+
+    if generated:
+    
+        print("Total time of generation of training and testing files with pre-processing included:", 
+            format_time(end_time - start_time))
 
 
 if __name__ == '__main__':
@@ -58,15 +90,8 @@ if __name__ == '__main__':
     args = parser.parse_args()
     datasets_format = args.datasets_format.lower()
 
-    start_time = time.time()
-
     spark_session = create_spark_session()
 
     generate_input_datasets(spark_session, datasets_format)
 
     spark_session.stop()
-
-    end_time = time.time()
-
-    print("Total time of training and testing files generation with pre-processing included:", 
-          format_time(end_time - start_time))

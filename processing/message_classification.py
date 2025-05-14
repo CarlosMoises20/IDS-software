@@ -5,11 +5,7 @@ from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
 from models.autoencoder import Autoencoder
-from pyspark.ml.clustering import KMeans
-from pyspark.sql.functions import col
-from common.spark_functions import get_boolean_attributes_names, sample_random_split
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
-from mlflow.models import infer_signature
 from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
 
@@ -120,7 +116,7 @@ class MessageClassification:
         start_time = time.time()
 
         # Apply autoencoder to build a label based on the reconstruction error
-        ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr)
+        ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
 
         ae.train()
 

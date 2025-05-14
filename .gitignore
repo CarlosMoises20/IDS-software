@@ -2,6 +2,7 @@
 # Outputs
 output*/*
 generatedDatasets/*
+df_tmp/*
 *metadata
 
 # Artifacts
