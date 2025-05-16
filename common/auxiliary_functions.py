@@ -15,34 +15,33 @@ def format_time(seconds):
     if milisseconds < 1000:
         return f"{milisseconds} ms"      # Milisseconds
 
-    else:
-        # Function to round the value of seconds to integer
-        seconds = round(seconds)                
+    # Round the value of seconds to integer
+    seconds = round(seconds)                
 
-        # If the number of seconds is between 1 and 59
-        if seconds < 60:
-            return f"{seconds} s"                   # Seconds
+    # If the number of seconds is between 1 and 59
+    if seconds < 60:
+        return f"{seconds} s"                   # Seconds
+    
+    # If the number of seconds is between 60 and 3599
+    if seconds < 3600:
+        minutes = seconds // 60                 # Minute as the integer part of the division of total by number of seconds in a minute
+        secs = seconds % 60                     # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
         
-        # If the number of seconds is between 60 and 3599
-        elif seconds < 3600:
-            minutes = seconds // 60                 # Minute as the integer part of the division of total by number of seconds in a minute
-            secs = seconds % 60                     # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
-            
-            if secs == 0:                           # If "secs" are multiple of 60
-                return f"{minutes} min"             # Only minutes when "minutes" are multiples of 60
-            
-            return f"{minutes} min {secs} s"        # Format in minutes and seconds
+        if secs == 0:                           # If "secs" are multiple of 60
+            return f"{minutes} min"             # Only minutes when "minutes" are multiples of 60
+        
+        return f"{minutes} min {secs} s"        # Format in minutes and seconds
 
-        # If the number of seconds is 3600 or higher        
-        hours = seconds // 3600                         # Hour as the integer part of the division of total by number of seconds in a hour
-        minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
-        secs = seconds % 60                             # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
+    # If the number of seconds is 3600 or higher        
+    hours = seconds // 3600                         # Hour as the integer part of the division of total by number of seconds in a hour
+    minutes = (seconds % 3600) // 60                # Minutes as the rest of the division of total by number of seconds in a hour and integer part of division by number of seconds in a minute
+    secs = seconds % 60                             # Seconds as the integer part of the rest of the division of total by number of seconds in a minute
+    
+    if secs == 0:                                   # If "secs" are multiple of 3600
+        if minutes == 0:                            # If "minutes" are multiple of 60
+            return f"{hours} h"                     # Only hours when "minutes" are multiple of 60 and "secs" are multiple of 3600
         
-        if secs == 0:                                   # If "secs" are multiple of 3600
-            if minutes == 0:                            # If "minutes" are multiple of 60
-                return f"{hours} h"                     # Only hours when "minutes" are multiple of 60 and "secs" are multiple of 3600
-            
-            return f"{hours} h {minutes} min"           # Only hours and minutes when "secs" are multiple of 60
-            
-        return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
+        return f"{hours} h {minutes} min"           # Only hours and minutes when "secs" are multiple of 60
+        
+    return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
 
