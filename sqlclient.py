@@ -1,5 +1,7 @@
 #!/usr/bin/python3
-import sys, time, json
+import sys
+import time
+import json
 from constants import *
 from crate.client import connect
 

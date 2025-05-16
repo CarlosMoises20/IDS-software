@@ -3,7 +3,7 @@ from crate.client import connect
 
 connection = connect(NODEURL)
 cursor = connection.cursor()
-cursor.execute(f"SELECT message, devaddr, tmst FROM {TABLE_SENSORS} where devaddr='583febc17ac93e82' ORDER BY tmst")
+cursor.execute(f"SELECT message, devaddr, tmst FROM {TABLE_SENSORS} where devaddr='0000BF53' ORDER BY tmst")
 data = cursor.fetchall()
 cursor.close()
 header = "id;lenpayload;lsnr;rssi;latitude;longitude;flag"

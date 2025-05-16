@@ -7,7 +7,7 @@ import base64
 
 FILE = "out.log"
 
-DATASET = 'dataset_gw_amoreiras/rxpk_20200603.log'
+DATASET = './dataset_gw_amoreiras/rxpk_20200603.log'
 DEVADDR1 = "A01063D9"
 DEVADDR2 = "0000BF53"
 LAT = 38.72380635165497

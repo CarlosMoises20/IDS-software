@@ -1,8 +1,12 @@
 #!/usr/bin/python3
-import binascii, os, sys, time, random
+import binascii
+import os
+import sys
+import time
 from constants import *
 from crate.client import connect
 import pandas as pd
+import random
 
 def update(cursor, list_, name, tmst):
     for i in range(len(list_)):

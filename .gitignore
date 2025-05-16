@@ -2,7 +2,8 @@
 *.class
 
 # Datasets
-data*/
+#data*/
+out.log
 
 # Python cache
 **/__pycache__/*
@@ -12,7 +13,7 @@ hs_err_pid*
 
 # Outputs
 output*/*
-combinedDatasets/*
+generatedDatasets/*
 *metadata
 
 # Artifacts
