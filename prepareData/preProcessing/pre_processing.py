@@ -25,7 +25,7 @@ class DataPreProcessing(ABC):
     def normalization(df):
 
         # Normalize all attributes except DevAddr that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr"]))
+        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion"]))
 
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
 

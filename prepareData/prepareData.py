@@ -77,7 +77,11 @@ def pre_process_type(df, dataset_type):
                         "FCnt", "FCtrl", "FOpts", "FPort", 
                         "MIC", "NetID", "RxDelay"]
 
-    return DataPreProcessing.hex_to_decimal(df, hex_attributes)
+    df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
+
+    # add the label with the value 0 (that will be later updated)
+    return df.withColumn("intrusion", lit(0))
+
 
 
 """
@@ -103,7 +107,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     df_model_train_count = df_model_train.count()
     df_model_test_count = df_model_test.count()
 
-    # NOTE: uncomment these two lines to print the number of training and testing samples for the device after sample redistribution
+    # NOTE: uncomment these two lines to print the number of training and testing samples for the device
     #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train_count}')
     #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test_count}')
 
@@ -116,9 +120,9 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # If there are samples for the device but there is imbalance in the number of training and testing samples,
     # it's necessary to apply a new division of all the samples in training and testing in order to have sufficient
     # samples specially for training
-    if df_model_train_count == 0 or df_model_test_count == 0 or df_model_train_count < df_model_test_count:
+    if df_model_train_count == 0 or df_model_test_count == 0 or (df_model_train_count * 0.8) < df_model_test_count:
         
-        print(f"[INFO] Adjusting sample split due to imbalance or empty datasets...")
+        print(f"[INFO] Adjusting sample split due to imbalance...")
 
         # Binds training and testing datasets
         df_model = df_model_train.unionByName(df_model_test)
@@ -144,8 +148,8 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     df_model_train = df_model_train.select(non_null_columns_train)
     df_model_test = df_model_test.select(non_null_columns_test)
 
-    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr"]))
-    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr"]))
+    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr", "intrusion"]))
+    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr", "intrusion"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value

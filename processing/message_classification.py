@@ -131,7 +131,7 @@ class MessageClassification:
         if df_model_train.count() < 500:
 
             ### KNN 
-            knn = KNNClassifier(k=5, train_df=df_model_train,
+            knn = KNNClassifier(k=15, train_df=df_model_train,
                                 test_df=df_model_test, featuresCol="features", 
                                 labelCol="intrusion")
 

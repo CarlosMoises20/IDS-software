@@ -1,18 +1,24 @@
 
 ## This script modifies the generated test dataset with introduced attacks, manipulating some parameters such as RSSI and LSNR
 
-import argparse
+import argparse, time
 from generate_input_datasets import generate_input_datasets
+from common.auxiliary_functions import format_time
 from common.spark_functions import create_spark_session
 from common.dataset_type import DatasetType
 from pyspark.sql.functions import col, lit, monotonically_increasing_id, row_number
 from pyspark.sql import Window
 
 
-def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_addr_list, params, target_value):
+def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_addr_list, params, target_value, dataset_format):
+
+    start_time = time.time()
 
     # Load the whole DataFrame
-    df = spark_session.read.json(file_path)
+    if dataset_format == "json":
+        df = spark_session.read.json(file_path)
+    else:
+        df = spark_session.read.parquet(file_path)
 
     # Filter only DevAddrs of interest
     df_filtered = df.filter(col("DevAddr").isin(dev_addr_list))
@@ -26,7 +32,8 @@ def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_
 
     # Apply modifications
     for param in params:
-        df_to_modify = df_to_modify.withColumn(param, lit(target_value))
+        df_to_modify = df_to_modify.withColumn(param, lit(target_value)) \
+                                    .withColumn("intrusion", lit(1))        # TODO review this approach
 
     # Drop the row_number helper column
     df_to_modify = df_to_modify.drop("row_number")
@@ -36,9 +43,14 @@ def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_
     df_final = df_unmodified.unionByName(df_to_modify)
 
     # Overwrite file properly using Spark
-    df_final.coalesce(1).write.mode("overwrite").json(file_path)
+    if dataset_format == "json":
+        df_final.coalesce(1).write.mode("overwrite").json(file_path)
+    else:
+        df_final.coalesce(1).write.mode("overwrite").parquet(file_path)
 
-    print(f"✅ File {file_path} successfully modified")
+    end_time = time.time()
+
+    print(f"✅ File {file_path} successfully modified in {format_time(end_time - start_time)}")
 
 
 
@@ -60,16 +72,19 @@ if __name__ == '__main__':
 
     modify_parameters(spark_session=spark_session,
                       file_path=rxpk_dataset_path, 
-                      avg_num_samples_per_device=1, 
-                      dev_addr_list=["0000AB43", "0000A65E"],
+                      avg_num_samples_per_device=2, 
+                      dev_addr_list=["26002285", "26002E44", "26012B8C", "0000AB43", 
+                                     "0000A65E", "0000BF53"],
                       params=["rssi", "lsnr1"], 
-                      target_value=4000)
+                      target_value=4000,
+                      dataset_format=datasets_format)
     
-    """modify_parameters(spark_session=spark_session,
+    modify_parameters(spark_session=spark_session,
                       file_path=txpk_dataset_path, 
-                      avg_num_samples_per_device=1, 
-                      dev_addr_list=["0000AB43", "0000A65E"],
-                      params=["rssi", "lsnr1"], 
-                      target_value=4000)"""
+                      avg_num_samples_per_device=2, 
+                      dev_addr_list=["26002285", "26002E44", "26012B8C"],
+                      params=["dataLen"], 
+                      target_value=400,
+                      dataset_format=datasets_format)
 
     spark_session.stop()
