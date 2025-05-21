@@ -1,7 +1,7 @@
 
 ## This script modifies the generated test dataset with introduced attacks, manipulating some parameters such as RSSI and LSNR
 
-import argparse, time
+import argparse, time, random
 from generate_input_datasets import generate_input_datasets
 from common.auxiliary_functions import format_time
 from common.spark_functions import create_spark_session
@@ -10,7 +10,7 @@ from pyspark.sql.functions import col, lit, monotonically_increasing_id, row_num
 from pyspark.sql import Window
 
 
-def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_addr_list, params, target_value, dataset_format):
+def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_addr_list, params, target_values, dataset_format):
 
     start_time = time.time()
 
@@ -32,7 +32,7 @@ def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_
 
     # Apply modifications
     for param in params:
-        df_to_modify = df_to_modify.withColumn(param, lit(target_value)) \
+        df_to_modify = df_to_modify.withColumn(param, lit(random.choice(target_values))) \
                                     .withColumn("intrusion", lit(1))        # TODO review this approach
 
     # Drop the row_number helper column
@@ -76,7 +76,7 @@ if __name__ == '__main__':
                       dev_addr_list=["26002285", "26002E44", "26012B8C", "0000AB43", 
                                      "0000A65E", "0000BF53"],
                       params=["rssi", "lsnr1"], 
-                      target_value=4000,
+                      target_values=[300, -220, 200],
                       dataset_format=datasets_format)
     
     modify_parameters(spark_session=spark_session,
@@ -84,7 +84,7 @@ if __name__ == '__main__':
                       avg_num_samples_per_device=2, 
                       dev_addr_list=["26002285", "26002E44", "26012B8C"],
                       params=["dataLen"], 
-                      target_value=400,
+                      target_values=[400, 2, 350],
                       dataset_format=datasets_format)
 
     spark_session.stop()

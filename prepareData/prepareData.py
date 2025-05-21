@@ -114,7 +114,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # If there are no samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model
     if df_model_train_count == 0 and df_model_test_count == 0:
-        print(f'There are no samples for the device {dev_addr} in {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
+        print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
         return None, None
 
     # If there are samples for the device but there is imbalance in the number of training and testing samples,

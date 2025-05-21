@@ -27,11 +27,11 @@ class MessageClassification:
     """
     def __get_model_by_devaddr_and_dataset_type(self, dev_addr, dataset_type):
         
-        # Search the model according to DevAddr
+        # Search the model according to DevAddr and MessageType
         runs = self.__mlflowclient.search_runs(
             experiment_ids=["0"],
             filter_string=f"tags.DevAddr = '{dev_addr}' and tags.MessageType = '{dataset_type}'",
-            order_by=["metrics.accuracy DESC"],  # ou outro critério
+            order_by=["metrics.accuracy DESC"],  # or another criteria
             max_results=1
         )
         
@@ -40,8 +40,8 @@ class MessageClassification:
 
         run_id = runs[0].info.run_id
         
-        model_uri = f"runs:/{run_id}/model"
-        
+        model_uri = os.path.abspath(f"./mlruns/0/{run_id}/artifacts/model")
+
         try:
             model = mlflow.spark.load_model(model_uri)
         except:
@@ -60,14 +60,14 @@ class MessageClassification:
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        mlflow_retrieved_model, old_run_id = self.__get_model_by_devaddr_and_dataset_type(
-            dev_addr, dataset_type
+        _, old_run_id = self.__get_model_by_devaddr_and_dataset_type(
+            dev_addr, dataset_type.value["name"].lower()
         )
 
         # If a model associated to the device already exists, delete it to replace it with
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
-        if mlflow_retrieved_model is not None:
+        if old_run_id is not None:
             self.__mlflowclient.delete_run(old_run_id)
             print(f"Old model from device {dev_addr} deleted.")
 
@@ -87,9 +87,9 @@ class MessageClassification:
                 print(f"Artefact directory not found: {run_path}")
 
         # Create model based on DevAddr and store it as an artifact using MLFlow
-        with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"]}'):
+        with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"].lower()}'):
             mlflow.set_tag("DevAddr", dev_addr)
-            mlflow.set_tag("MessageType", dataset_type)
+            mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
             # for every algorithms except kNN, store the model as artifact
             if model is not None:
