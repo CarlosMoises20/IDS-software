@@ -4,6 +4,7 @@ from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
+from pyspark.sql.functions import col
 from models.autoencoder import Autoencoder
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.kNN import KNNClassifier
@@ -40,10 +41,8 @@ class MessageClassification:
 
         run_id = runs[0].info.run_id
         
-        model_uri = os.path.abspath(f"./mlruns/0/{run_id}/artifacts/model")
-
         try:
-            model = mlflow.spark.load_model(model_uri)
+            model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
         except:
             model = None
 
@@ -121,6 +120,8 @@ class MessageClassification:
         ae.train()
 
         df_model_train, df_model_test = ae.label_data_by_reconstruction_error()
+
+        df_model_train = df_model_train.filter(col("intrusion") == 0)
 
         model, accuracy = None, None
 
