@@ -115,7 +115,7 @@ def main(arg):
     #print(results[0])
     #print("end RESULTS====")
     average_max_index = average.index(max(average))
-    print(average_max_index)
+    #print(average_max_index)
     average_precision = results[average_max_index][0]
     classifier = results[average_max_index][1]
     scaler = results[average_max_index][2]

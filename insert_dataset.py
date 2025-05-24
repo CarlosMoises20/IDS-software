@@ -16,10 +16,8 @@ def get_bw(s):
 
 NODEURL = "http://localhost:4200/"
 #DATASET = './dataset_json/dataset_1&2_original.log'
-#DATASET = './dataset_json/dataset_2_orignal.log'
-#DATASET = './dataset_json/dataset_BF53_with_content_of_A010.log'
-#DATASET = './dataset_json/dataset_3_original.log'
-DATASET = './dataset_json/dataset_intrusion.log'
+DATASET = './dataset_json/dataset_3_original.log'
+#DATASET = './dataset_json/dataset_intrusion.log'
 TABLE = "sensors"
 #TABLE = 'intrusions'
 #TABLE = 'sensors_2'

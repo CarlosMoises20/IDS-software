@@ -10,8 +10,7 @@ import random
 
 def update(cursor, list_, name, tmst):
     for i in range(len(list_)):
-        print(
-            f"UPDATE {TABLE_SENSORS} SET message['{name}'] = {list_[i]}, message['flag'] = 1 WHERE message['tmst'] = {tmst[i][0]};")
+        print(f"UPDATE {TABLE_SENSORS} SET message['{name}'] = {list_[i]}, message['flag'] = 1 WHERE message['tmst'] = {tmst[i][0]};")
         cursor.execute(f"UPDATE {TABLE_SENSORS} SET message['{name}'] = {list_[i]}, message['flag'] = 1 WHERE message['tmst'] = {tmst[i][0]};")
 
 def main(arg):
@@ -20,9 +19,10 @@ def main(arg):
     connection = connect(NODEURL)
     cursor = connection.cursor()
 
-    cursor.execute(f"SELECT tmst FROM {TABLE_SENSORS} ORDER BY tmst LIMIT {LIMIT}")
-    t = cursor.fetchall()
+    cursor.execute(f"SELECT tmst FROM {TABLE_SENSORS} ORDER BY tmst LIMIT {LIMIT}")     # get all timestamps
+    t = cursor.fetchall()                                                               # fetch all timestamps
 
+    # fetch all messages
     cursor.execute(f"SELECT message FROM {TABLE_SENSORS} WHERE devaddr = '{devaddr}' AND message['flag'] = 0 ORDER BY tmst") #ONLY FLAG = 0
     p = cursor.fetchall()
 
@@ -38,6 +38,7 @@ def main(arg):
         line.append(int(p[i][0]["lenpayload"]))
         line.append(int(p[i][0]["tmst_dif"]))
         X.append(line)
+
     print(p)
     dataset = pd.DataFrame(X)
     
@@ -75,10 +76,7 @@ def main(arg):
     update(cursor, len_list, "lenpayload", t)  # UPDATE LEN
     update(cursor, payload_list, "payload", t)  # UPDATE LEN
 
-
     t = t[NUM_INTRUSION:]
-
-    
 
     ### LSNR ###
     if lsnr_median + LSNR_MARGIN < LSNR_MAX:
@@ -135,7 +133,6 @@ def main(arg):
     tmst_list.extend(tmst_max_list)
     update(cursor, tmst_list, "tmst_dif", t)        #UPDATE TMST DIF
     t = t[NUM_INTRUSION*2:]
-
     
     print(sf_list)
     print(len_list)
