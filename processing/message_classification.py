@@ -115,13 +115,11 @@ class MessageClassification:
         start_time = time.time()
 
         # Apply autoencoder to build a label based on the reconstruction error
-        ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
+        #ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
 
-        ae.train()
+        #ae.train()
 
-        df_model_train, df_model_test = ae.label_data_by_reconstruction_error()
-
-        df_model_train = df_model_train.filter(col("intrusion") == 0)
+        #df_model_test = ae.label_data_by_reconstruction_error()
 
         model, accuracy = None, None
 

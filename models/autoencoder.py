@@ -17,8 +17,6 @@ class Autoencoder(nn.Module):
 
         self.__spark_session = spark_session
 
-        self.__df_model_train = df_model_train
-
         self.__df_model_test = df_model_test
 
         self.__dev_addr = dev_addr
@@ -153,25 +151,24 @@ class Autoencoder(nn.Module):
             #print(f"Epoch [{epoch+1}/{num_epochs}], Loss: {average_loss:.6f}%, Time: {format_time(ep_end - ep_start)}")
 
 
+    
     """
-    Test the Autoencoder model on test data.
+    Applies the trained model to compute reconstruction errors and label each example.
+
+    Returns:
+        DataFrame with original data, reconstruction error, and predicted label (0=normal, 1=anomaly)
 
     """
-    def __compute_reconstruction_errors(self, dataloader):
+    def label_data_by_reconstruction_error(self):
 
         super().eval()
         errors = []
 
         with torch.no_grad():
-            for (data,) in dataloader:
+            for (data,) in self.__testdataloader:
                 output = self(data)
                 batch_errors = torch.mean((output - data) ** 2, dim=1)  # MSE per sample
                 errors.extend(batch_errors.cpu().numpy())  # convert to list
-
-        return errors
-
-
-    def __label_data(self, errors, df_model):
 
         # Calculate threshold for reconstruction error
         mean = np.mean(errors)
@@ -190,7 +187,7 @@ class Autoencoder(nn.Module):
         errors_df_model = self.__spark_session.createDataFrame(errors_rdd_indexed)
 
         # Add index to original dataframe
-        df_model_indexed = df_model.rdd.zipWithIndex().map(lambda x: Row(**x[0].asDict(), row_idx=x[1]))
+        df_model_indexed = self.__df_model_test.rdd.zipWithIndex().map(lambda x: Row(**x[0].asDict(), row_idx=x[1]))
         df_model_with_index = self.__spark_session.createDataFrame(df_model_indexed)
 
         # Join both dataframes on row index
@@ -210,22 +207,3 @@ class Autoencoder(nn.Module):
         result_df_model.drop("features").toPandas().to_csv(csv_filename, index=False)
 
         return result_df_model
-
-
-    
-    """
-    Applies the trained model to compute reconstruction errors and label each example.
-
-    Returns:
-        DataFrame with original data, reconstruction error, and predicted label (0=normal, 1=anomaly)
-
-    """
-    def label_data_by_reconstruction_error(self):
-
-        errors_train = self.__compute_reconstruction_errors(self.__traindataloader)
-        errors_test = self.__compute_reconstruction_errors(self.__testdataloader)
-
-        result_df_train = self.__label_data(errors_train, self.__df_model_train)
-        result_df_test = self.__label_data(errors_test, self.__df_model_test)
-
-        return result_df_train, result_df_test

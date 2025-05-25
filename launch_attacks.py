@@ -32,8 +32,9 @@ def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_
 
     # Apply modifications
     for param in params:
-        df_to_modify = df_to_modify.withColumn(param, lit(random.choice(target_values))) \
-                                    .withColumn("intrusion", lit(1))        # TODO review this approach
+        random_value = random.choice(target_values)
+        df_to_modify = df_to_modify.withColumn(param, lit(random_value)) \
+                                    .withColumn("intrusion", lit(1))
 
     # Drop the row_number helper column
     df_to_modify = df_to_modify.drop("row_number")
