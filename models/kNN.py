@@ -1,4 +1,4 @@
-
+from sklearn.metrics import confusion_matrix, classification_report
 
 class KNNClassifier:
 
@@ -48,6 +48,8 @@ class KNNClassifier:
     def test(self):
 
         correct = 0
+        true_labels = []
+        predictions = []
 
         for _, test_obs in self.__test_data.iterrows():
             pred = self.predict(test_obs)
@@ -56,7 +58,14 @@ class KNNClassifier:
             if pred == true_label:
                 correct += 1
 
+            predictions.append(pred)
+            true_labels.append(true_label)
+
         total = len(self.__test_data)
         accuracy = correct / total if total > 0 else 0.0
 
-        return accuracy
+        labels = sorted(list(set(true_labels + predictions)))  # todas as classes possíveis
+        matrix = confusion_matrix(true_labels, predictions, labels=labels)
+        report = classification_report(true_labels, predictions, labels=labels)
+
+        return accuracy, matrix, labels, report

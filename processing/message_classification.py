@@ -121,7 +121,8 @@ class MessageClassification:
 
         #df_model_test = ae.label_data_by_reconstruction_error()
 
-        model, accuracy = None, None
+        model, accuracy, matrix, labels, report = None, None, None, None, None
+        precisionByLabel, recallByLabel, falsePositiveRateByLabel = None, None, None
 
         ### Apply supervised learning to detect intrusions based on the created label on Autoencoder
 
@@ -134,7 +135,7 @@ class MessageClassification:
                                 test_df=df_model_test, featuresCol="features", 
                                 labelCol="intrusion")
 
-            accuracy = knn.test()
+            accuracy, matrix, labels, report = knn.test()
 
         else:
             
@@ -150,9 +151,33 @@ class MessageClassification:
             if df_model_test is not None:
                 results = model.evaluate(df_model_test)
                 accuracy = results.accuracy
+                labels = results.labels
+                precisionByLabel = results.precisionByLabel
+                recallByLabel = results.recallByLabel
+                falsePositiveRateByLabel = results.falsePositiveRateByLabel
+
 
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
+        
+        if matrix is not None:
+            print("Confusion matrix:", matrix) 
+        
+        if labels is not None:
+            print("Labels:", labels) 
+        
+        if report is not None:
+            print("Report:", report)
+
+        if precisionByLabel is None:
+            print("Precision By Label:", precisionByLabel)
+
+        if recallByLabel is None:
+            print("Recall by label:", recallByLabel)
+
+        if falsePositiveRateByLabel is None:
+            print("False Positive Rate By Label:", falsePositiveRateByLabel)
+
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 

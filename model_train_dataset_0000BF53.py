@@ -116,6 +116,9 @@ if __name__ == '__main__':
                         test_df=df_model_test, featuresCol="features", 
                         labelCol="intrusion")
                         
-    accuracy = knn.test()
+    accuracy, matrix, labels, report = knn.test()
 
-    print(accuracy)
+    print("accuracy:", accuracy)
+    print("confusion matrix:", matrix)
+    print("labels:", labels)
+    print("report:", report)
