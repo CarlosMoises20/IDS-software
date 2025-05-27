@@ -115,11 +115,11 @@ class MessageClassification:
         start_time = time.time()
 
         # Apply autoencoder to build a label based on the reconstruction error
-        #ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
+        """ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
 
-        #ae.train()
+        ae.train()
 
-        #df_model_test = ae.label_data_by_reconstruction_error()
+        df_model_test, accuracy, matrix = ae.test()"""
 
         model, accuracy, matrix, labels, report = None, None, None, None, None
         precisionByLabel, recallByLabel, falsePositiveRateByLabel = None, None, None
@@ -131,7 +131,7 @@ class MessageClassification:
         if df_model_train.count() < 500:
 
             ### KNN 
-            knn = KNNClassifier(k=15, train_df=df_model_train,
+            knn = KNNClassifier(k=5, train_df=df_model_train,
                                 test_df=df_model_test, featuresCol="features", 
                                 labelCol="intrusion")
 
@@ -143,8 +143,8 @@ class MessageClassification:
             algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
 
             ### LOGISTIC REGRESSION
-            """algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
-                                    family="multinomial", maxIter=50)"""
+            algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
+                                    family="multinomial", maxIter=50)
             
             model = algorithm.fit(df_model_train)
 
@@ -161,25 +161,25 @@ class MessageClassification:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
-            print("Confusion matrix:", matrix) 
+            print("Confusion matrix:\n", matrix) 
         
         if labels is not None:
             print("Labels:", labels) 
         
         if report is not None:
-            print("Report:", report)
+            print("Report:\n", report)
 
-        if precisionByLabel is None:
+        if precisionByLabel is not None:
             print("Precision By Label:", precisionByLabel)
 
-        if recallByLabel is None:
+        if recallByLabel is not None:
             print("Recall by label:", recallByLabel)
 
-        if falsePositiveRateByLabel is None:
+        if falsePositiveRateByLabel is not None:
             print("False Positive Rate By Label:", falsePositiveRateByLabel)
 
 
-        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
+        self.__store_model(dev_addr, df_model_train, None, accuracy, dataset_type)
 
         end_time = time.time()
 

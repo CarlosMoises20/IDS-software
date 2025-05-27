@@ -8,6 +8,7 @@ from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 from pyspark.sql import Window
 import random
 from models.kNN import KNNClassifier
+from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.autoencoder import Autoencoder
 
 
@@ -88,9 +89,9 @@ if __name__ == '__main__':
 
     df_model_test = modify_dataset(df=df_model_test,
                                     output_file_path=output_path,
-                                    num_samples=30,
+                                    num_samples=40,
                                     params=["SF"],
-                                    target_values=[2])
+                                    target_values=[15])
 
     # TODO fix
     """modify_parameters(spark_session=spark_session,
@@ -102,23 +103,63 @@ if __name__ == '__main__':
 
 
     # Apply autoencoder to build a label based on the reconstruction error
-    #ae = Autoencoder(spark_session, df_model_train, df_model_test, "0000BF53", None)
+    """ae = Autoencoder(spark_session, df_model_train, df_model_test, "0000BF53", None)
 
-    #ae.train()
+    ae.train()
 
-    #df_model_test = ae.label_data_by_reconstruction_error()
+    df_model_test, accuracy, confusion_matrix = ae.test()
 
-    #df_model_train = df_model_train.filter(col("intrusion") == 0)
+    print(accuracy)
+    print(confusion_matrix)"""
 
     
     ### KNN 
-    knn = KNNClassifier(k=15, train_df=df_model_train,
+    """knn = KNNClassifier(k=15, train_df=df_model_train,
                         test_df=df_model_test, featuresCol="features", 
                         labelCol="intrusion")
                         
     accuracy, matrix, labels, report = knn.test()
 
-    print("accuracy:", accuracy)
-    print("confusion matrix:", matrix)
-    print("labels:", labels)
-    print("report:", report)
+    if accuracy is not None:
+        print(f'accuracy for model of device "0000BF53": {round((accuracy * 100), 2)}%')
+
+    if matrix is not None:
+        print("Confusion matrix:\n", matrix) 
+
+    if labels is not None:
+        print("Labels:", labels) 
+
+    if report is not None:
+        print("Report:\n", report)"""
+
+
+    ### RANDOM FOREST
+    #algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
+
+    ### LOGISTIC REGRESSION
+    algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
+                            family="multinomial", maxIter=50)
+
+    model = algorithm.fit(df_model_train)
+
+    results = model.evaluate(df_model_test)
+    accuracy = results.accuracy
+    labels = results.labels
+    precisionByLabel = results.precisionByLabel
+    recallByLabel = results.recallByLabel
+    falsePositiveRateByLabel = results.falsePositiveRateByLabel
+
+    if accuracy is not None:
+        print(f'accuracy for model of device "0000BF53": {round((accuracy * 100), 2)}%')
+    
+    if labels is not None:
+        print("Labels:", labels) 
+
+    if precisionByLabel is not None:
+        print("Precision By Label:", precisionByLabel)
+
+    if recallByLabel is not None:
+        print("Recall by label:", recallByLabel)
+
+    if falsePositiveRateByLabel is not None:
+        print("False Positive Rate By Label:", falsePositiveRateByLabel)

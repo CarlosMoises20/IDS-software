@@ -10,7 +10,7 @@ from pyspark.sql.functions import col, lit, monotonically_increasing_id, row_num
 from pyspark.sql import Window
 
 
-def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_addr_list, params, target_values, dataset_format):
+def modify_parameters(spark_session, file_path, dev_addr_list, params, target_values, dataset_format):
 
     start_time = time.time()
 
@@ -27,8 +27,10 @@ def modify_parameters(spark_session, file_path, avg_num_samples_per_device, dev_
     window_spec = Window.partitionBy("DevAddr").orderBy(monotonically_increasing_id())
     df_with_rownum = df_filtered.withColumn("row_number", row_number().over(window_spec))
 
+    num_samples = df_filtered.count()
+
     # Mark only the first N rows per DevAddr
-    df_to_modify = df_with_rownum.filter(col("row_number") <= avg_num_samples_per_device)
+    df_to_modify = df_with_rownum.filter(col("row_number") <= num_samples * 0.25)
 
     # Apply modifications
     for param in params:
@@ -72,17 +74,15 @@ if __name__ == '__main__':
                                                 for dataset_type in [key.value["name"] for key in DatasetType])
 
     modify_parameters(spark_session=spark_session,
-                      file_path=rxpk_dataset_path, 
-                      avg_num_samples_per_device=2, 
+                      file_path=rxpk_dataset_path,  
                       dev_addr_list=["26002285", "26002E44", "26012B8C", "0000AB43", 
                                      "0000A65E", "0000BF53"],
-                      params=["rssi", "lsnr1"], 
-                      target_values=[300, -220, 200],
+                      params=["rssi"], 
+                      target_values=[-250, 100],
                       dataset_format=datasets_format)
     
     modify_parameters(spark_session=spark_session,
                       file_path=txpk_dataset_path, 
-                      avg_num_samples_per_device=2, 
                       dev_addr_list=["26002285", "26002E44", "26012B8C"],
                       params=["dataLen"], 
                       target_values=[400, 2, 350],
