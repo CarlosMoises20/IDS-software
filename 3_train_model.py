@@ -85,6 +85,8 @@ def main(arg):
 
     X = []
     Y = []
+
+    # preencher os vetores X (features) e Y (labels)
     for i in range(len(p)):
         line = []
         line.append(float(p[i][0]["latitude"]))
@@ -97,6 +99,7 @@ def main(arg):
         line.append(int(p[i][0]["tmst_dif"]))
         X.append(line)
         Y.append(int(p[i][0]["flag"]))
+
     #print(Y)
     threads = [None] * NUM_THREADS
     results = [None] * NUM_THREADS
@@ -112,10 +115,10 @@ def main(arg):
     for i in results:
         average.append(i[0])
 
-    #print(results[0])
-    #print("end RESULTS====")
+    print(results[0])
+    print("end RESULTS====")
     average_max_index = average.index(max(average))
-    #print(average_max_index)
+    print(average_max_index)
     average_precision = results[average_max_index][0]
     classifier = results[average_max_index][1]
     scaler = results[average_max_index][2]
