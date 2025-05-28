@@ -2,7 +2,7 @@
 ## This script generates the dataset used to load all LoRaWAN messages to train and test ML models
 
 import time, os, argparse
-from common.spark_functions import create_spark_session, sample_random_split
+from common.spark_functions import create_spark_session, train_test_split
 from common.dataset_type import DatasetType
 from prepareData.prepareData import pre_process_type
 from common.auxiliary_functions import format_time
@@ -39,7 +39,7 @@ def generate_input_datasets(spark_session, format):
 
             df = pre_process_type(df, dataset_type)
 
-            df_train, df_test = sample_random_split(df)
+            df_train, df_test = train_test_split(df)
 
             if format == "json":
 

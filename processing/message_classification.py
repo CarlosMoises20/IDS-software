@@ -1,5 +1,7 @@
 
 import time, mlflow, shutil, os
+
+import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
@@ -9,6 +11,7 @@ from models.autoencoder import Autoencoder
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
+from models.isolation_forest import IsolationForest
 
 
 class MessageClassification:
@@ -92,7 +95,12 @@ class MessageClassification:
             
             # for every algorithms except kNN, store the model as artifact
             if model is not None:
-                mlflow.spark.log_model(model, "model") 
+
+                ## FOR ISOLATION FOREST
+                mlflow.sklearn.log_model(model, "model")
+
+                ## FOR THE OTHER MODELS
+                #mlflow.spark.log_model(model, "model") 
 
             # store the training dataframe as a parquet file
             dataset_model_path = f'./df_tmp/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
@@ -114,6 +122,19 @@ class MessageClassification:
 
         start_time = time.time()
 
+        if_class = IsolationForest(df_train=df_model_train, 
+                               df_test=df_model_test, 
+                               featuresCol="features",
+                               labelCol="intrusion")
+
+        model = if_class.train()
+
+        accuracy, cm = if_class.evaluate()
+
+        print(f"Accuracy: {accuracy:.4f}")
+        print("Confusion Matrix:")
+        print(cm)
+
         # Apply autoencoder to build a label based on the reconstruction error
         """ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
 
@@ -121,7 +142,7 @@ class MessageClassification:
 
         df_model_test, accuracy, matrix = ae.test()"""
 
-        model, accuracy, matrix, labels, report = None, None, None, None, None
+        """model, accuracy, matrix, labels, report = None, None, None, None, None
         precisionByLabel, recallByLabel, falsePositiveRateByLabel = None, None, None
 
         ### Apply supervised learning to detect intrusions based on the created label on Autoencoder
@@ -131,7 +152,7 @@ class MessageClassification:
         if df_model_train.count() < 500:
 
             ### KNN 
-            knn = KNNClassifier(k=5, train_df=df_model_train,
+            knn = KNNClassifier(k=15, train_df=df_model_train,
                                 test_df=df_model_test, featuresCol="features", 
                                 labelCol="intrusion")
 
@@ -143,8 +164,7 @@ class MessageClassification:
             algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
 
             ### LOGISTIC REGRESSION
-            algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
-                                    family="multinomial", maxIter=50)
+            algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",family="multinomial", maxIter=50)
             
             model = algorithm.fit(df_model_train)
 
@@ -176,10 +196,10 @@ class MessageClassification:
             print("Recall by label:", recallByLabel)
 
         if falsePositiveRateByLabel is not None:
-            print("False Positive Rate By Label:", falsePositiveRateByLabel)
+            print("False Positive Rate By Label:", falsePositiveRateByLabel)"""
 
 
-        self.__store_model(dev_addr, df_model_train, None, accuracy, dataset_type)
+        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         end_time = time.time()
 

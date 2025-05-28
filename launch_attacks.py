@@ -6,7 +6,7 @@ from generate_input_datasets import generate_input_datasets
 from common.auxiliary_functions import format_time
 from common.spark_functions import create_spark_session
 from common.dataset_type import DatasetType
-from pyspark.sql.functions import col, lit, monotonically_increasing_id, row_number
+from pyspark.sql.functions import col, lit
 from pyspark.sql import Window
 
 
@@ -14,46 +14,40 @@ def modify_parameters(spark_session, file_path, dev_addr_list, params, target_va
 
     start_time = time.time()
 
-    # Load the whole DataFrame
+    # Load the dataset
     if dataset_format == "json":
         df = spark_session.read.json(file_path)
     else:
         df = spark_session.read.parquet(file_path)
 
-    # Filter only DevAddrs of interest
+    # Filter only rows with DevAddrs of interest
     df_filtered = df.filter(col("DevAddr").isin(dev_addr_list))
 
-    # Add row numbers per DevAddr
-    window_spec = Window.partitionBy("DevAddr").orderBy(monotonically_increasing_id())
-    df_with_rownum = df_filtered.withColumn("row_number", row_number().over(window_spec))
+    # Get 25% random sample from each DevAddr
+    fraction_per_dev = {addr: 0.25 for addr in dev_addr_list}
+    df_to_modify = df_filtered.sampleBy("DevAddr", fractions=fraction_per_dev, seed=42)
 
-    num_samples = df_filtered.count()
-
-    # Mark only the first N rows per DevAddr
-    df_to_modify = df_with_rownum.filter(col("row_number") <= num_samples * 0.25)
-
-    # Apply modifications
+    # Modify selected rows
     for param in params:
         random_value = random.choice(target_values)
-        df_to_modify = df_to_modify.withColumn(param, lit(random_value)) \
-                                    .withColumn("intrusion", lit(1))
+        df_to_modify = df_to_modify.withColumn(param, lit(random_value))
 
-    # Drop the row_number helper column
-    df_to_modify = df_to_modify.drop("row_number")
+    df_to_modify = df_to_modify.withColumn("intrusion", lit(1))
 
-    # Combine modified + unmodified parts
+    # Filter out modified rows from original DataFrame
     df_unmodified = df.join(df_to_modify.select("tmst"), on="tmst", how="left_anti")
+
+    # Combine modified and unmodified
     df_final = df_unmodified.unionByName(df_to_modify)
 
-    # Overwrite file properly using Spark
+    # Save result
     if dataset_format == "json":
         df_final.coalesce(1).write.mode("overwrite").json(file_path)
     else:
         df_final.coalesce(1).write.mode("overwrite").parquet(file_path)
 
     end_time = time.time()
-
-    print(f"✅ File {file_path} successfully modified in {format_time(end_time - start_time)}")
+    print(f"File {file_path} successfully modified in {format_time(end_time - start_time)}")
 
 
 

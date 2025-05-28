@@ -1,27 +1,23 @@
 
 from common.spark_functions import create_spark_session
-from pyspark.sql.functions import length, col, regexp_extract, lit, monotonically_increasing_id, row_number
+from pyspark.sql.functions import length, col, regexp_extract, lit
 from pyspark.sql.types import IntegerType
-from common.spark_functions import get_all_attributes_names, sample_random_split
-from launch_attacks import modify_parameters
+from common.spark_functions import get_all_attributes_names, train_test_split
 from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 from pyspark.sql import Window
 import random
 from models.kNN import KNNClassifier
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.autoencoder import Autoencoder
+from models.isolation_forest import IsolationForest
 
 
 # device 0000BF53
 
-def modify_dataset(df, output_file_path, num_samples, params, target_values):
+def modify_dataset(df, output_file_path, params, target_values):
     
-    # Add a global row number for arbitrary selection
-    window_spec = Window.orderBy(monotonically_increasing_id())
-    df_with_rownum = df.withColumn("row_number", row_number().over(window_spec))
-
-    # Select N arbitrary rows to modify
-    df_to_modify = df_with_rownum.filter(col("row_number") <= num_samples)
+    # Amostra aleatória de 25% das linhas
+    df_to_modify = df.sample(fraction=0.25, seed=42)
 
     # Modify selected rows
     for param in params:
@@ -31,16 +27,12 @@ def modify_dataset(df, output_file_path, num_samples, params, target_values):
     df_to_modify = df_to_modify.withColumn("intrusion", lit(1))
 
     # Get unmodified rows by filtering out selected row_numbers
-    df_unmodified = df_with_rownum.join(
-        df_to_modify.select("row_number"), on="row_number", how="left_anti"
-    )
+    df_unmodified = df.join(df_to_modify, on=df.columns, how="left_anti")
 
-    # Drop helper column and combine both parts
-    df_to_modify = df_to_modify.drop("row_number")
-    df_unmodified = df_unmodified.drop("row_number")
+    # Combine both parts
     df_final = df_unmodified.unionByName(df_to_modify)
 
-    # Write to file
+    # Save the result in JSON file
     df_final.coalesce(1).write.mode("overwrite").json(output_file_path)
 
     return df_final
@@ -83,24 +75,30 @@ if __name__ == '__main__':
 
     df_model = df_model.drop("feat")
 
-    df_model_train, df_model_test = sample_random_split(df_model)
+    df_model_train, df_model_test = train_test_split(df_model)
 
     output_path = "./generatedDatasets/dataset_3_modified.json"
 
     df_model_test = modify_dataset(df=df_model_test,
                                     output_file_path=output_path,
-                                    num_samples=40,
-                                    params=["SF"],
-                                    target_values=[15])
+                                    params=["SF", "BW"],
+                                    target_values=[15, 1])
 
-    # TODO fix
-    """modify_parameters(spark_session=spark_session,
-                      file_path=output_path,
-                      avg_num_samples_per_device=10,
-                      params=["payloadLen"],
-                      target_values=[400],
-                      dataset_format="json")"""
 
+    if_class = IsolationForest(df_train=df_model_train, 
+                               df_test=df_model_test, 
+                               featuresCol="features",
+                               labelCol="intrusion")
+
+    if_class.train()
+
+    predictions = if_class.test()
+
+    accuracy, cm = if_class.evaluate()
+
+    print(f"Accuracy: {accuracy:.4f}")
+    print("Confusion Matrix:")
+    print(cm)
 
     # Apply autoencoder to build a label based on the reconstruction error
     """ae = Autoencoder(spark_session, df_model_train, df_model_test, "0000BF53", None)
@@ -114,7 +112,7 @@ if __name__ == '__main__':
 
     
     ### KNN 
-    """knn = KNNClassifier(k=15, train_df=df_model_train,
+    """knn = KNNClassifier(k=30, train_df=df_model_train,
                         test_df=df_model_test, featuresCol="features", 
                         labelCol="intrusion")
                         
@@ -132,24 +130,23 @@ if __name__ == '__main__':
     if report is not None:
         print("Report:\n", report)"""
 
-
     ### RANDOM FOREST
     #algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
 
     ### LOGISTIC REGRESSION
-    algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
-                            family="multinomial", maxIter=50)
+    """algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",
+                            family="multinomial", maxIter=50)"""
 
-    model = algorithm.fit(df_model_train)
+    #model = algorithm.fit(df_model_train)
 
-    results = model.evaluate(df_model_test)
+    """results = model.evaluate(df_model_test)
     accuracy = results.accuracy
     labels = results.labels
     precisionByLabel = results.precisionByLabel
     recallByLabel = results.recallByLabel
-    falsePositiveRateByLabel = results.falsePositiveRateByLabel
+    falsePositiveRateByLabel = results.falsePositiveRateByLabel"""
 
-    if accuracy is not None:
+    """if accuracy is not None:
         print(f'accuracy for model of device "0000BF53": {round((accuracy * 100), 2)}%')
     
     if labels is not None:
@@ -162,4 +159,4 @@ if __name__ == '__main__':
         print("Recall by label:", recallByLabel)
 
     if falsePositiveRateByLabel is not None:
-        print("False Positive Rate By Label:", falsePositiveRateByLabel)
+        print("False Positive Rate By Label:", falsePositiveRateByLabel)"""

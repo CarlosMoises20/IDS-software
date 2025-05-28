@@ -1,7 +1,7 @@
 
 import time
 from common.auxiliary_functions import format_time
-from common.spark_functions import get_boolean_attributes_names, sample_random_split
+from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import FloatType, IntegerType
 from prepareData.preProcessing.pre_processing import DataPreProcessing
@@ -128,7 +128,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
         df_model = df_model_train.unionByName(df_model_test)
 
         # Applies new division in training and testing based in dataset size rules
-        df_model_train, df_model_test = sample_random_split(df_model)
+        df_model_train, df_model_test = train_test_split(df_model)
 
     # NOTE: uncomment these two lines to print the number of training and testing samples for the device after sample redistribution
     #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr} after sample redistribution: {df_model_train.count()}')

@@ -31,7 +31,7 @@ considering the total number of examples in the dataframe corresponding to the d
 the total number of samples is larger than 1
 
 """
-def sample_random_split(df_model, seed=422):
+def train_test_split(df_model, seed=422):
 
     # Count the total number of samples to be used by the model
     total_count = df_model.count()
