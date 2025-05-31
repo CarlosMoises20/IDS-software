@@ -4,8 +4,7 @@ import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import numpy as np
 from common.auxiliary_functions import format_time
-from pyspark.sql import Row, functions as F
-from pyspark.sql.types import StructType, StructField, FloatType, IntegerType
+from pyspark.sql import Row
 from pyspark.sql.functions import when, col
 
 

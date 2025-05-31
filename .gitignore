@@ -17,6 +17,10 @@ pyspark-env/*
 # Test files
 test*
 
+# Background Work replication
+datasets/dataset_1_original.log
+background_work_replication.py
+
 # Saved models
 *_SUCCESS*
 *part-000*

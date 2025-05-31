@@ -7,7 +7,6 @@ from common.auxiliary_functions import format_time
 from common.spark_functions import create_spark_session
 from common.dataset_type import DatasetType
 from pyspark.sql.functions import col, lit
-from pyspark.sql import Window
 
 
 def modify_parameters(spark_session, file_path, dev_addr_list, params, target_values, dataset_format):

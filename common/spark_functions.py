@@ -1,4 +1,5 @@
 
+import os, glob, time
 from common.constants import *
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
@@ -24,6 +25,26 @@ def create_spark_session():
                             #.config("spark.serializer", SPARK_SERIALIZER) \
 
 
+""" TODO review this
+Waits until Spark writes a valid JSON file inside the 'path' directory
+
+"""
+def wait_for_spark_json(path, timeout=30):
+   
+    start_time = time.time()
+    
+    while True:
+        
+        json_files = glob.glob(os.path.join(path, "part-*.json"))
+       
+        if json_files:
+            return json_files[0]  # devolve o primeiro ficheiro encontrado
+        
+        if time.time() - start_time > timeout:
+            raise FileNotFoundError(f"Timeout: Nenhum ficheiro JSON encontrado em '{path}' após {timeout} segundos.")
+        
+        time.sleep(1)  # espera 1s antes de tentar novamente
+
 
 """
 This function ensures that there are always sufficient samples for both training and testing
@@ -31,7 +52,7 @@ considering the total number of examples in the dataframe corresponding to the d
 the total number of samples is larger than 1
 
 """
-def train_test_split(df_model, seed=422):
+def train_test_split(df_model, seed=42):
 
     # Count the total number of samples to be used by the model
     total_count = df_model.count()
@@ -49,9 +70,9 @@ def train_test_split(df_model, seed=422):
     elif total_count < 20:
         df_model_train, df_model_test = df_model.randomSplit([0.7, 0.3], seed)
 
-    # If there are 20 or more samples, split the samples for training and testing by 85-15
+    # If there are 20 or more samples, split the samples for training and testing by 80-20
     else:
-        df_model_train, df_model_test = df_model.randomSplit([0.85, 0.15], seed)
+        df_model_train, df_model_test = df_model.randomSplit([0.8, 0.2], seed)
 
     return df_model_train, df_model_test
 

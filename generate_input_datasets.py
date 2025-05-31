@@ -39,7 +39,7 @@ def generate_input_datasets(spark_session, format):
 
             df = pre_process_type(df, dataset_type)
 
-            df_train, df_test = train_test_split(df)
+            df_train, df_test = train_test_split(df, seed=42)
 
             if format == "json":
 
@@ -79,6 +79,8 @@ def generate_input_datasets(spark_session, format):
     
         print("Total time of generation of training and testing files with pre-processing included:", 
             format_time(end_time - start_time))
+        
+    spark_session.catalog.clearCache()
 
 
 if __name__ == '__main__':
