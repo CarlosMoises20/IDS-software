@@ -14,7 +14,8 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import f1_score
-from sklearn.metrics import average_precision_score, confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import average_precision_score, confusion_matrix
+
 
 ##################################################
 ################# TRAIN MODEL ####################
@@ -47,10 +48,10 @@ def check_if_dev_exist(cursor, devaddr):
 
 
 def test_model(X, Y, result, index):
-    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.3, random_state=42)
+    X_train, X_test, Y_train, Y_test = train_test_split(X, Y, test_size=0.2, random_state=42)   
+    # , random_state=42
 
-
-    #print("X_train", X_train)
+    print(X_train)
 
     X_t = X_test  # PACOTE ORIGINAL
 
@@ -63,8 +64,6 @@ def test_model(X, Y, result, index):
 
     X_train = scaler.transform(X_train)
     X_test = scaler.transform(X_test)
-
-    #print("X_train_scaled", X_train)
 
     classifier = KNeighborsClassifier(n_neighbors=5)
     classifier.fit(X_train, Y_train)
@@ -88,8 +87,6 @@ def main(arg):
 
     X = []
     Y = []
-
-    # preencher os vetores X (features) e Y (labels)
     for i in range(len(p)):
         line = []
         line.append(float(p[i][0]["latitude"]))
@@ -102,8 +99,7 @@ def main(arg):
         line.append(int(p[i][0]["tmst_dif"]))
         X.append(line)
         Y.append(int(p[i][0]["flag"]))
-
-    #print(Y)
+    print(Y)
     threads = [None] * NUM_THREADS
     results = [None] * NUM_THREADS
     for i in range(len(threads)):
@@ -114,11 +110,12 @@ def main(arg):
         threads[i].join()
 
     average = []
-    #print("RESULTS====")
+    print("RESULTS====")
     for i in results:
         average.append(i[0])
 
     print(average)
+
     #print(results[0])
     print("end RESULTS====")
     average_max_index = average.index(max(average))

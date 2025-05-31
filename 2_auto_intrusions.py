@@ -39,7 +39,7 @@ def main(arg):
         line.append(int(p[i][0]["tmst_dif"]))
         X.append(line)
 
-    print(p)
+    #print(p)
     dataset = pd.DataFrame(X)
     
     sf_unique = dataset[2].unique()
@@ -70,11 +70,11 @@ def main(arg):
     for i in len_list:
         random_bytes = os.urandom(i)
         payload_list.append("'" + str(binascii.hexlify(random_bytes)).replace("b'","").replace("'","") + "'")
-    print(len_list)
-    print(payload_list)
-    print(t)
-    update(cursor, len_list, "lenpayload", t)  # UPDATE LEN
-    update(cursor, payload_list, "payload", t)  # UPDATE LEN
+    print("len_list:", len_list)
+    print("payload_list:", payload_list)
+    print("tmst:", t)
+    #update(cursor, len_list, "lenpayload", t)  # UPDATE LEN
+    update(cursor, payload_list, "payload", t)  # UPDATE PAYLOAD
 
     t = t[NUM_INTRUSION:]
 
@@ -131,15 +131,15 @@ def main(arg):
     tmst_list = []
     tmst_list.extend(tmst_min_list)
     tmst_list.extend(tmst_max_list)
-    update(cursor, tmst_list, "tmst_dif", t)        #UPDATE TMST DIF
+    #update(cursor, tmst_list, "tmst_dif", t)        #UPDATE TMST DIF
     t = t[NUM_INTRUSION*2:]
     
-    print(sf_list)
-    print(len_list)
+    print("sf_list:", sf_list)
+    print("len_list:", len_list)
     print()
-    print(lsnr_list)
-    print(rssi_list)
-    print(tmst_list)
+    print("lsnr_list:", lsnr_list)
+    print("rssi_list:", rssi_list)
+    print("tmst_list:", tmst_list)
     
     time.sleep(2)
 

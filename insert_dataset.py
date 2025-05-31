@@ -16,7 +16,7 @@ def get_bw(s):
 
 NODEURL = "http://localhost:4200/"
 #DATASET = './dataset_json/dataset_1&2_original.log'
-DATASET = './dataset_json/dataset_3_original.log'
+DATASET = './dataset_json/dataset_1_original.log'
 #DATASET = './dataset_json/dataset_intrusion.log'
 TABLE = "sensors"
 #TABLE = 'intrusions'
@@ -25,7 +25,8 @@ TABLE = "sensors"
 dfile = open(DATASET, 'r')
 data = dfile.readlines()
 
-#wfile = open("out.log", 'w')
+wfile = open("out.log", 'w')
+errorfile = open("errors.log", "w")
 
 connection = connect(NODEURL)
 cursor = connection.cursor()
@@ -48,8 +49,8 @@ for line in data:
     if count == 1:
         last = tmst
     elif count == 2:
-        sleep(2)
-        cursor.execute(f"DELETE FROM {TABLE} WHERE tmst = {last}")
+        """sleep(2)
+        cursor.execute(f"DELETE FROM {TABLE} WHERE tmst = {last}")"""
         atual = tmst
 
         tmst_dif = atual - last
@@ -73,10 +74,17 @@ for line in data:
                 "payload": payload,
                 "flag": json_line["flag"]
         })
-    cursor.execute(f"INSERT INTO {TABLE} (devaddr, tmst, message) VALUES (?,?,?)", (devaddr, tmst, message))
-    #wfile.write(f"{message}\n")
+
+    try:
+        cursor.execute(f"INSERT INTO {TABLE} (devaddr, tmst, message) VALUES (?, ?, ?)", (devaddr, tmst, message))
+        print(count)
+    except Exception as e:
+        errorfile.write(f"Erro: {e}\nMensagem: {message}\n\n")
+
+    wfile.write(f"{message}\n")
+    
     count += 1
 
 connection.close()
 dfile.close()
-#wfile.close()
+wfile.close()
