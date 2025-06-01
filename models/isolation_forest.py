@@ -8,6 +8,8 @@ class IsolationForest:
     def __init__(self, df_train, df_test, featuresCol, labelCol):
         self.__X_train = np.array(df_train.select(featuresCol).rdd.map(lambda row: row[0]).collect())
         self.__X_test = np.array(df_test.select(featuresCol).rdd.map(lambda row: row[0]).collect())
+        #print("X_train shape:", self.__X_train.shape)
+        #print("X_test shape:", self.__X_test.shape)
         self.__y_test = np.array(df_test.select(labelCol).rdd.map(lambda row: row[0]).collect())
         self.__model = IF(contamination=0.25, random_state=42)
         

@@ -3,6 +3,9 @@ import os, glob, time
 from common.constants import *
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
+from common.auxiliary_functions import format_time
+from pyspark.sql.functions import col, lit, create_map, row_number, monotonically_increasing_id, expr, when
+from pyspark.sql.window import Window
 
 """
 Auxiliary function to create spark session
@@ -21,8 +24,149 @@ def create_spark_session():
                             .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
+                            .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
                             .getOrCreate()
                             #.config("spark.serializer", SPARK_SERIALIZER) \
+
+
+
+"""def modify_parameters(spark_session, file_path, dev_addr_list, params, target_values, dataset_format):
+    start_time = time.time()
+
+    # Load the dataset
+    if dataset_format == "json":
+        df = spark_session.read.json(file_path)
+    else:
+        df = spark_session.read.parquet(file_path)
+
+    modified_parts = []
+    cleaned_parts = []
+
+    for dev_addr in dev_addr_list:
+        df_dev = df.filter(col("DevAddr") == dev_addr)
+
+        count_dev = df_dev.count()
+        if count_dev == 0:
+            continue
+
+        num_intrusions = max(1, round(count_dev * 0.25))  # Ensure at least 1
+
+        df_to_modify_base = df_dev.limit(num_intrusions)
+
+        df_to_modify = df_to_modify_base.withColumn("unique_id", monotonically_increasing_id())
+        window = Window.orderBy("unique_id")
+        indexed = df_to_modify.withColumn("row_number", row_number().over(window) - 1)
+
+        for param, values in zip(params, target_values):
+            value_map = create_map([lit(i) for i in sum(zip(range(num_intrusions), values), ())])
+            indexed = indexed.withColumn(param, value_map.getItem(col("row_number")))
+
+        indexed = indexed.withColumn("intrusion", lit(1))
+
+        # Anti-join to remove modified rows
+        df_alias = df_dev.alias("df")
+        mod_alias = df_to_modify_base.alias("mod")
+        join_condition = [col(f"df.{c}") == col(f"mod.{c}") for c in df_to_modify_base.columns]
+        df_cleaned = df_alias.join(mod_alias, on=join_condition, how="anti")
+
+        modified_parts.append(indexed.drop("row_number", "unique_id"))
+        cleaned_parts.append(df_cleaned)
+
+    # Include rows not related to any DevAddr in the list
+    untouched_df = df.filter(~col("DevAddr").isin(dev_addr_list))
+
+    df_final = untouched_df.unionByName(spark_session.createDataFrame([], df.schema))  # empty placeholder
+    if cleaned_parts:
+        df_final = df_final.unionByName(cleaned_parts[0])
+        for part in cleaned_parts[1:]:
+            df_final = df_final.unionByName(part)
+
+    for mod in modified_parts:
+        df_final = df_final.unionByName(mod)
+
+    # Save result
+    if dataset_format == "json":
+        df_final.coalesce(1).write.mode("overwrite").json(file_path)
+    else:
+        df_final.coalesce(1).write.mode("overwrite").parquet(file_path)
+
+    end_time = time.time()
+    print(f"File {file_path} successfully modified in {format_time(end_time - start_time)}")
+"""
+
+## This function modifies the generated test dataset with introduced attacks, manipulating some parameters such as RSSI and LSNR
+def modify_parameters(spark_session, file_path, dev_addr_list, params, target_values, dataset_format):
+    start_time = time.time()
+
+    # Load the full DataFrame
+    if dataset_format == "json":
+        df = spark_session.read.json(file_path)
+    else:
+        df = spark_session.read.parquet(file_path)
+
+    # Filter DevAddrs of interest
+    df_filtered = df.filter(col("DevAddr").isin(dev_addr_list))
+
+    # Add row numbers per DevAddr partition
+    window_spec = Window.partitionBy("DevAddr").orderBy(monotonically_increasing_id())
+    df_with_rownum = df_filtered.withColumn("row_number", row_number().over(window_spec))
+
+    # Number of rows to modify (25% per device)
+    num_samples_dev_addr = round(df_with_rownum.count() * 0.25) * len(dev_addr_list)
+    df_to_modify = df_with_rownum.filter(col("row_number") <= num_samples_dev_addr)
+
+    # Add global row index for mapping values
+    window_global = Window.orderBy(monotonically_increasing_id())
+    df_to_modify = df_to_modify.withColumn("row_index", row_number().over(window_global) - 1)
+
+    num_intrusions = df_to_modify.count()
+
+    # Apply modifications per parameter
+    for param in params:
+        # Ensure scalar values
+        if any(isinstance(x, list) for x in target_values):
+            target_values = [x[0] if isinstance(x, list) else x for x in target_values]
+        
+        value_map = create_map([lit(x) for pair in zip(range(num_intrusions), target_values[:num_intrusions]) for x in pair])
+        df_to_modify = df_to_modify.withColumn(
+            "intrusion",
+            when(col("row_index") < num_intrusions, lit(1)).otherwise(lit(0))
+        )
+
+    # Drop helper columns
+    df_to_modify = df_to_modify.drop("row_number", "row_index")
+
+    # Select unmodified rows
+    df_unmodified = df.join(df_to_modify.select("tmst"), on="tmst", how="left_anti")
+
+    # Align schema types and column order before union
+    for column in df.columns:
+        if column not in df_to_modify.columns:
+            df_to_modify = df_to_modify.withColumn(column, lit(None).cast(df.schema[column].dataType))
+        else:
+            df_to_modify = df_to_modify.withColumn(column, df_to_modify[column].cast(df.schema[column].dataType))
+
+        if column not in df_unmodified.columns:
+            df_unmodified = df_unmodified.withColumn(column, lit(None).cast(df.schema[column].dataType))
+        else:
+            df_unmodified = df_unmodified.withColumn(column, df_unmodified[column].cast(df.schema[column].dataType))
+
+    # Reorder columns to match
+    df_to_modify = df_to_modify.select(df.columns)
+    df_unmodified = df_unmodified.select(df.columns)
+
+    # Merge DataFrames
+    df_final = df_unmodified.unionByName(df_to_modify)
+
+    # Write modified DataFrame
+    if dataset_format == "json":
+        df_final.coalesce(1).write.mode("overwrite").json(file_path)
+    else:
+        df_final.coalesce(1).write.mode("overwrite").parquet(file_path)
+
+    end_time = time.time()
+    print(f"File {file_path} successfully modified in {format_time(end_time - start_time)}")
+
 
 
 """ TODO review this

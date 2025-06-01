@@ -1,6 +1,6 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import expr, col, explode, when, col
+from pyspark.sql.functions import expr, col, explode, when, col, size, lit
 from common.constants import *
 
 
@@ -90,11 +90,11 @@ class RxpkPreProcessing(DataPreProcessing):
         
         # split "chan" by "chan1" and "chan2" and "lsnr" by "lsnr1" and "lsnr2", since Vectors on algorithms
         # do not support arrays, only numeric values
-        df = df.withColumn("chan1", col("chan")[0])   # the first element of 'chan' array
-        df = df.withColumn("chan2", col("chan")[1])   # the second element of 'chan' array
-        df = df.withColumn("lsnr1", col("lsnr")[0])   # the first element of 'lsnr' array
-        df = df.withColumn("lsnr2", col("lsnr")[1])   # the second element of 'lsnr' array
-        
+        df = df.withColumn("chan1", when(size(col("chan")) > 0, col("chan")[0]).otherwise(lit(None)))
+        df = df.withColumn("chan2", when(size(col("chan")) > 1, col("chan")[1]).otherwise(lit(None)))
+        df = df.withColumn("lsnr1", when(size(col("lsnr")) > 0, col("lsnr")[0]).otherwise(lit(None)))
+        df = df.withColumn("lsnr2", when(size(col("lsnr")) > 1, col("lsnr")[1]).otherwise(lit(None)))
+
         # remove 'rsig' array and 'chan' and 'lsnr' after aggregation and splitting of 'chan' and 'lsnr'
         df = df.drop("rsig", "chan", "lsnr")
 

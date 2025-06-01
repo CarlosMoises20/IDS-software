@@ -1,7 +1,8 @@
 
 ## This script generates the dataset used to load all LoRaWAN messages to train and test ML models
 
-import time, os, argparse
+import time, os, argparse, glob
+from pathlib import Path
 from common.spark_functions import create_spark_session, train_test_split
 from common.dataset_type import DatasetType
 from prepareData.prepareData import pre_process_type
@@ -16,70 +17,59 @@ This function generates input datasets, already with pre-processing applied to p
 def generate_input_datasets(spark_session, format):
 
     start_time = time.time()
-
     generated = False
 
     for dataset_type in [key for key in DatasetType]:
 
-        train_dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.{format}'
-        test_dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.{format}'
+        dataset_name = dataset_type.value["name"].lower()
 
-        # This condition avoids consuming time on reading the dataset and pre-processing to generate new datasets, 
-        # if both datasets already exist 
+        train_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_train.{format}'
+        test_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_test.{format}'
+
         if os.path.exists(train_dataset_path) and os.path.exists(test_dataset_path):
+            print(f"Input training dataset for {dataset_name.upper()} in format {format.upper()} already exists. Skipping generation")
+            continue
 
-            print("Input training dataset for", dataset_type.value["name"].upper(), "in format", format.upper(), 
-                  "already exist. Skipping generation")
+        # Use glob to safely expand the wildcard
+        pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
+        input_files = glob.glob(pattern)
 
-        else:
+        if not input_files:
+            print(f"[WARNING] No input log files found for dataset type {dataset_name.upper()} at pattern: {pattern}")
+            continue
 
-            df = spark_session.read.json(f'./datasets/{dataset_type.value["name"]}_*.log')
+        # Load JSON files using expanded list
+        df = spark_session.read.json(input_files).cache()
 
-            df = df.cache()
+        # Pre-process and split
+        df = pre_process_type(df, dataset_type)
+        df_train, df_test = train_test_split(df)
 
-            df = pre_process_type(df, dataset_type)
+        # Write datasets
+        if format == "json":
+            if not os.path.exists(train_dataset_path):
+                df_train.write.mode("overwrite").json(train_dataset_path)
+            else:
+                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-            df_train, df_test = train_test_split(df, seed=42)
+            df_test.write.mode("overwrite").json(test_dataset_path)
 
-            if format == "json":
+        elif format == "parquet":
+            if not os.path.exists(train_dataset_path):
+                df_train.write.mode("overwrite").parquet(train_dataset_path)
+            else:
+                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-                if not os.path.exists(train_dataset_path):
-                    df_train.write.mode("overwrite").json(train_dataset_path)
+            df_test.write.mode("overwrite").parquet(test_dataset_path)
 
-                else:
-                    print(f'Train {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
-                
-                if not os.path.exists(test_dataset_path):
-                    df_test.write.mode("overwrite").json(test_dataset_path)
-
-                else:
-                    print(f'Test {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
-
-            if format == "parquet":
-
-                if not os.path.exists(train_dataset_path):
-                    df_train.write.mode("overwrite").parquet(train_dataset_path)
-
-                else:
-                    print(f'Train {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
-
-                if not os.path.exists(test_dataset_path):
-                    df_test.write.mode("overwrite").parquet(test_dataset_path)
-
-                else:
-                    print(f'Test {dataset_type.value["name"].upper()} dataset in {format.upper()} format already exists')
-
-            print(f'{format.upper()} files for {dataset_type.value["name"].upper()} generated')
-
-            generated = True
-
-    end_time = time.time()
+        print(f'{format.upper()} files for {dataset_name.upper()} generated')
+        generated = True
 
     if generated:
-    
-        print("Total time of generation of training and testing files with pre-processing included:", 
-            format_time(end_time - start_time))
-        
+        end_time = time.time()
+        print("Total time of generation of training and testing files with pre-processing included:",
+              format_time(end_time - start_time))
+
     spark_session.catalog.clearCache()
 
 

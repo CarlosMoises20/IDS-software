@@ -1,8 +1,9 @@
 
 import argparse
 from pyspark.sql.types import *
-from common.spark_functions import create_spark_session
+from common.spark_functions import create_spark_session, modify_parameters
 from generate_input_datasets import generate_input_datasets
+from common.dataset_type import DatasetType
 from models.functions import *
 from processing.message_classification import MessageClassification
 
@@ -25,6 +26,27 @@ if __name__ == '__main__':
     #spark_session.sparkContext.setLogLevel("DEBUG")
 
     generate_input_datasets(spark_session, datasets_format)
+
+    rxpk_dataset_path, txpk_dataset_path = (f"./generatedDatasets/{dataset_type}/lorawan_dataset_test.{datasets_format}"
+                                                for dataset_type in [key.value["name"] for key in DatasetType])
+
+    sf_list = [1, 18, 19, 22, 23]
+    bw_list = [250, 250, 500]
+    len_list = [53, 55, 57, 109, 111]
+
+    modify_parameters(spark_session=spark_session,
+                      file_path=rxpk_dataset_path,  
+                      dev_addr_list=dev_addr_list,
+                      params=["SF", "BW", "payloadLen"], 
+                      target_values=[sf_list, bw_list, len_list],
+                      dataset_format=datasets_format)
+    
+    modify_parameters(spark_session=spark_session,
+                      file_path=txpk_dataset_path, 
+                      dev_addr_list=dev_addr_list,
+                      params=["SF", "BW", "dataLen"], 
+                      target_values=[sf_list, bw_list, len_list],
+                      dataset_format=datasets_format)
 
     mc = MessageClassification(spark_session)
 
