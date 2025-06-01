@@ -17,7 +17,6 @@ This function generates input datasets, already with pre-processing applied to p
 def generate_input_datasets(spark_session, format):
 
     start_time = time.time()
-    generated = False
 
     for dataset_type in [key for key in DatasetType]:
 
@@ -25,10 +24,6 @@ def generate_input_datasets(spark_session, format):
 
         train_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_train.{format}'
         test_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_test.{format}'
-
-        if os.path.exists(train_dataset_path) and os.path.exists(test_dataset_path):
-            print(f"Input training dataset for {dataset_name.upper()} in format {format.upper()} already exists. Skipping generation")
-            continue
 
         # Use glob to safely expand the wildcard
         pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
@@ -63,12 +58,10 @@ def generate_input_datasets(spark_session, format):
             df_test.write.mode("overwrite").parquet(test_dataset_path)
 
         print(f'{format.upper()} files for {dataset_name.upper()} generated')
-        generated = True
 
-    if generated:
-        end_time = time.time()
-        print("Total time of generation of training and testing files with pre-processing included:",
-              format_time(end_time - start_time))
+    end_time = time.time()
+    print("Total time of generation of training and testing files with pre-processing included:",
+            format_time(end_time - start_time))
 
     spark_session.catalog.clearCache()
 

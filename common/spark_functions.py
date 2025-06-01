@@ -3,9 +3,8 @@ import os, glob, time
 from common.constants import *
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-from common.auxiliary_functions import format_time
-from pyspark.sql.functions import col, lit, create_map, row_number, monotonically_increasing_id, expr, when
-from pyspark.sql.window import Window
+from pyspark.sql.functions import col, lit, when, create_map
+from pyspark.sql.types import StructType
 
 """
 Auxiliary function to create spark session
@@ -94,7 +93,110 @@ def create_spark_session():
     print(f"File {file_path} successfully modified in {format_time(end_time - start_time)}")
 """
 
-## This function modifies the generated test dataset with introduced attacks, manipulating some parameters such as RSSI and LSNR
+
+def modify_device_dataset(df, output_file_path, params, target_values, datasets_format):
+
+    num_intrusions = round(df.count() * 0.25)
+    
+    # Select the first N logs directly with no sorting
+    df_to_modify = df.limit(num_intrusions)
+
+    # Add an index to map the intrusion values
+    indexed = df_to_modify.rdd.zipWithIndex().toDF()
+    indexed = indexed.selectExpr("_1.*", "_2 as row_number")
+
+    # Apply intrusion values based on index
+    for param, values in zip(params, target_values):
+        value_map = create_map([lit(i) for i in sum(zip(range(num_intrusions), values), ())])
+        indexed = indexed.withColumn(param, value_map.getItem(col("row_number")))
+
+    # Mark packets as intrusive
+    indexed = indexed.withColumn("intrusion", lit(1))
+
+    # Prepare the non-modified dataframe
+    df_unmodified = df.exceptAll(df_to_modify)
+
+    # Join intrusive packets with normal packets
+    df_final = df_unmodified.unionByName(indexed.drop("row_number"))
+
+    # Save final dataframe in JSON or PARQUET format
+    if datasets_format == "json":
+        df_final.coalesce(1).write.mode("overwrite").json(output_file_path)
+    else:
+        df_final.coalesce(1).write.mode("overwrite").parquet(output_file_path)
+
+    # Print the dataframe
+    df_final.groupBy("intrusion").count().show()
+
+    return df_final
+
+
+def modify_dataset(df, output_file_path, params, target_values, dev_addr_list, datasets_format):
+
+    modified_dfs = []
+
+    # Loop for all selected devices 
+    for dev_addr in dev_addr_list:
+
+        # Filters dataframe to contain only packets from the device 'dev_addr'
+        df_device = df.filter(col("DevAddr") == dev_addr)
+
+        num_packets = df_device.count()
+
+        if num_packets == 0:
+            continue
+
+        num_intrusions = round(num_packets * 0.25)
+
+        # Select the first N logs directly with no sorting
+        df_to_modify = df_device.limit(num_intrusions)
+
+        # Add an index to map the intrusion values
+        indexed = df_to_modify.rdd.zipWithIndex().toDF()
+        indexed = indexed.selectExpr("_1.*", "_2 as row_number")
+
+        # Apply intrusion values based on index
+        for param, values in zip(params, target_values):
+            mapping_expr = when(col("row_number") == 0, values[0])
+            for i in range(1, len(values)):
+                mapping_expr = mapping_expr.when(col("row_number") == i, values[i])
+            indexed = indexed.withColumn(param, mapping_expr)
+
+        # Mark modified packets as intrusive
+        indexed = indexed.withColumn("intrusion", lit(1))
+
+        # Prepare the non-modified dataframe
+        df_unmodified = df_device.exceptAll(df_to_modify)
+
+        # Join intrusive packets with normal packets
+        df_device_final = df_unmodified.unionByName(indexed.drop("row_number"))
+
+        modified_dfs.append(df_device_final)
+
+    # Joins modified packets from all selected devices
+    df_modified  = modified_dfs[0]
+    for d in modified_dfs[1:]:
+        df_modified = df_modified.unionByName(d)
+
+    # Unmodified packets
+    df_unmodified_devices = df.filter(~col("dev_addr").isin(dev_addr_list))
+
+    # Final result
+    df_final = df_modified.unionByName(df_unmodified_devices)
+
+    # Save final dataframe in JSON or PARQUET format
+    if datasets_format == "json":
+        df_final.coalesce(1).write.mode("overwrite").json(output_file_path)
+    else:
+        df_final.coalesce(1).write.mode("overwrite").parquet(output_file_path)
+
+    return df_final
+
+
+
+
+
+"""## This function modifies the generated test dataset with introduced attacks, manipulating some parameters such as RSSI and LSNR
 def modify_parameters(spark_session, file_path, dev_addr_list, params, target_values, dataset_format):
     start_time = time.time()
 
@@ -112,7 +214,7 @@ def modify_parameters(spark_session, file_path, dev_addr_list, params, target_va
     df_with_rownum = df_filtered.withColumn("row_number", row_number().over(window_spec))
 
     # Number of rows to modify (25% per device)
-    num_samples_dev_addr = round(df_with_rownum.count() * 0.25) * len(dev_addr_list)
+    num_samples_dev_addr = round(df_with_rownum.count() * 0.2) * len(dev_addr_list)
     df_to_modify = df_with_rownum.filter(col("row_number") <= num_samples_dev_addr)
 
     # Add global row index for mapping values
@@ -127,7 +229,7 @@ def modify_parameters(spark_session, file_path, dev_addr_list, params, target_va
         if any(isinstance(x, list) for x in target_values):
             target_values = [x[0] if isinstance(x, list) else x for x in target_values]
         
-        value_map = create_map([lit(x) for pair in zip(range(num_intrusions), target_values[:num_intrusions]) for x in pair])
+        #value_map = create_map([lit(x) for pair in zip(range(num_intrusions), target_values[:num_intrusions]) for x in pair])
         df_to_modify = df_to_modify.withColumn(
             "intrusion",
             when(col("row_index") < num_intrusions, lit(1)).otherwise(lit(0))
@@ -166,7 +268,7 @@ def modify_parameters(spark_session, file_path, dev_addr_list, params, target_va
 
     end_time = time.time()
     print(f"File {file_path} successfully modified in {format_time(end_time - start_time)}")
-
+"""
 
 
 """ TODO review this
