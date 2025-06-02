@@ -120,12 +120,12 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # If there are samples for the device but there is imbalance in the number of training and testing samples,
     # it's necessary to apply a new division of all the samples in training and testing in order to have sufficient
     # samples specially for training
-    if df_model_train_count == 0 or df_model_test_count == 0 or (df_model_train_count * 0.8) < df_model_test_count:
+    if df_model_train_count == 0 or df_model_test_count == 0 or df_model_train_count * 0.85 < df_model_test_count:
         
         print(f"[INFO] Adjusting sample split due to imbalance...")
 
         # Binds training and testing datasets
-        df_model = df_model_train.unionByName(df_model_test)
+        df_model = df_model_train.unionByName(df_model_test, allowMissingColumns=True)
 
         # Applies new division in training and testing based in dataset size rules
         df_model_train, df_model_test = train_test_split(df_model)

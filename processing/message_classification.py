@@ -12,7 +12,7 @@ from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.kNN import KNNClassifier
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
-from common.spark_functions import create_spark_session, modify_device_dataset
+from common.spark_functions import modify_device_dataset
 
 class MessageClassification:
 
@@ -131,7 +131,9 @@ class MessageClassification:
 
         accuracy, cm = if_class.evaluate()
 
-        print(f"Accuracy: {accuracy:.4f}")
+        accuracy = accuracy * 100
+
+        print(f"Accuracy: {accuracy:.2f}%")
         print("Confusion Matrix:")
         print(cm)
 
@@ -236,7 +238,7 @@ class MessageClassification:
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test) != (None, None):
 
-                    dataset_path = f'./generatedDatasets/{dataset_type}/lorawan_dataset_test.{dataset_type.value["name"]}'
+                    dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
                     sf_list = [1, 18, 19, 22, 23]
                     bw_list = [250, 350, 500]
