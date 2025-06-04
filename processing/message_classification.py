@@ -9,7 +9,7 @@ from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
 from models.autoencoder import Autoencoder
 from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
-from models.kNN import KNNClassifier
+from models.kNN import KNNAnomalyDetector
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
 from common.spark_functions import modify_device_dataset
@@ -118,20 +118,23 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type):
+    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate):
 
         start_time = time.time()
 
-        if_class = IsolationForest(df_train=df_model_train, 
-                               df_test=df_model_test, 
-                               featuresCol="features",
-                               labelCol="intrusion")
+        if_class = IsolationForest(spark_session=self.__spark_session,
+                                   df_train=df_model_train, 
+                                   df_test=df_model_test, 
+                                   featuresCol="features",
+                                   predictionCol="prediction",
+                                   labelCol="intrusion",
+                                   contamination=intrusion_rate)
 
         model = if_class.train()
 
-        accuracy, cm = if_class.evaluate()
+        df_predictions = if_class.test(model)
 
-        accuracy = accuracy * 100
+        accuracy, cm = if_class.evaluate(df_predictions)
 
         print(f"Accuracy: {accuracy:.2f}%")
         print("Confusion Matrix:")
@@ -145,38 +148,15 @@ class MessageClassification:
         df_model_test, accuracy, matrix = ae.test()"""
 
         """model, accuracy, matrix, labels, report = None, None, None, None, None
-        precisionByLabel, recallByLabel, falsePositiveRateByLabel = None, None, None
 
         ### Apply supervised learning to detect intrusions based on the created label on Autoencoder
 
-        # kNN is the best algorithm for small datasets, but due to its computationally intensive performs, is not
-        # adequate for medium or large datasets
-        if df_model_train.count() < 500:
+        ### KNN (not as traditional binary classifier, but as outlier / anomaly detector)
+        knn = KNNAnomalyDetector(k=10, train_df=df_model_train,
+                            test_df=df_model_test, featuresCol="features", 
+                            labelCol="intrusion")
 
-            ### KNN 
-            knn = KNNClassifier(k=15, train_df=df_model_train,
-                                test_df=df_model_test, featuresCol="features", 
-                                labelCol="intrusion")
-
-            accuracy, matrix, labels, report = knn.test()
-
-        else:
-            
-            ### RANDOM FOREST
-            algorithm = RandomForestClassifier(numTrees=30, featuresCol="features", labelCol="intrusion")
-
-            ### LOGISTIC REGRESSION
-            algorithm = LogisticRegression(featuresCol="features", labelCol="intrusion",family="multinomial", maxIter=50)
-            
-            model = algorithm.fit(df_model_train)
-
-            if df_model_test is not None:
-                results = model.evaluate(df_model_test)
-                accuracy = results.accuracy
-                labels = results.labels
-                precisionByLabel = results.precisionByLabel
-                recallByLabel = results.recallByLabel
-                falsePositiveRateByLabel = results.falsePositiveRateByLabel
+        accuracy, matrix, labels, report = knn.test()
 
 
         if accuracy is not None:
@@ -189,17 +169,7 @@ class MessageClassification:
             print("Labels:", labels) 
         
         if report is not None:
-            print("Report:\n", report)
-
-        if precisionByLabel is not None:
-            print("Precision By Label:", precisionByLabel)
-
-        if recallByLabel is not None:
-            print("Recall by label:", recallByLabel)
-
-        if falsePositiveRateByLabel is not None:
-            print("False Positive Rate By Label:", falsePositiveRateByLabel)"""
-
+            print("Report:\n", report)"""
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
@@ -242,16 +212,19 @@ class MessageClassification:
 
                     sf_list = [1, 18, 19, 22, 23]
                     bw_list = [250, 350, 500]
-                    len_list = [93, 95, 97, 109, 111]
+                    data_len_list = [893, 895, 897, 909, 911]
+
+                    intrusion_rate = 0.1
 
                     df_model_test = modify_device_dataset(df=df_model_test,
-                                                    output_file_path=dataset_path,
-                                                    params=["SF", "BW", "payloadLen"], 
-                                                    target_values=[sf_list, bw_list, len_list],
-                                                    datasets_format=datasets_format)
+                                                            output_file_path=dataset_path,
+                                                            params=["SF", "BW", "dataLen"], 
+                                                            target_values=[sf_list, bw_list, data_len_list],
+                                                            datasets_format=datasets_format,
+                                                            intrusion_rate=0.1)
                 
                     # Processing phase
-                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type)         
+                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         
         
         end_time = time.time()
 

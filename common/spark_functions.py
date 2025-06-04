@@ -11,6 +11,10 @@ Auxiliary function to create spark session
 
 """
 def create_spark_session():
+
+    if not os.path.exists(SPARK_IFOREST_JAR):
+        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")
+
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
@@ -24,13 +28,17 @@ def create_spark_session():
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
+                            .config("spark.jars", SPARK_IFOREST_JAR) \
                             .getOrCreate()
-                            #.config("spark.serializer", SPARK_SERIALIZER) \
 
 
-def modify_device_dataset(df, output_file_path, params, target_values, datasets_format):
+"""
+This function lauches attacks on a sub-dataset based on a specific device
 
-    num_intrusions = round(df.count() * 0.15)
+"""
+def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, intrusion_rate=0.15):
+
+    num_intrusions = round(df.count() * intrusion_rate)
     
     # Select the first N logs directly with no sorting
     df_to_modify = df.limit(num_intrusions)

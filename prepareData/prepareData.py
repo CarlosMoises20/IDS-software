@@ -79,8 +79,8 @@ def pre_process_type(df, dataset_type):
 
     df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-    # add the label with the value 0 (that will be later updated)
-    return df.withColumn("intrusion", lit(0))
+    # add the label and prediction columns with the value 0 (that will be later updated)
+    return df.withColumn("intrusion", lit(0)).withColumn("prediction", lit(0))
 
 
 

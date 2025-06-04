@@ -1,6 +1,7 @@
 from sklearn.metrics import confusion_matrix, classification_report
 
-class KNNClassifier:
+# TODO: fix this, make this an anomaly / outlier detector rather than a traditional binary classifier
+class KNNAnomalyDetector:
 
     """
     It initializes the KNN model.
@@ -18,7 +19,6 @@ class KNNClassifier:
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
 
- 
     """
     Predicts the label for a single observation.
     
@@ -39,7 +39,6 @@ class KNNClassifier:
 
         return prediction
 
-     
     """
     Evaluates the model on a labeled test dataset.
     Returns accuracy and total samples.

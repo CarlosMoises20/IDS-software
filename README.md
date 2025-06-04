@@ -8,8 +8,24 @@ That will download a zip file. Then, you must follow the instructions on the sit
 
 You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
 
-### To install Java on your local machine (version 17 is the most recommended), using the link below
+### To install Java on your local machine (version 17 recommended), using the link below
 https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html
+
+Or use the command line
+&emsp; 3a - On Linux
+```
+sudo apt install openjdk-17-jdk
+``` 
+
+&emsp; 3b - On MacOS
+```
+brew apt install openjdk@17
+``` 
+
+&emsp; 3c - On Windows
+```
+choco install openjdk17
+``` 
 
 ### Check Java version in your local machine to ensure that it was correctly installed
  ```
@@ -38,6 +54,37 @@ pip install -r ./requirements.txt
 ```
 
 #### NOTE: Properly define the environment variables on your local machine
+
+### To install Git on your local machine
+Go to the link https://git-scm.com/downloads
+
+### To use Isolation Forest algorithm on the implementation, you must apply the following steps
+
+1 - Clone the GitHub repository corresponding to the link https://github.com/titicaca/spark-iforest.git
+```
+git clone https://github.com/titicaca/spark-iforest.git
+```
+And then follow only the Step 1 on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. You also need Java 8 to compile Maven project 
+
+2 - Install Scala (version 2.12 or above recommended): https://www.scala-lang.org/download/ (or in the command line)
+
+3 - Install sbt package (version 1.5)
+
+&emsp; 3a - On Linux
+```
+sudo apt install sbt
+``` 
+
+&emsp; 3b - On MacOS
+```
+brew apt install sbt
+``` 
+
+&emsp; 3c - On Windows
+```
+choco install sbt
+``` 
+
 
 ### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET)
 ```python3

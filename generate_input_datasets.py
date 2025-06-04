@@ -47,7 +47,10 @@ def generate_input_datasets(spark_session, format):
             else:
                 print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-            df_test.write.mode("overwrite").json(test_dataset_path)
+            if not os.path.exists(test_dataset_path):
+                df_test.write.mode("overwrite").json(test_dataset_path)
+            else:
+                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
         elif format == "parquet":
             if not os.path.exists(train_dataset_path):
@@ -55,7 +58,10 @@ def generate_input_datasets(spark_session, format):
             else:
                 print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-            df_test.write.mode("overwrite").parquet(test_dataset_path)
+            if not os.path.exists(test_dataset_path):
+                df_test.write.mode("overwrite").parquet(test_dataset_path)
+            else:
+                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
         print(f'{format.upper()} files for {dataset_name.upper()} generated')
 
