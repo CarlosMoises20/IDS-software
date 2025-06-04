@@ -1,6 +1,5 @@
 
-import time, mlflow, shutil, os
-
+import time, mlflow, shutil, os, json
 import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
@@ -8,7 +7,6 @@ from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
 from models.autoencoder import Autoencoder
-from pyspark.ml.classification import RandomForestClassifier, LogisticRegression
 from models.kNN import KNNAnomalyDetector
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
@@ -94,13 +92,17 @@ class MessageClassification:
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
             # for every algorithms except kNN, store the model as artifact
-            if model is not None:
+            #if model is not None:
 
                 ## FOR ISOLATION FOREST
-                mlflow.sklearn.log_model(model, "model")
+                #mlflow.sklearn.log_model(model, "model")
 
                 ## FOR THE OTHER MODELS
                 #mlflow.spark.log_model(model, "model") 
+
+                #print(model)
+
+                #mlflow.pytorch.log_model(model, "model") 
 
             # store the training dataframe as a parquet file
             dataset_model_path = f'./df_tmp/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
@@ -122,6 +124,8 @@ class MessageClassification:
 
         start_time = time.time()
 
+        ### ISOLATION FOREST
+        
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
                                    df_test=df_model_test, 
@@ -134,42 +138,44 @@ class MessageClassification:
 
         df_predictions = if_class.test(model)
 
-        accuracy, cm = if_class.evaluate(df_predictions)
+        accuracy, matrix = if_class.evaluate(df_predictions)
 
-        print(f"Accuracy: {accuracy:.2f}%")
-        print("Confusion Matrix:")
-        print(cm)
+        
+        """### AUTOENCODER (not good results on detecting intrusions)
+        
+        ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
 
-        # Apply autoencoder to build a label based on the reconstruction error
-        """ae = Autoencoder(self.__spark_session, df_model_train, df_model_test, dev_addr, dataset_type)
+        model = ae.train()
 
-        ae.train()
+        accuracy, matrix, report = ae.test()"""
 
-        df_model_test, accuracy, matrix = ae.test()"""
+        """### kNN (very innefficient with large datasets)
+        
+        model, accuracy, matrix, labels, report = None, None, None, None, None
 
-        """model, accuracy, matrix, labels, report = None, None, None, None, None
+        ### KNN to detect anomalies (not as tradicional binary classifier)
+        knn = KNNAnomalyDetector(k=5, df_train=df_model_train,
+                                df_test=df_model_test, 
+                                featuresCol="features", 
+                                labelCol="intrusion",
+                                predictionCol="prediction",
+                                threshold_percentile=95)
 
-        ### Apply supervised learning to detect intrusions based on the created label on Autoencoder
+        model = knn.train()
 
-        ### KNN (not as traditional binary classifier, but as outlier / anomaly detector)
-        knn = KNNAnomalyDetector(k=10, train_df=df_model_train,
-                            test_df=df_model_test, featuresCol="features", 
-                            labelCol="intrusion")
-
-        accuracy, matrix, labels, report = knn.test()
+        accuracy, matrix, report = knn.test(model)
 
 
+        """
+        
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
             print("Confusion matrix:\n", matrix) 
         
-        if labels is not None:
-            print("Labels:", labels) 
-        
-        if report is not None:
-            print("Report:\n", report)"""
+        """if report is not None:
+            print("Report:\n", json.dumps(report, indent=4))"""
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
@@ -210,18 +216,18 @@ class MessageClassification:
 
                     dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
-                    sf_list = [1, 18, 19, 22, 23]
-                    bw_list = [250, 350, 500]
-                    data_len_list = [893, 895, 897, 909, 911]
+                    sf_list = [111, 118, 150, 152, 153, 155]
+                    bw_list = [250, 350, 500, 700, 650]
+                    data_len_list = [893, 895, 897, 909, 911, 1000]
 
-                    intrusion_rate = 0.1
+                    intrusion_rate = 0.15
 
                     df_model_test = modify_device_dataset(df=df_model_test,
                                                             output_file_path=dataset_path,
                                                             params=["SF", "BW", "dataLen"], 
                                                             target_values=[sf_list, bw_list, data_len_list],
                                                             datasets_format=datasets_format,
-                                                            intrusion_rate=0.1)
+                                                            intrusion_rate=intrusion_rate)
                 
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         

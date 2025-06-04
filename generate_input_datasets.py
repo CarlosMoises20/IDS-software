@@ -29,10 +29,6 @@ def generate_input_datasets(spark_session, format):
         pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
         input_files = glob.glob(pattern)
 
-        if not input_files:
-            print(f"[WARNING] No input log files found for dataset type {dataset_name.upper()} at pattern: {pattern}")
-            continue
-
         # Load JSON files using expanded list
         df = spark_session.read.json(input_files).cache()
 
@@ -44,32 +40,32 @@ def generate_input_datasets(spark_session, format):
         if format == "json":
             if not os.path.exists(train_dataset_path):
                 df_train.write.mode("overwrite").json(train_dataset_path)
+                print(f'Train {dataset_name.upper()} dataset in {format.upper()} was generated')
             else:
                 print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
             if not os.path.exists(test_dataset_path):
                 df_test.write.mode("overwrite").json(test_dataset_path)
+                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format was generated')
             else:
                 print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
         elif format == "parquet":
             if not os.path.exists(train_dataset_path):
                 df_train.write.mode("overwrite").parquet(train_dataset_path)
+                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format was generated')
             else:
                 print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
             if not os.path.exists(test_dataset_path):
                 df_test.write.mode("overwrite").parquet(test_dataset_path)
+                print(f'Test {dataset_name.upper()} dataset in {format.upper()} was generated')
             else:
                 print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-        print(f'{format.upper()} files for {dataset_name.upper()} generated')
-
     end_time = time.time()
-    print("Total time of generation of training and testing files with pre-processing included:",
+    print("Total time of execution of 'generate_input_datasets.py':",
             format_time(end_time - start_time))
-
-    spark_session.catalog.clearCache()
 
 
 if __name__ == '__main__':

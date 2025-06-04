@@ -36,7 +36,7 @@ def create_spark_session():
 This function lauches attacks on a sub-dataset based on a specific device
 
 """
-def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, intrusion_rate=0.15):
+def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, intrusion_rate):
 
     num_intrusions = round(df.count() * intrusion_rate)
     
