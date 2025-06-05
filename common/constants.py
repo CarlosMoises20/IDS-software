@@ -19,3 +19,9 @@ SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                          # best appro
 SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     # If using MLlib or saving/loading models
 SPARK_SQL_ANSI_ENABLED = "false"
 SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-iforest-2.4.0.jar")
+
+
+'''LORAWAN PARAMETERS VALUES'''
+SF_LIST = [7, 8, 9, 10, 11, 12]
+BW_LIST = [125, 250, 500]
+DATA_LEN_LIST_ABNORMAL = [200, 210, 220, 230, 240]

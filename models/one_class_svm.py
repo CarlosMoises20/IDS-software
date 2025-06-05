@@ -6,7 +6,7 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import DoubleType
 
 class OneClassSVM:
-    def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, nu=0.5, gamma='auto'):
+    def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, nu=0.1, gamma='auto'):
         self.__spark_session = spark_session
         self.__df_train = df_train
         self.__df_test = df_test
@@ -24,7 +24,7 @@ class OneClassSVM:
 
     def test(self, model):
         features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        scores = model.decision_function(features).ravel()
+        scores = model.decision_function(features).ravel() * (-1)
         preds = model.predict(features)
 
         print(preds)

@@ -2,6 +2,7 @@
 import time, mlflow, shutil, os, json
 import mlflow.sklearn
 from common.dataset_type import DatasetType
+from common.constants import SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
@@ -237,19 +238,18 @@ class MessageClassification:
 
                     # TODO try put all possible range and then on 'modify_device_dataset', only apply
                     # the values that are inside the array and are not inside the device dataset 
-                    sf_list = [11]              
-                    bw_list = [250, 500]
-                    data_len_list = [100, 110, 120, 130, 140]
 
-                    intrusion_rate = 0.15
+                    num_intrusions = 10
+
+                    intrusion_rate = num_intrusions / df_model_test.count()
 
                     df_model_test = modify_device_dataset(df=df_model_test,
                                                             output_file_path=dataset_path,
-                                                            params=["BW", "dataLen"], 
-                                                            target_values=[bw_list, data_len_list],
+                                                            params=["SF", "BW", "dataLen"], 
+                                                            target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
                                                             datasets_format=datasets_format,
-                                                            num_intrusions=10)
-                
+                                                            num_intrusions=num_intrusions)
+                    
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         
         

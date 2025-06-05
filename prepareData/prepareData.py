@@ -93,79 +93,50 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
 
     start_time = time.time()
 
-    df_model_train = spark_session.read.json(
-        f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_train.json'
+    df_model = spark_session.read.json(
+        f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.json'
     ).filter(col("DevAddr") == dev_addr)
 
-    df_model_test = spark_session.read.json(
-        f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_test.json'
-    ).filter(col("DevAddr") == dev_addr)
-
-    df_model_train = df_model_train.cache()
-    df_model_test = df_model_test.cache()
-
-    df_model_train_count = df_model_train.count()
-    df_model_test_count = df_model_test.count()
-
-    # NOTE: uncomment these two lines to print the number of training and testing samples for the device
-    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train_count}')
-    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test_count}')
+    df_model = df_model.cache()
+    df_model_count = df_model.count()
 
     # If there are no samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model
-    if df_model_train_count == 0 and df_model_test_count == 0:
+    if df_model_count == 0:
         print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
         return None, None
 
-    # If there are samples for the device but there is imbalance in the number of training and testing samples,
-    # it's necessary to apply a new division of all the samples in training and testing in order to have sufficient
-    # samples specially for training
-    if df_model_train_count == 0 or df_model_test_count == 0 or df_model_train_count * 0.85 < df_model_test_count:
-        
-        print(f"[INFO] Adjusting sample split due to imbalance...")
-
-        # Binds training and testing datasets
-        df_model = df_model_train.unionByName(df_model_test, allowMissingColumns=True)
-
-        # Applies new division in training and testing based in dataset size rules
-        df_model_train, df_model_test = train_test_split(df_model)
-
-    # NOTE: uncomment these two lines to print the number of training and testing samples for the device after sample redistribution
-    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr} after sample redistribution: {df_model_train.count()}')
-    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr} after sample redistribution: {df_model_test.count()}')
-
     # Remove columns where all values are null
-    non_null_columns_train = [
-        c for c in df_model_train.columns
-        if (df_model_train.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+    non_null_columns = [
+        c for c in df_model.columns
+        if (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
     ]
 
-    non_null_columns_test = [
-        c for c in df_model_test.columns
-        if (df_model_test.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-    ]
+    df_model = df_model.select(non_null_columns)
 
-    df_model_train = df_model_train.select(non_null_columns_train)
-    df_model_test = df_model_test.select(non_null_columns_test)
-
-    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr", "intrusion", "prediction"]))
-    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr", "intrusion", "prediction"]))
+    non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion", "prediction"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
     # the mean is the best approach to preserve the distribution and variety of the data
-    imputer_train = Imputer(inputCols=non_null_columns_train, outputCols=non_null_columns_train, strategy="mean")
-    imputer_test = Imputer(inputCols=non_null_columns_test, outputCols=non_null_columns_test, strategy="mean")
+    imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
 
-    df_model_train, df_model_test = imputer_train.fit(df_model_train).transform(df_model_train), imputer_test.fit(df_model_test).transform(df_model_test)
+    df_model = imputer.fit(df_model).transform(df_model)
 
     # apply normalization
-    df_model_train, df_model_test = DataPreProcessing.normalization(df_model_train), DataPreProcessing.normalization(df_model_test)
+    df_model = DataPreProcessing.normalization(df_model)
 
     end_time = time.time()
 
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
+
+    # Applies division in training and testing based in dataset size rules
+    df_model_train, df_model_test = train_test_split(df_model)
+
+    # NOTE: uncomment these two lines to print the number of training and testing samples for the device
+    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
+    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
     return df_model_train, df_model_test
 

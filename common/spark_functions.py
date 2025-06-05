@@ -37,8 +37,6 @@ This function lauches attacks on a sub-dataset based on a specific device
 
 """
 def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, num_intrusions):
-
-    #num_intrusions = round(df.count() * intrusion_rate)
     
     # Select the first N logs directly with no sorting
     df_to_modify = df.limit(num_intrusions)
@@ -47,8 +45,27 @@ def modify_device_dataset(df, output_file_path, params, target_values, datasets_
     indexed = df_to_modify.rdd.zipWithIndex().toDF()
     indexed = indexed.selectExpr("_1.*", "_2 as row_number")
 
+    # only apply the values that are inside the array and are not inside the device dataset 
+
+    sf_existing_values = df.select("SF").distinct().rdd.map(lambda r: r[0]).collect()
+    bw_existing_values = df.select("BW").distinct().rdd.map(lambda r: r[0]).collect()
+
+    sf_list = [x for x in target_values[0] if x not in sf_existing_values]
+    bw_list = [x for x in target_values[1] if x not in bw_existing_values]
+
+    if len(sf_list) == 0:
+        params.pop(0)
+        target_values.pop(0)
+
+    if len(bw_list) == 0:
+        params.pop(1)
+        target_values.pop(1)
+
+    target_values[0] = sf_list
+
+    target_values[1] = bw_list
+
     # Apply intrusion values based on index
-    # TODO review this
     for param, values in zip(params, target_values):
         # If not enough values are provided, repeat the last value
         if len(values) < num_intrusions:
@@ -67,7 +84,7 @@ def modify_device_dataset(df, output_file_path, params, target_values, datasets_
 
     df_to_save = df_final.drop("features")
 
-    # Save final dataframe in JSON or PARQUET format
+    # Save final dataframe in JSON or PARQUET format (OPTIONAL)
     if datasets_format == "json":
         df_to_save.coalesce(1).write.mode("overwrite").json(output_file_path)
     else:

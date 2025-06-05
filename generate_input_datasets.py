@@ -3,7 +3,7 @@
 
 import time, os, argparse, glob
 from pathlib import Path
-from common.spark_functions import create_spark_session, train_test_split
+from common.spark_functions import create_spark_session
 from common.dataset_type import DatasetType
 from prepareData.prepareData import pre_process_type
 from common.auxiliary_functions import format_time
@@ -12,6 +12,7 @@ from common.auxiliary_functions import format_time
 
 """
 This function generates input datasets, already with pre-processing applied to prepare data for model training
+It generates one dataset for RXPK messages and other for TXPK messages
 
 """
 def generate_input_datasets(spark_session, format):
@@ -22,8 +23,7 @@ def generate_input_datasets(spark_session, format):
 
         dataset_name = dataset_type.value["name"].lower()
 
-        train_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_train.{format}'
-        test_dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset_test.{format}'
+        dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset.{format}'
 
         # Use glob to safely expand the wildcard
         pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
@@ -34,36 +34,21 @@ def generate_input_datasets(spark_session, format):
 
         # Pre-process and split
         df = pre_process_type(df, dataset_type)
-        df_train, df_test = train_test_split(df)
 
         # Write datasets
-        if format == "json":
-            if not os.path.exists(train_dataset_path):
-                df_train.write.mode("overwrite").json(train_dataset_path)
-                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format was generated')
+        if not os.path.exists(dataset_path):
+            if format == "json":
+                df.write.mode("overwrite").json(dataset_path)
             else:
-                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
+                df.write.mode("overwrite").parquet(dataset_path)
+                
+            print(f'{dataset_name.upper()} dataset in {format.upper()} format was generated')
 
-            if not os.path.exists(test_dataset_path):
-                df_test.write.mode("overwrite").json(test_dataset_path)
-                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format was generated')
-            else:
-                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
-
-        elif format == "parquet":
-            if not os.path.exists(train_dataset_path):
-                df_train.write.mode("overwrite").parquet(train_dataset_path)
-                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format was generated')
-            else:
-                print(f'Train {dataset_name.upper()} dataset in {format.upper()} format already exists')
-
-            if not os.path.exists(test_dataset_path):
-                df_test.write.mode("overwrite").parquet(test_dataset_path)
-                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format was generated')
-            else:
-                print(f'Test {dataset_name.upper()} dataset in {format.upper()} format already exists')
+        else:
+            print(f'{dataset_name.upper()} dataset in {format.upper()} format already exists')
 
     end_time = time.time()
+    
     print("Total time of execution of 'generate_input_datasets.py':",
             format_time(end_time - start_time))
 
