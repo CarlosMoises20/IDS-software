@@ -44,7 +44,7 @@ class IsolationForest:
 
         df_eval = df_with_preds \
             .withColumn("pred_binary", when(col(self.__predictionCol) == -1, 1).otherwise(0)) \
-            .withColumn("label_binary", when(col(self.__labelCol) == 0, 1).otherwise(0))
+            .withColumn("label_binary", when(col(self.__labelCol) == 0, 0).otherwise(1))
 
         evaluator = MulticlassClassificationEvaluator(
             labelCol="label_binary",

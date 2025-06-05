@@ -36,9 +36,9 @@ def create_spark_session():
 This function lauches attacks on a sub-dataset based on a specific device
 
 """
-def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, intrusion_rate):
+def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, num_intrusions):
 
-    num_intrusions = round(df.count() * intrusion_rate)
+    #num_intrusions = round(df.count() * intrusion_rate)
     
     # Select the first N logs directly with no sorting
     df_to_modify = df.limit(num_intrusions)

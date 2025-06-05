@@ -24,18 +24,21 @@ class DataPreProcessing(ABC):
     @staticmethod
     def normalization(df):
 
-        # Normalize all attributes except DevAddr that will not be used for model training, only to identify the model
+        # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion", "prediction"]))
 
-        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
 
         df = assembler.transform(df)
         
-        scaler = MinMaxScaler(inputCol="feat", outputCol="features")
+        # Normalize all assembled attributes
+        #scaler = MinMaxScaler(inputCol="feat", outputCol="features")
         
-        df = scaler.fit(df).transform(df)
+        #df = scaler.fit(df).transform(df)
 
-        return df.drop("feat")
+        #return df.drop("feat")
+
+        return df
     
     
     """

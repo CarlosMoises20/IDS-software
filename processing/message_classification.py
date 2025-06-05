@@ -8,6 +8,7 @@ from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
 from models.autoencoder import Autoencoder
 from models.kNN import KNNAnomalyDetector
+from models.one_class_svm import OneClassSVM
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
 from common.spark_functions import modify_device_dataset
@@ -139,7 +140,6 @@ class MessageClassification:
         df_predictions = if_class.test(model)
 
         accuracy, matrix = if_class.evaluate(df_predictions)"""
-
         
         """### AUTOENCODER (not good results on detecting intrusions)
         
@@ -149,7 +149,7 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        ### kNN (very innefficient with large datasets)
+        """### kNN (very innefficient with large datasets)
         
         model, accuracy, matrix, labels, report = None, None, None, None, None
 
@@ -163,17 +163,38 @@ class MessageClassification:
 
         model = knn.train()
 
-        accuracy, matrix, report = knn.test(model)
+        accuracy, matrix, report = knn.test(model)"""
+
+
+        ### One-Class SVM
+
+        ocsvm = OneClassSVM(spark_session=self.__spark_session,
+                            df_train=df_model_train,
+                            df_test=df_model_test,
+                            featuresCol="features",
+                            predictionCol="prediction",
+                            labelCol="intrusion")
         
-        if accuracy is not None:
+        model = ocsvm.train()
+
+        df_preds = ocsvm.test(model)
+
+        accuracy, evaluation = ocsvm.evaluate(df_preds)
+
+        if evaluation is not None:
+            print("Evaluation Report:\n")
+            for key, value in evaluation.items():
+                print(f"{key}: {value}")
+        
+        """if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
             print("Confusion matrix:\n", matrix) 
         
         if report is not None:
-            #print("Report:\n", json.dumps(report, indent=4))
-            print("Report:\n", report)
+            print("Report:\n", json.dumps(report, indent=4))
+            #print("Report:\n", report)"""
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
@@ -214,18 +235,20 @@ class MessageClassification:
 
                     dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
-                    sf_list = [111, 118, 150, 152, 153, 155]
-                    bw_list = [250, 350, 500, 700, 650]
-                    data_len_list = [893, 895, 897, 909, 911, 1000]
+                    # TODO try put all possible range and then on 'modify_device_dataset', only apply
+                    # the values that are inside the array and are not inside the device dataset 
+                    sf_list = [11]              
+                    bw_list = [250, 500]
+                    data_len_list = [100, 110, 120, 130, 140]
 
                     intrusion_rate = 0.15
 
                     df_model_test = modify_device_dataset(df=df_model_test,
                                                             output_file_path=dataset_path,
-                                                            params=["SF", "BW", "dataLen"], 
-                                                            target_values=[sf_list, bw_list, data_len_list],
+                                                            params=["BW", "dataLen"], 
+                                                            target_values=[bw_list, data_len_list],
                                                             datasets_format=datasets_format,
-                                                            intrusion_rate=intrusion_rate)
+                                                            num_intrusions=10)
                 
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         
