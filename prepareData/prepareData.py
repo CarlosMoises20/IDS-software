@@ -148,8 +148,8 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     df_model_train = df_model_train.select(non_null_columns_train)
     df_model_test = df_model_test.select(non_null_columns_test)
 
-    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr", "intrusion"]))
-    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr", "intrusion"]))
+    non_null_columns_train = list(set(non_null_columns_train) - set(["DevAddr", "intrusion", "prediction"]))
+    non_null_columns_test = list(set(non_null_columns_test) - set(["DevAddr", "intrusion", "prediction"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value

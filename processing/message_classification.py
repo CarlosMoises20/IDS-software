@@ -124,7 +124,7 @@ class MessageClassification:
 
         start_time = time.time()
 
-        ### ISOLATION FOREST
+        """### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -138,7 +138,7 @@ class MessageClassification:
 
         df_predictions = if_class.test(model)
 
-        accuracy, matrix = if_class.evaluate(df_predictions)
+        accuracy, matrix = if_class.evaluate(df_predictions)"""
 
         
         """### AUTOENCODER (not good results on detecting intrusions)
@@ -149,7 +149,7 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        """### kNN (very innefficient with large datasets)
+        ### kNN (very innefficient with large datasets)
         
         model, accuracy, matrix, labels, report = None, None, None, None, None
 
@@ -164,9 +164,6 @@ class MessageClassification:
         model = knn.train()
 
         accuracy, matrix, report = knn.test(model)
-
-
-        """
         
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
@@ -174,8 +171,9 @@ class MessageClassification:
         if matrix is not None:
             print("Confusion matrix:\n", matrix) 
         
-        """if report is not None:
-            print("Report:\n", json.dumps(report, indent=4))"""
+        if report is not None:
+            #print("Report:\n", json.dumps(report, indent=4))
+            print("Report:\n", report)
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 

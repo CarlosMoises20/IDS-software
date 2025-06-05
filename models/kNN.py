@@ -2,6 +2,8 @@ from pyspark.ml.feature import BucketedRandomProjectionLSH
 from pyspark.sql.functions import col, avg, when, lit, monotonically_increasing_id
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from functools import reduce
+from pyspark.sql.window import Window
+from pyspark.sql.functions import row_number
 
 
 # TODO: fix this, make this an anomaly / outlier detector rather than a traditional binary classifier
@@ -10,8 +12,12 @@ from functools import reduce
 class KNNAnomalyDetector:
     def __init__(self, k, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile):
         self.__k = k
-        self.__df_train = df_train.withColumn("id", monotonically_increasing_id())
-        self.__df_test = df_test.withColumn("id", monotonically_increasing_id())
+        self.__df_train = df_train.withColumn("id", monotonically_increasing_id()).select(
+            "id", featuresCol, labelCol, predictionCol
+        )
+        self.__df_test = df_test.withColumn("id", monotonically_increasing_id()).select(
+            "id", featuresCol, labelCol, predictionCol
+        )
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
         self.__predictionCol = predictionCol
@@ -23,37 +29,40 @@ class KNNAnomalyDetector:
                                 numHashTables=3
                             )
 
-        self.__threshold = None
+        self.__threshold = None        
 
+    
+    def __compute_avg_distances(self, model, df_query, df_reference, is_train=False):
 
-    def __get_neighbors_for_all(self, model, df_query, df_reference):
-        spark = df_query.sparkSession
-        neighbors_list = []
+        # Join aproximado entre query e referência
+        joined = model.approxSimilarityJoin(
+            df_query.select("id", self.__featuresCol),
+            df_reference.select("id", self.__featuresCol),
+            float("inf"),  # pegar todas as distâncias
+            distCol="distCol"
+        )
+        # Remove self-match if it's training data
+        if is_train:
+            joined = joined.filter(col("datasetA.id") != col("datasetB.id"))
 
-        for row in df_query.collect():
-            point_id = row["id"]
-            features = row[self.__featuresCol]
+        windowSpec = Window.partitionBy("datasetA.id").orderBy("distCol")
+        neighbors_ranked = joined.withColumn("rank", row_number().over(windowSpec))
 
-            # Create single-row DataFrame for the query point
-            neighbors = model.approxNearestNeighbors(df_reference, features, self.__k + 1)
-            neighbors = neighbors.filter(col("id") != lit(point_id))
-            neighbors = neighbors.withColumn("query_id", lit(point_id))
-            neighbors_list.append(neighbors)
+        # Pega apenas os k vizinhos mais próximos
+        top_k = neighbors_ranked.filter(col("rank") <= self.__k)
 
-        if neighbors_list:
-            return reduce(lambda df1, df2: df1.union(df2), neighbors_list)
-        else:
-            return spark.createDataFrame([], df_reference.schema)
+        # Média das distâncias para cada observação da query
+        avg_dists = top_k.groupBy("datasetA.id").agg(avg("distCol").alias("avg_dist"))
+
+        return avg_dists.withColumnRenamed("datasetA.id", "query_id")
+
 
     def train(self):
 
         self.__model = self.__model_class.fit(self.__df_train)
         
-        # Compute neighbors of training data with itself (excluding self-match)
-        neighbors = self.__get_neighbors_for_all(self.__model, self.__df_train, self.__df_train)
-
         # Calculate average distances
-        avg_dists = neighbors.groupBy("query_id").agg(avg("distCol").alias("avg_dist"))
+        avg_dists = self.__compute_avg_distances(self.__model, self.__df_train, self.__df_train, is_train=True)
 
         # Compute threshold based on percentile
         dist_percentiles = avg_dists.approxQuantile("avg_dist", [self.__threshold_percentile / 100], 0.01)
@@ -61,15 +70,12 @@ class KNNAnomalyDetector:
 
         return self.__model
 
-    def predict(self, model):
+    def predict(self, model=None):
 
-        # Compute neighbors of test points with training set
-        neighbors = self.__get_neighbors_for_all(model, self.__df_test, self.__df_train)
+        model = model or self.__model
+        avg_dists = self.__compute_avg_distances(model, self.__df_test, self.__df_train)
 
-        # Calculate average distance of each test point
-        avg_dists = neighbors.groupBy("query_id").agg(avg("distCol").alias("avg_dist"))
-
-        # Classify as anomaly based on threshold
+        # Classify based on threshold
         predictions = avg_dists.withColumn(
             self.__predictionCol,
             when(col("avg_dist") > self.__threshold, lit(1)).otherwise(lit(0))
@@ -87,7 +93,7 @@ class KNNAnomalyDetector:
         y_true = [row[self.__labelCol] for row in labeled.collect()]
         y_pred = [row[self.__predictionCol] for row in labeled.collect()]
 
-        report = classification_report(y_true, y_pred)
+        report = classification_report(y_true, y_pred, zero_division=0)
         matrix = confusion_matrix(y_true, y_pred)
         accuracy = accuracy_score(y_true, y_pred)
 
