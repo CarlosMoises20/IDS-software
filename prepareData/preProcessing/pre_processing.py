@@ -8,7 +8,7 @@ from pyspark.ml.feature import MinMaxScaler, VectorAssembler
 class DataPreProcessing(ABC):
 
     """
-    Applies normalization of features to a scale between 0 and 1.
+    Applies normalization of features to a defined scale.
     
     This improves the performance of machine learning algorithms by enabling faster convergence, better clustering,
     and more consistent input for neural networks.
@@ -25,7 +25,7 @@ class DataPreProcessing(ABC):
     def normalization(df):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion", "prediction"]))
+        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
 
         assembler = VectorAssembler(inputCols=column_names, outputCol="features")
 

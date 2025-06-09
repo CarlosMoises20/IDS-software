@@ -12,8 +12,8 @@ Auxiliary function to create spark session
 """
 def create_spark_session():
 
-    """if not os.path.exists(SPARK_IFOREST_JAR):
-        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")"""
+    if not os.path.exists(SPARK_IFOREST_JAR):
+        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")
 
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
@@ -36,7 +36,8 @@ def create_spark_session():
 This function lauches attacks on test dataset based on a specific device
 
 """
-def modify_device_dataset(df_train, df_test, output_file_path, params, target_values, datasets_format, num_intrusions):
+def modify_device_dataset(df_train, df_test, output_file_path, params, target_values, datasets_format, num_intrusions,
+                          dataset_type):
     
     # Select the first N logs directly with no sorting
     df_to_modify = df_test.limit(num_intrusions)
@@ -52,18 +53,31 @@ def modify_device_dataset(df_train, df_test, output_file_path, params, target_va
 
     sf_list = [x for x in target_values[0] if x not in sf_existing_values]
     bw_list = [x for x in target_values[1] if x not in bw_existing_values]
+    
 
     if len(sf_list) == 0:
         params.pop(0)
         target_values.pop(0)
+    else:
+        target_values[0] = sf_list
 
     if len(bw_list) == 0:
         params.pop(1)
         target_values.pop(1)
+    else:
+        target_values[1] = bw_list
 
-    target_values[0] = sf_list
 
-    target_values[1] = bw_list
+    """if dataset_type == "rxpk":
+
+        rssi_existing_values = df_train.select("rssi").distinct().rdd.map(lambda r: r[0]).collect()
+        rssi_list = [x for x in target_values[2] if x not in rssi_existing_values]
+
+        if len(rssi_list) == 0:
+            params.pop(3)
+            target_values.pop(3)
+        else:
+            target_values[3] = rssi_list"""
 
     # Apply intrusion values based on index
     for param, values in zip(params, target_values):

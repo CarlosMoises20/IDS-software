@@ -52,7 +52,7 @@ class OneClassSVM:
 
         # Accuracy
         evaluator = MulticlassClassificationEvaluator(
-            labelCol=self.__labelCol, raw=self.__predictionCol, metricName="accuracy"
+            labelCol=self.__labelCol, predictionCol=self.__predictionCol, metricName="accuracy"
         )
         accuracy = evaluator.evaluate(df_eval)
 

@@ -2,7 +2,6 @@
 import time, mlflow, shutil, os, json
 import mlflow.sklearn
 from common.dataset_type import DatasetType
-from common.constants import SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
@@ -12,7 +11,6 @@ from models.kNN import KNNAnomalyDetector
 from models.one_class_svm import OneClassSVM
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
-from common.spark_functions import modify_device_dataset
 
 class MessageClassification:
 
@@ -132,15 +130,16 @@ class MessageClassification:
                                    df_train=df_model_train, 
                                    df_test=df_model_test, 
                                    featuresCol="features",
+                                   scoreCol="score",
                                    predictionCol="prediction",
                                    labelCol="intrusion",
-                                   contamination=intrusion_rate)
+                                   contamination=intrusion_rate,
+                                   dataset_type=dataset_type.value["name"],
+                                   dev_addr=dev_addr)
 
         model = if_class.train()
 
-        df_predictions = if_class.test(model)
-
-        accuracy, matrix = if_class.evaluate(df_predictions)
+        accuracy, matrix = if_class.test(model)
         
         """### AUTOENCODER (not good results on detecting intrusions)
         
@@ -150,7 +149,7 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        """### kNN (very innefficient with large datasets)
+        """### kNN (TODO: try that GitHub repository, the other implementation is very innefficient with large datasets)
         
         model, accuracy, matrix, labels, report = None, None, None, None, None
 
@@ -228,31 +227,22 @@ class MessageClassification:
             for dataset_type in DatasetType:
 
                 # Pre-Processing phase
-                df_model_train, df_model_test = prepare_df_for_device(self.__spark_session, dataset_type, dev_addr)  
+                df_model_train, df_model_test, intrusion_rate = prepare_df_for_device(self.__spark_session, dataset_type, dev_addr, datasets_format)  
 
                 # If there are samples for the device, the model will be created
-                if (df_model_train, df_model_test) != (None, None):
+                if (df_model_train, df_model_test, intrusion_rate) != (None, None, None):
 
-                    dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
-                    dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
-                    num_intrusions = 10
+                    """target_values = None
 
-                    intrusion_rate = num_intrusions / df_model_test.count()
-
-                    # Save final dataframe in JSON or PARQUET format (OPTIONAL)
-                    if datasets_format == "json":
-                        df_model_train.drop("features").coalesce(1).write.mode("overwrite").json(dataset_train_path)
+                    if dataset_type.value["name"] == "rxpk":
+                        target_values = [SF_LIST, BW_LIST, 
+                                        DATA_LEN_LIST_ABNORMAL, 
+                                        list(range(RSSI_MIN, RSSI_MAX + 1))]
+                    
                     else:
-                        df_model_train.drop("features").coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
+                        target_values = [SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL]"""
 
-                    df_model_test = modify_device_dataset(df_train=df_model_train,
-                                                            df_test=df_model_test,
-                                                            output_file_path=dataset_test_path,
-                                                            params=["SF", "BW", "dataLen"], 
-                                                            target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
-                                                            datasets_format=datasets_format,
-                                                            num_intrusions=num_intrusions)
                     
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         

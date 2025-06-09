@@ -18,10 +18,12 @@ SPARK_FILES_MAX_PARTITION_BYTES = "134217728"
 SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                        
 SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     
 SPARK_SQL_ANSI_ENABLED = "false"
-SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.5.1_2.13-4.0.1.jar")
+SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar")
 
 
 '''LORAWAN PARAMETERS VALUES'''
 SF_LIST = [7, 8, 9, 10, 11, 12]
 BW_LIST = [125, 250, 500]
 DATA_LEN_LIST_ABNORMAL = [200, 210, 220, 230, 240]
+RSSI_MIN = -130
+RSSI_MAX = -10
