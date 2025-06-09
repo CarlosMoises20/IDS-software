@@ -1,30 +1,30 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
-### To install Apache Spark on your local machine
+### To install Apache Spark on your local machine (use version 3.5.1)
 https://spark.apache.org/downloads.html
 
 That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file.
 
 You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
 
-### To install Java on your local machine (version 17 recommended), using the link below
-https://www.oracle.com/java/technologies/javase/jdk17-archive-downloads.html
+### To install Java on your local machine (version 11 recommended), using the link below
+https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
 Or use the command line
 &emsp; 3a - On Linux
 ```
-sudo apt install openjdk-17-jdk
+sudo apt install openjdk-11-jdk
 ``` 
 
 &emsp; 3b - On MacOS
 ```
-brew apt install openjdk@17
+brew apt install openjdk@11
 ``` 
 
 &emsp; 3c - On Windows
 ```
-choco install openjdk17
+choco install openjdk11
 ``` 
 
 ### Check Java version in your local machine to ensure that it was correctly installed
@@ -60,15 +60,15 @@ Go to the link https://git-scm.com/downloads
 
 ### To use Isolation Forest algorithm on the implementation, you must apply the following steps
 
-1 - Clone the GitHub repository corresponding to the link https://github.com/titicaca/spark-iforest.git
+1 - Clone the GitHub repository corresponding to the link https://github.com/linkedin/isolation-forest
 ```
-git clone https://github.com/titicaca/spark-iforest.git
+git clone https://github.com/linkedin/isolation-forest
 ```
-And then follow only the Step 1 on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. You also need Java 8 to compile Maven project 
+And then follow only the steps on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. 
 
-2 - Install Scala (version 2.12 or above recommended): https://www.scala-lang.org/download/ (or in the command line)
+2 - Install Scala (version 2.13.14 recommended): https://www.scala-lang.org/download/ (or in the command line)
 
-3 - Install sbt package (version 1.5)
+3 - Install sbt package
 
 &emsp; 3a - On Linux
 ```

@@ -7,14 +7,14 @@ from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 class IsolationForest:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, 
-                 contamination=0.05, numTrees=100, maxSamples=256, seed=42):
+                 contamination=0.05, numTrees=150, maxSamples=256, seed=42):
         
         self.__df_train = df_train
         self.__df_test = df_test
         self.__predictionCol = predictionCol
         self.__labelCol = labelCol
         self.__model = JavaTransformer._create_from_java_class(
-                                spark_session._jvm.org.apache.spark.ml.iforest.IForest()
+                                spark_session._jvm.com.linkedin.relevance.isolationforest.IsolationForest()
                                     .setNumTrees(numTrees)
                                     .setMaxSamples(maxSamples)
                                     .setFeaturesCol(featuresCol)

@@ -12,8 +12,8 @@ Auxiliary function to create spark session
 """
 def create_spark_session():
 
-    if not os.path.exists(SPARK_IFOREST_JAR):
-        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")
+    """if not os.path.exists(SPARK_IFOREST_JAR):
+        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")"""
 
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
@@ -33,13 +33,13 @@ def create_spark_session():
 
 
 """
-This function lauches attacks on a sub-dataset based on a specific device
+This function lauches attacks on test dataset based on a specific device
 
 """
-def modify_device_dataset(df, output_file_path, params, target_values, datasets_format, num_intrusions):
+def modify_device_dataset(df_train, df_test, output_file_path, params, target_values, datasets_format, num_intrusions):
     
     # Select the first N logs directly with no sorting
-    df_to_modify = df.limit(num_intrusions)
+    df_to_modify = df_test.limit(num_intrusions)
 
     # Add an index to map the intrusion values
     indexed = df_to_modify.rdd.zipWithIndex().toDF()
@@ -47,8 +47,8 @@ def modify_device_dataset(df, output_file_path, params, target_values, datasets_
 
     # only apply the values that are inside the array and are not inside the device dataset 
 
-    sf_existing_values = df.select("SF").distinct().rdd.map(lambda r: r[0]).collect()
-    bw_existing_values = df.select("BW").distinct().rdd.map(lambda r: r[0]).collect()
+    sf_existing_values = df_train.select("SF").distinct().rdd.map(lambda r: r[0]).collect()
+    bw_existing_values = df_train.select("BW").distinct().rdd.map(lambda r: r[0]).collect()
 
     sf_list = [x for x in target_values[0] if x not in sf_existing_values]
     bw_list = [x for x in target_values[1] if x not in bw_existing_values]
@@ -77,7 +77,7 @@ def modify_device_dataset(df, output_file_path, params, target_values, datasets_
     indexed = indexed.withColumn("intrusion", lit(1))
 
     # Prepare the non-modified dataframe
-    df_unmodified = df.exceptAll(df_to_modify)
+    df_unmodified = df_test.exceptAll(df_to_modify)
 
     # Join intrusive packets with normal packets
     df_final = df_unmodified.unionByName(indexed.drop("row_number"), allowMissingColumns=True)

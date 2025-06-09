@@ -126,7 +126,7 @@ class MessageClassification:
 
         start_time = time.time()
 
-        """### ISOLATION FOREST
+        ### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -140,7 +140,7 @@ class MessageClassification:
 
         df_predictions = if_class.test(model)
 
-        accuracy, matrix = if_class.evaluate(df_predictions)"""
+        accuracy, matrix = if_class.evaluate(df_predictions)
         
         """### AUTOENCODER (not good results on detecting intrusions)
         
@@ -166,8 +166,7 @@ class MessageClassification:
 
         accuracy, matrix, report = knn.test(model)"""
 
-
-        ### One-Class SVM
+        """### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -185,15 +184,15 @@ class MessageClassification:
         if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
-        """if accuracy is not None:
+        if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
             print("Confusion matrix:\n", matrix) 
         
-        if report is not None:
+        """if report is not None:
             print("Report:\n", json.dumps(report, indent=4))
             #print("Report:\n", report)"""
 
@@ -234,17 +233,22 @@ class MessageClassification:
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test) != (None, None):
 
-                    dataset_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
-
-                    # TODO try put all possible range and then on 'modify_device_dataset', only apply
-                    # the values that are inside the array and are not inside the device dataset 
+                    dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
+                    dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
                     num_intrusions = 10
 
                     intrusion_rate = num_intrusions / df_model_test.count()
 
-                    df_model_test = modify_device_dataset(df=df_model_test,
-                                                            output_file_path=dataset_path,
+                    # Save final dataframe in JSON or PARQUET format (OPTIONAL)
+                    if datasets_format == "json":
+                        df_model_train.drop("features").coalesce(1).write.mode("overwrite").json(dataset_train_path)
+                    else:
+                        df_model_train.drop("features").coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
+
+                    df_model_test = modify_device_dataset(df_train=df_model_train,
+                                                            df_test=df_model_test,
+                                                            output_file_path=dataset_test_path,
                                                             params=["SF", "BW", "dataLen"], 
                                                             target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
                                                             datasets_format=datasets_format,

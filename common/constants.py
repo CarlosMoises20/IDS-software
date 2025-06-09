@@ -15,10 +15,10 @@ SPARK_EXECUTOR_HEARTBEAT_INTERVAL = "30s"
 SPARK_PRE_PROCESSING_NUM_PARTITIONS = "70" 
 SPARK_PROCESSING_NUM_PARTITIONS = "30" 
 SPARK_FILES_MAX_PARTITION_BYTES = "134217728"
-SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                          # best approach to handle the big weight of Deep-Learning processing
-SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     # If using MLlib or saving/loading models
+SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                        
+SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     
 SPARK_SQL_ANSI_ENABLED = "false"
-SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-iforest-2.4.0.jar")
+SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.5.1_2.13-4.0.1.jar")
 
 
 '''LORAWAN PARAMETERS VALUES'''

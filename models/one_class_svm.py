@@ -18,44 +18,49 @@ class OneClassSVM:
 
     def train(self):
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        self.__model = OCSVM(kernel='sigmoid', nu=self.__nu, gamma=self.__gamma)
-        self.__model.fit(features)
-        return self.__model
+        self.__model = OCSVM(nu=self.__nu, gamma=self.__gamma)
+        return self.__model.fit(features)
+    
+    def predict(self, model, features):
+        return model.predict(features)
 
     def test(self, model):
         features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        scores = model.decision_function(features).ravel() * (-1)
-        preds = model.predict(features)
-
-        print(preds)
+        preds = self.predict(model, features)
 
         # Convert scikit predictions to binary labels (-1: anomaly -> 1: normal -> 0)
         pred_labels = np.where(preds == -1, 1, 0)
+
+        print(pred_labels)
 
         # Extrai os rótulos reais do DataFrame de teste
         true_labels = self.__df_test.select(self.__labelCol).rdd.map(lambda r: int(r[0])).collect()
 
         # Converte todos os elementos para tipos nativos do Python
-        data = [(int(label), int(pred), float(score)) for label, pred, score in zip(true_labels, pred_labels, scores)]
+        data = [(int(label), int(pred)) for label, pred in zip(true_labels, pred_labels)]
 
         # Cria DataFrame com os nomes das colunas
-        pred_df = self.__spark_session.createDataFrame(data, [self.__labelCol, self.__predictionCol, "score"])
+        pred_df = self.__spark_session.createDataFrame(data, [self.__labelCol, self.__predictionCol])
         return pred_df
 
 
-    def evaluate(self, df_with_preds: DataFrame) -> tuple[float, dict]:
+    def evaluate(self, df_with_preds):
         """Avalia os resultados do modelo"""
         df_eval = df_with_preds.withColumn(self.__predictionCol, col(self.__predictionCol).cast(DoubleType()))
 
+        df_eval.show(50, truncate=False)
+
         # Accuracy
         evaluator = MulticlassClassificationEvaluator(
-            labelCol=self.__labelCol, predictionCol=self.__predictionCol, metricName="accuracy"
+            labelCol=self.__labelCol, raw=self.__predictionCol, metricName="accuracy"
         )
         accuracy = evaluator.evaluate(df_eval)
 
         # Confusion Matrix
         cm = df_eval.groupBy(self.__labelCol, self.__predictionCol).count().collect()
         matrix = {(row[self.__labelCol], row[self.__predictionCol]): row["count"] for row in cm}
+
+        print(matrix)
 
         tn = matrix.get((0, 0), 0)
         fp = matrix.get((0, 1), 0)
