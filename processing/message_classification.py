@@ -227,11 +227,12 @@ class MessageClassification:
             for dataset_type in DatasetType:
 
                 # Pre-Processing phase
-                df_model_train, df_model_test, intrusion_rate = prepare_df_for_device(self.__spark_session, dataset_type, dev_addr, datasets_format)  
+                df_model_train, df_model_test, intrusion_rate = prepare_df_for_device(
+                    self.__spark_session, dataset_type, dev_addr, datasets_format
+                )  
 
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test, intrusion_rate) != (None, None, None):
-
 
                     """target_values = None
 
@@ -242,7 +243,6 @@ class MessageClassification:
                     
                     else:
                         target_values = [SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL]"""
-
                     
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate)         

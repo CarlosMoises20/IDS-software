@@ -1,14 +1,14 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
-### To install Apache Spark on your local machine (use version 3.5.1)
+### To install Apache Spark on your local machine (use version 3.3.2)
 https://spark.apache.org/downloads.html
 
 That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file.
 
 You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
 
-### To install Java on your local machine (version 11 recommended), using the link below
+### To install Java on your local machine (version 11), using the link below
 https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
 Or use the command line
@@ -66,7 +66,7 @@ git clone https://github.com/linkedin/isolation-forest
 ```
 And then follow only the steps on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. 
 
-2 - Install Scala (version 2.13.14 recommended): https://www.scala-lang.org/download/ (or in the command line)
+2 - Install Scala (version 2.12.12 recommended): https://www.scala-lang.org/download/ (or in the command line)
 
 3 - Install sbt package
 
@@ -86,20 +86,20 @@ choco install sbt
 ``` 
 
 
-### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET)
+### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET), and if you want to skip dataset generation if it already exists
 ```python3
-python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by default is "json")
+python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by default is "json") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
 
 
 ### Create models based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
 ```python3
-python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} --dataset_format ("json" or "parquet"; by default is "json")
-```
+python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} --dataset_format ("json" or "parquet"; by default is "json") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
+``` 
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
  ```python3
-python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "json")
+python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "json") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
 If you want to stop the application, just force it (Ctrl + C in Windows)
 

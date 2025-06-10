@@ -22,33 +22,29 @@ def pre_process_type(df, dataset_type):
     # specific to each type of LoRaWAN message
     df = dataset_type.value["pre_processing_class"].pre_process_data(df)
 
-
     # Replace NULL and empty-string values of DevAddr with "Unknown"
     # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
     # targeted by some sort of attack in the LoRaWAN physical layer
     df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == lit("")), "Unknown")
                                     .otherwise(col("DevAddr")))
     
-
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
     # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
     df = df.withColumn("CFListType", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
-                                        .otherwise(expr("substring(CFList, -2, 2)")))
+                                    .otherwise(expr("substring(CFList, -2, 2)")))
 
-    # remove the "CFList" attribute, since it's already split to "FreqCh4", "FreqCh5", "FreqCh6", 
-    # "FreqCh7", "FreqCh8" (on TXPK; in RXPK it's not necessary) and "CFListType" (in both RXPK and TXPK), 
-    # for a more simple processing
-    df = df.drop("CFList")
-
-    # Create 'dataLen' and 'FRMPayload_Len' attributes that correspond to the length of 'data' and 'FRMPayload', 
+    df = df.withColumn("CFList", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
+                                    .otherwise(expr("substring(CFList, 1, length(CFList) - 2)")))
+    
+    # Create 'dataLen' and 'PHYPayload_Len' attributes that correspond to the length of 'data' and 'PHYPayload', 
     # that represents the content of the LoRaWAN message; we only need their lengths to detect anomalies in the data size
     # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
     # which is not supposed
     df = df.withColumn("dataLen", length(col("data"))) \
-            .withColumn("FRMPayload_Len", length(col("FRMPayload")))
+            .withColumn("PHYPayload_Len", length(col("PHYPayload")))
     
-    # remove 'data' and 'FRMPayload' after computing their lengths
-    df = df.drop("data", "FRMPayload")
+    # remove 'data' and 'PHYPayload' after computing their lengths
+    df = df.drop("data", "PHYPayload")
     
     # Convert "codr" from string to float
     str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
@@ -57,12 +53,15 @@ def pre_process_type(df, dataset_type):
     ### Extract values of LoRa parameters SF and BW from "datr" attribute
     pattern = r"SF(\d+)BW(\d+)"     # regex pattern to extract "SF" and "BW" 
 
-    df = df.withColumn("SF", regexp_extract(col("datr"), pattern, 1).cast(IntegerType())) \
-            .withColumn("BW", regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
+    # If pattern is not found, it returns -1 instead of throwing an error
+    df = df.withColumn("SF", when(length(regexp_extract(col("datr"), pattern, 1)) == 0, -1)  # if empty string, put -1
+                            .otherwise(regexp_extract(col("datr"), pattern, 1).cast(IntegerType()))
+                        ).withColumn("BW", when(length(regexp_extract(col("datr"), pattern, 2)) == 0, -1)
+                                        .otherwise(regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
+                                    )
 
     # Remove "datr" after splitting it by "SF" and "BW"
     df = df.drop("datr")
-
 
     ### Ensure all attributes are in integer format
 
@@ -75,9 +74,8 @@ def pre_process_type(df, dataset_type):
     # this also replaces NULL and empty values with -1 to be supported by the algorithms
     # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
     # these would be treated as categorical values, which is not the case
-    hex_attributes = ["AppNonce", "CFListType",
-                        "FCnt", "FCtrl", "FOpts", "FPort", 
-                        "MIC", "NetID", "RxDelay"]
+    hex_attributes = ["AppNonce", "FPort", "MIC", "FCtrl", "FCnt", "FOpts", "MHDR", 
+                      "CFList", "CFListType", "NetID", "RxDelay"]
 
     df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
@@ -85,10 +83,6 @@ def pre_process_type(df, dataset_type):
     return df.withColumn("intrusion", lit(0)) \
             .withColumn("prediction", lit(0)) \
             .withColumn("score", lit(0))
-
-    # TODO reduce even more the dataset dimensionality like on this experience
-    #return df.select("SF", "BW", "tmst", "dataLen", "DevAddr", "intrusion", "prediction")
-
 
 
 """
@@ -124,8 +118,6 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
         )
     ]
 
-    print(non_null_columns)
-
     df_model = df_model.select(non_null_columns)
 
     non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion", "prediction", "score"]))
@@ -141,6 +133,10 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
 
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
+
+    df_model.printSchema()
+
+    print(len(df_model.columns))
 
     # Applies division in training and testing based in dataset size rules
     df_model_train, df_model_test = train_test_split(df_model)
@@ -171,8 +167,8 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
                                             num_intrusions=num_intrusions,
                                             dataset_type=dataset_type.value["name"])
     
-    df_model_train = DataPreProcessing.normalization(df_model_train)
-    df_model_test = DataPreProcessing.normalization(df_model_test)
+    df_model_train = DataPreProcessing.features_assembler(df_model_train)
+    df_model_test = DataPreProcessing.features_assembler(df_model_test)
 
     return df_model_train, df_model_test, intrusion_rate
 

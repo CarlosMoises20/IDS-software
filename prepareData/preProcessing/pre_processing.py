@@ -1,14 +1,16 @@
 
 from pyspark.sql.types import IntegerType, DecimalType
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when, col, expr, lit
+from pyspark.sql.functions import when, col, expr, lit, udf
+from decimal import Decimal
 from common.spark_functions import get_all_attributes_names
-from pyspark.ml.feature import MinMaxScaler, VectorAssembler
+from pyspark.ml.feature import MinMaxScaler, VectorAssembler, PCA
+
 
 class DataPreProcessing(ABC):
 
     """
-    Applies normalization of features to a defined scale.
+    Applies several techniques and assembles to features.
     
     This improves the performance of machine learning algorithms by enabling faster convergence, better clustering,
     and more consistent input for neural networks.
@@ -22,12 +24,12 @@ class DataPreProcessing(ABC):
 
     """
     @staticmethod
-    def normalization(df):
+    def features_assembler(df, explained_variance_threshold=0.95):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
 
-        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
 
         df = assembler.transform(df)
         
@@ -38,9 +40,25 @@ class DataPreProcessing(ABC):
 
         #return df.drop("feat")
 
+        # Applies PCA for dimensionality reduction
+        pca = PCA(k=len(column_names), inputCol="feat", outputCol="features")
+        model = pca.fit(df)
+
+        # Soma acumulada da variância explicada
+        explained_variance = model.explainedVariance.cumsum()
+
+        # Define o menor k que atinge o limiar de variância desejada
+        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+        # Aplica novamente o PCA com o número ótimo de componentes
+        pca_final = PCA(k=k_optimal, inputCol="feat", outputCol="features")
+        df = pca_final.fit(df).transform(df)
+
+        # Mostra o valor escolhido para k (pode ser removido em produção)
+        print(f"Número ótimo de componentes PCA: {k_optimal} (explicando {explained_variance[k_optimal-1]*100:.2f}% da variância)")
+
         return df
-    
-    
+       
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())
     
@@ -101,38 +119,36 @@ class DataPreProcessing(ABC):
     """
     @staticmethod
     def hex_to_decimal(df, attributes):
-        
+
+        # NOT NULL: Converted number to decimal
+        # NULL or EMPTY STRING: -1
+        # ANOMALY: -2
+        def hex_to_decimal_int(hex_str):
+    
+            if hex_str is None or hex_str == "":
+                return Decimal(-1)
+            
+            try:
+                res = int(hex_str, 16)
+                
+                # When the size is higher than expected, indicate an anomaly through another negative number
+                if len(str(res)) > 38:
+                    return Decimal(-2)
+
+                return Decimal(int(hex_str, 16))
+            
+            except:
+                return Decimal(-2)
+                
+        hex_to_decimal_udf = udf(hex_to_decimal_int, DecimalType(38, 0))
+
         for attr in attributes: 
 
             # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
             # for an hexadecimal-to-decimal attribute
-            df = df.withColumn(attr, when((col(attr).isNull()) | (col(attr) == lit("")), lit(-1))
-                                      .otherwise(expr(f"conv({attr}, 16, 10)").cast(DecimalType(38, 0))))
+            df = df.withColumn(attr, hex_to_decimal_udf(col(attr)))
 
         return df
-
-    """
-    Method to reverse hexadecimal octets in string format
-    
-        hex_str: hexadecimal value
-    
-    """
-    @staticmethod
-    def reverse_hex_octets(hex_str):
-
-        # If hex_str is None or an empty string, return an empty string
-        if (hex_str is None) or (hex_str == ""):
-            return -1
-
-        # Ensure hex_str has an even number of characters
-        if len(hex_str) % 2 != 0:
-            raise ValueError("Invalid Format")
-        
-        # Divides hex_str into octets
-        octets = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
-        reversed_octets = "".join(reversed(octets))
-        
-        return reversed_octets
 
     """
     Abstract method for data pre-processing that has different implementations for 'rxpk' and 'txpk'

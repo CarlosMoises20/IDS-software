@@ -27,49 +27,36 @@ class RxpkPreProcessing(DataPreProcessing):
         # attributes that are always NULL
         df = df.withColumn("rxpk", expr("""
                                         transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, 
-                                        'AppNonce', x.AppNonce, 
-                                        'DLSettingsRX1DRoffset', x.DLSettingsRX1DRoffset, 
-                                        'DLSettingsRX2DataRate', x.DLSettingsRX2DataRate,
-                                        'CFList', x.CFList,  
-                                        'DevAddr', x.DevAddr, 
-                                        'DevEUI', x.DevEUI,
-                                        'DevNonce', x.DevNonce, 
-                                        'FCnt', x.FCnt,
-                                        'FCtrl', x.FCtrl,
-                                        'FCtrlACK', x.FCtrlACK,
-                                        'FCtrlADR', x.FCtrlADR,
-                                        'FOpts', x.FOpts, 
-                                        'FPort', x.FPort, 
-                                        'FRMPayload', x.FRMPayload,
-                                        'MIC', x.MIC, 
-                                        'MessageType', CASE 
-                                                            WHEN x.MessageType = 'Join Request' THEN 0 
-                                                            WHEN x.MessageType = 'Join Accept' THEN 1 
-                                                            WHEN x.MessageType = 'Unconfirmed Data Up' THEN 2 
-                                                            WHEN x.MessageType = 'Unconfirmed Data Down' THEN 3 
-                                                            WHEN x.MessageType = 'Confirmed Data Up' THEN 4 
-                                                            WHEN x.MessageType = 'Confirmed Data Down' THEN 5 
-                                                            WHEN x.MessageType = 'RFU' THEN 6 
-                                                            WHEN x.MessageType = 'Proprietary' THEN 7 
-                                                            ELSE -1
-                                                       END, 
-                                        'NetID', x.NetID, 
-                                        'RxDelay', x.RxDelay, 
-                                        'chan', x.chan,
-                                        'codr', x.codr,
-                                        'data', x.data,
-                                        'datr', x.datr, 
-                                        'freq', x.freq, 
-                                        'lsnr', x.lsnr, 
-                                        'rfch', x.rfch, 
-                                        'rsig', transform(x.rsig, rs -> named_struct( 
-                                                        'chan', rs.chan, 
-                                                        'lsnr', rs.lsnr)),
-                                        'rssi', x.rssi, 
-                                        'size', x.size, 
-                                        'stat', x.stat, 
-                                        'tmst', x.tmst ))
-                                    """))
+                                                                        'AppNonce', x.AppNonce, 
+                                                                        'DLSettings', x.DLSettings,
+                                                                        'CFList', x.CFList,  
+                                                                        'DevAddr', x.DevAddr, 
+                                                                        'DevEUI', x.DevEUI,
+                                                                        'DevNonce', x.DevNonce, 
+                                                                        'FCnt', x.FCnt,
+                                                                        'FCtrl', x.FCtrl,
+                                                                        'FOpts', x.FOpts, 
+                                                                        'FPort', x.FPort, 
+                                                                        'PHYPayload', x.PHYPayload,
+                                                                        'MIC', x.MIC,
+                                                                        'MHDR', x.MHDR,
+                                                                        'NetID', x.NetID, 
+                                                                        'RxDelay', x.RxDelay, 
+                                                                        'chan', x.chan,
+                                                                        'codr', x.codr,
+                                                                        'data', x.data,
+                                                                        'datr', x.datr, 
+                                                                        'freq', x.freq, 
+                                                                        'lsnr', x.lsnr, 
+                                                                        'rfch', x.rfch, 
+                                                                        'rsig', transform(x.rsig, rs -> named_struct( 
+                                                                                        'chan', rs.chan, 
+                                                                                        'lsnr', rs.lsnr)),
+                                                                        'rssi', x.rssi, 
+                                                                        'size', x.size, 
+                                                                        'stat', x.stat, 
+                                                                        'tmst', x.tmst ))
+                                                                    """))
 
         # explode 'rxpk' array, since each element inside the 'rxpk' array corresponds to a different LoRaWAN message
         df = df.withColumn("rxpk", explode(col("rxpk")))

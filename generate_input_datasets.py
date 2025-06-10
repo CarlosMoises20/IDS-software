@@ -15,7 +15,7 @@ This function generates input datasets, already with pre-processing applied to p
 It generates one dataset for RXPK messages and other for TXPK messages
 
 """
-def generate_input_datasets(spark_session, format):
+def generate_input_datasets(spark_session, format, skipIfExists=False):
 
     start_time = time.time()
 
@@ -25,18 +25,22 @@ def generate_input_datasets(spark_session, format):
 
         dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset.{format}'
 
-        # Use glob to safely expand the wildcard
-        pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
-        input_files = glob.glob(pattern)
+        if os.path.exists(dataset_path) and skipIfExists:
+            print(f'{dataset_name.upper()} dataset in {format.upper()} format already exists')
 
-        # Load JSON files using expanded list
-        df = spark_session.read.json(input_files).cache()
+        else:
 
-        # Pre-process and split
-        df = pre_process_type(df, dataset_type)
+            # Use glob to safely expand the wildcard
+            pattern = str(Path(f"./datasets/{dataset_name}_*.log").resolve())
+            input_files = glob.glob(pattern)
 
-        # Write datasets
-        if not os.path.exists(dataset_path):
+            # Load JSON files using expanded list
+            df = spark_session.read.json(input_files).cache()
+
+            # Pre-process and split
+            df = pre_process_type(df, dataset_type)
+
+            # Write datasets
             if format == "json":
                 df.write.mode("overwrite").json(dataset_path)
             else:
@@ -44,8 +48,6 @@ def generate_input_datasets(spark_session, format):
                 
             print(f'{dataset_name.upper()} dataset in {format.upper()} format was generated')
 
-        else:
-            print(f'{dataset_name.upper()} dataset in {format.upper()} format already exists')
 
     end_time = time.time()
     
@@ -64,6 +66,6 @@ if __name__ == '__main__':
 
     spark_session = create_spark_session()
 
-    generate_input_datasets(spark_session, datasets_format)
+    generate_input_datasets(spark_session, datasets_format, skipIfExists=True)
 
     spark_session.stop()
