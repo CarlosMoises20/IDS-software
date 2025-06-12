@@ -5,21 +5,23 @@ from sklearn.svm import OneClassSVM as OCSVM
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import DoubleType
 
+# TODO seems to be reasonably working, better than Isolation Forest: keep making improvements
+
 class OneClassSVM:
-    def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, nu=0.1, gamma='auto'):
+    def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, intrusion_rate):
         self.__spark_session = spark_session
         self.__df_train = df_train
         self.__df_test = df_test
         self.__featuresCol = featuresCol
         self.__predictionCol = predictionCol
         self.__labelCol = labelCol
-        self.__nu = nu
-        self.__gamma = gamma
+        self.__nu = intrusion_rate * 0.01       # TODO review this
+        self.__features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        self.__gamma = 1 / self.__features.shape[1]
 
     def train(self):
-        features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        self.__model = OCSVM(nu=self.__nu, gamma=self.__gamma)
-        return self.__model.fit(features)
+        self.__model = OCSVM(kernel='rbf', nu=self.__nu, gamma=self.__gamma)
+        return self.__model.fit(self.__features)
     
     def predict(self, model, features):
         return model.predict(features)
@@ -30,8 +32,6 @@ class OneClassSVM:
 
         # Convert scikit predictions to binary labels (-1: anomaly -> 1: normal -> 0)
         pred_labels = np.where(preds == -1, 1, 0)
-
-        print(pred_labels)
 
         # Extrai os rótulos reais do DataFrame de teste
         true_labels = self.__df_test.select(self.__labelCol).rdd.map(lambda r: int(r[0])).collect()
@@ -47,8 +47,6 @@ class OneClassSVM:
     def evaluate(self, df_with_preds):
         """Avalia os resultados do modelo"""
         df_eval = df_with_preds.withColumn(self.__predictionCol, col(self.__predictionCol).cast(DoubleType()))
-
-        df_eval.show(50, truncate=False)
 
         # Accuracy
         evaluator = MulticlassClassificationEvaluator(

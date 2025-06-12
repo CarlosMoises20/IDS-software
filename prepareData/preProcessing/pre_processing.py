@@ -1,10 +1,16 @@
 
 from pyspark.sql.types import IntegerType, DecimalType
 from abc import ABC, abstractmethod
-from pyspark.sql.functions import when, col, expr, lit, udf
+from pyspark.mllib.linalg.distributed import RowMatrix
+from pyspark.ml.linalg import Vectors, VectorUDT
+from pyspark.mllib.linalg import Vectors as MLLibVectors
+from models.autoencoder.AE_dim_reducer import Autoencoder
+from pyspark.sql import Row
 from decimal import Decimal
+from pyspark.sql import functions as F
 from common.spark_functions import get_all_attributes_names
-from pyspark.ml.feature import MinMaxScaler, VectorAssembler, PCA
+from pyspark.ml.feature import MinMaxScaler, StandardScaler, VectorAssembler, PCA
+from pyspark.ml.linalg import DenseVector as MLDenseVector
 
 
 class DataPreProcessing(ABC):
@@ -24,40 +30,99 @@ class DataPreProcessing(ABC):
 
     """
     @staticmethod
-    def features_assembler(df, explained_variance_threshold=0.95):
+    def features_assembler(df_train, df_test, explained_variance_threshold=0.99):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
+        column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
 
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
 
-        df = assembler.transform(df)
-        
-        # Normalize all assembled attributes
-        #scaler = MinMaxScaler(inputCol="feat", outputCol="features")
-        
-        #df = scaler.fit(df).transform(df)
+        df_train = assembler.transform(df_train)
+        df_test = assembler.transform(df_test)
 
-        #return df.drop("feat")
+        """# Normalize all assembled inside a scale (ISOLATION FOREST)
+        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=10000000000)
+        scaler_model = scaler.fit(df_train)
 
-        # Applies PCA for dimensionality reduction
-        pca = PCA(k=len(column_names), inputCol="feat", outputCol="features")
-        model = pca.fit(df)
+        df_train = scaler_model.transform(df_train)
+        df_test = scaler_model.transform(df_test)"""
 
-        # Soma acumulada da variância explicada
-        explained_variance = model.explainedVariance.cumsum()
+        # Normalize all assembled removing the mean (ONE_CLASS_SVM)
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
+        scaler_model = scaler.fit(df_train)
 
-        # Define o menor k que atinge o limiar de variância desejada
+        df_train = scaler_model.transform(df_train)
+        df_test = scaler_model.transform(df_test)
+
+        """# Autoencoder 
+
+        df_for_ae = df.select("feat").withColumnRenamed("feat", "features")
+
+        # Treinar autoencoder
+        autoencoder = Autoencoder(df=df_for_ae, featuresCol="features")
+        autoencoder.train()
+
+        # Codificar dados
+        encoded_vectors = autoencoder.transform()
+
+        # Converter encoded_vectors para coluna no DataFrame original
+        encoded_rows = [Row(features=Vectors.dense(vec)) for vec in encoded_vectors]
+        encoded_df = df.sparkSession.createDataFrame(encoded_rows)
+
+        # Adicionar índices para o join
+        df_with_index = df.withColumn("idx", F.monotonically_increasing_id())
+        encoded_with_index = encoded_df.withColumn("idx", F.monotonically_increasing_id())
+
+        # Join e remover colunas temporárias
+        df = df_with_index.join(encoded_with_index, on="idx").drop("idx", "feat")"""
+
+        # Fit PCA apenas no df_train
+        pca_model = PCA(k=len(column_names), inputCol="scaled", outputCol="features").fit(df_train)
+        explained_variance = pca_model.explainedVariance.cumsum()
         k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        # Aplica novamente o PCA com o número ótimo de componentes
-        pca_final = PCA(k=k_optimal, inputCol="feat", outputCol="features")
-        df = pca_final.fit(df).transform(df)
+        # Fit PCA final no train
+        pca_final_model = PCA(k=k_optimal, inputCol="scaled", outputCol="features").fit(df_train)
 
-        # Mostra o valor escolhido para k (pode ser removido em produção)
-        print(f"Número ótimo de componentes PCA: {k_optimal} (explicando {explained_variance[k_optimal-1]*100:.2f}% da variância)")
+        # Aplica ao train e test
+        df_train = pca_final_model.transform(df_train)
+        df_test = pca_final_model.transform(df_test)
 
-        return df
+        # Prints the chosen value for k
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+
+        """# SVD: Converte para formato adequado para RowMatrix
+        rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+        mat = RowMatrix(rdd_vectors)
+
+        # Aplica SVD (máximo k = número de colunas)
+        k_max = len(column_names)
+        svd = mat.computeSVD(k_max, computeU=False)
+
+        # Calcula variância explicada acumulada (com base nos valores singulares)
+        sigma = svd.s.toArray()
+        total_variance = (sigma ** 2).sum()
+        explained_variance = (sigma ** 2).cumsum() / total_variance
+
+        # Determina k ideal
+        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+        print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+
+        # Projeta os dados para as k componentes principais via multiplicação manual (usando apenas top-k V)
+        V = svd.V.toArray()[:, :k_optimal]
+
+        # Aplica manualmente a transformação feat * V para obter os novos vetores reduzidos
+        def project_features(feat):
+            # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+            projected_array = feat.dot(V)
+            return MLDenseVector(projected_array)
+
+        project_udf = F.udf(project_features, returnType=VectorUDT())
+        df_train = df_train.withColumn("features", project_udf("scaled"))
+        df_test = df_test.withColumn("features", project_udf("scaled"))"""
+
+        return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
        
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())
@@ -73,11 +138,8 @@ class DataPreProcessing(ABC):
 
         for attr in attributes: 
 
-            # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
-            # for a boolean-to-integer attribute; and also for ML algorithms to be capable to process better the
-            # values, since NULL values can contribute to poor performance of these algorithms
-            df = df.withColumn(attr, when(col(attr).isNull(), -1)
-                                     .otherwise(col(attr).cast(IntegerType())))
+            df = df.withColumn(attr, F.when(F.col(attr).isNull(), None)
+                                     .otherwise(F.col(attr).cast(IntegerType())))
 
         return df
     
@@ -121,32 +183,32 @@ class DataPreProcessing(ABC):
     def hex_to_decimal(df, attributes):
 
         # NOT NULL: Converted number to decimal
-        # NULL or EMPTY STRING: -1
-        # ANOMALY: -2
+        # NULL or EMPTY STRING: NULL
+        # ANOMALY: -1
         def hex_to_decimal_int(hex_str):
     
             if hex_str is None or hex_str == "":
-                return Decimal(-1)
+                return None
             
             try:
                 res = int(hex_str, 16)
                 
                 # When the size is higher than expected, indicate an anomaly through another negative number
                 if len(str(res)) > 38:
-                    return Decimal(-2)
+                    return Decimal(-1)
 
                 return Decimal(int(hex_str, 16))
             
             except:
-                return Decimal(-2)
+                return Decimal(-1)
                 
-        hex_to_decimal_udf = udf(hex_to_decimal_int, DecimalType(38, 0))
+        hex_to_decimal_udf = F.udf(hex_to_decimal_int, DecimalType(38, 0))
 
         for attr in attributes: 
 
             # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
             # for an hexadecimal-to-decimal attribute
-            df = df.withColumn(attr, hex_to_decimal_udf(col(attr)))
+            df = df.withColumn(attr, hex_to_decimal_udf(F.col(attr)))
 
         return df
 

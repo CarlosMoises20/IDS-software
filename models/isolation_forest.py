@@ -5,39 +5,43 @@ from pyspark.sql import DataFrame
 from pyspark.sql.types import DoubleType, IntegerType
 
 
-## it's finally working reasonably!!! TODO: try to make improvements on code organization, if possible
+
 
 class IsolationForest:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol, scoreCol, 
-                 predictionCol, labelCol, dataset_type, dev_addr,
-                 numTrees=700, maxSamples=1.0, maxFeatures=1.0, contamination=0.1, contaminationError=0.001):
+                 predictionCol, labelCol, intrusion_rate, numTrees=2000,
+                 maxFeatures=1.0, seed=42):
         
         self.__spark_session = spark_session
         self.__df_train = df_train.drop("prediction", "score")
         self.__df_test = df_test.drop("prediction", "score")
         self.__predictionCol = predictionCol
+        self.__featuresCol = featuresCol
+        self.__scoreCol = scoreCol
         self.__labelCol = labelCol
-        self.__dataset_type = dataset_type
-        self.__dev_addr = dev_addr
+        self.__intrusionRate = intrusion_rate
 
         # Build Java IsolationForest Estimator
         self.__model = spark_session._jvm.com.linkedin.relevance.isolationforest.IsolationForest() \
                 .setNumEstimators(numTrees) \
-                .setMaxSamples(float(maxSamples)) \
+                .setMaxSamples(float(min(256, df_train.count()))) \
+                .setBootstrap(False) \
                 .setMaxFeatures(float(maxFeatures)) \
                 .setFeaturesCol(featuresCol) \
                 .setPredictionCol(predictionCol) \
                 .setScoreCol(scoreCol) \
-                .setContamination(contamination) \
-                .setContaminationError(contaminationError)
-        
+                .setContamination(0.0) \
+                .setContaminationError(0.0) \
+                .setRandomSeed(seed)
+
+
     """
     Fits the Isolation Forest model using training data.
     
     """
     def train(self):
-        return self.__model.fit(self.__df_train._jdf)
+        return self.__model.fit(self.__df_train.select(self.__featuresCol, self.__labelCol)._jdf)
 
     """
     Apply the fitted model to a new dataset (e.g., test set).
@@ -52,8 +56,11 @@ class IsolationForest:
     
     def evaluate(self, df_with_preds):
 
-        df_eval = df_with_preds \
-            .withColumn(self.__predictionCol, col(self.__predictionCol).cast(DoubleType()))
+        # Define um limiar com base nos scores (ex: top 5% mais anómalos)
+        threshold = df_with_preds.approxQuantile(self.__scoreCol, [self.__intrusionRate], 0.01)[0]
+
+        self.__df_test = df_with_preds \
+            .withColumn(self.__predictionCol, (col(self.__scoreCol) < threshold).cast(DoubleType()))
 
         evaluator = MulticlassClassificationEvaluator(
             labelCol=self.__labelCol,
@@ -61,14 +68,13 @@ class IsolationForest:
             metricName="accuracy"
         )
 
-        accuracy = evaluator.evaluate(df_eval)
+        accuracy = evaluator.evaluate(self.__df_test)
 
-        df_eval.select("tmst", self.__predictionCol, self.__labelCol) \
-                .withColumn(self.__predictionCol, col(self.__predictionCol).cast(IntegerType())) \
-                .write.mode("overwrite").json(f"./generatedDatasets/{self.__dataset_type}/results_{self.__dev_addr}.json")
+        self.__df_test = self.__df_test \
+            .withColumn(self.__predictionCol, col(self.__predictionCol).cast(IntegerType()))
 
         # Confusion Matrix
-        cm = df_eval.groupBy(self.__labelCol, self.__predictionCol).count().collect()
+        cm = self.__df_test.groupBy(self.__labelCol, self.__predictionCol).count().collect()
         matrix = {(row[self.__labelCol], row[self.__predictionCol]): row["count"] for row in cm}
         
         tn = matrix.get((0, 0), 0)
@@ -78,9 +84,13 @@ class IsolationForest:
 
         confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
 
-        return accuracy, confusion_matrix
+        return accuracy, confusion_matrix, self.__df_test
     
     def test(self, model):
+
+        if self.__df_test is None:
+            print("Test dataset is empty. Skipping testing.")
+            return None, None
 
         df_predictions = self.predict(model, self.__df_test._jdf)
 

@@ -25,5 +25,3 @@ SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolatio
 SF_LIST = [7, 8, 9, 10, 11, 12]
 BW_LIST = [125, 250, 500]
 DATA_LEN_LIST_ABNORMAL = [200, 210, 220, 230, 240]
-RSSI_MIN = -130
-RSSI_MAX = -10

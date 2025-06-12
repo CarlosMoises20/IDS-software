@@ -10,7 +10,7 @@ from pyspark.sql.functions import row_number
 
 
 class KNNAnomalyDetector:
-    def __init__(self, k, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile):
+    def __init__(self, k, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=95):
         self.__k = k
         self.__df_train = df_train.withColumn("id", monotonically_increasing_id()).select(
             "id", featuresCol, labelCol, predictionCol
@@ -84,6 +84,9 @@ class KNNAnomalyDetector:
         return predictions
 
     def test(self, model):
+
+        if self.__df_test is None:
+            return None, None, None
         
         predictions = self.predict(model)
 

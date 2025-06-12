@@ -66,6 +66,6 @@ if __name__ == '__main__':
 
     spark_session = create_spark_session()
 
-    generate_input_datasets(spark_session, datasets_format, skipIfExists=True)
+    generate_input_datasets(spark_session, datasets_format)
 
     spark_session.stop()

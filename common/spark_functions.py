@@ -1,8 +1,9 @@
 
+import random
 from common.constants import *
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
-from pyspark.sql.functions import col, lit, create_map
+from pyspark.sql.functions import col, lit, when, monotonically_increasing_id
 from itertools import chain
 from pyspark.sql.types import StructType
 
@@ -36,79 +37,74 @@ def create_spark_session():
 This function lauches attacks on test dataset based on a specific device
 
 """
-def modify_device_dataset(df_train, df_test, output_file_path, params, target_values, datasets_format, num_intrusions,
-                          dataset_type):
+def modify_device_dataset(df_train, df_test, params, target_values, num_intrusions):
     
     # Select the first N logs directly with no sorting
     df_to_modify = df_test.limit(num_intrusions)
 
-    # Add an index to map the intrusion values
-    indexed = df_to_modify.rdd.zipWithIndex().toDF()
-    indexed = indexed.selectExpr("_1.*", "_2 as row_number")
-
+    # Add row index
+    df_indexed = df_to_modify.withColumn("row_number", monotonically_increasing_id())
+    
     # only apply the values that are inside the array and are not inside the device dataset 
 
-    sf_existing_values = df_train.select("SF").distinct().rdd.map(lambda r: r[0]).collect()
-    bw_existing_values = df_train.select("BW").distinct().rdd.map(lambda r: r[0]).collect()
+    # Get unique values in training for each parameter
+    existing_values = {
+        param: set(df_train.select(param).distinct().rdd.map(lambda r: r[0]).collect())
+        for param in params
+    }
 
-    sf_list = [x for x in target_values[0] if x not in sf_existing_values]
-    bw_list = [x for x in target_values[1] if x not in bw_existing_values]
+    # Filter only values not in training dataset
+    filtered_target_values = {
+        param: [val for val in values if val not in existing_values[param]]
+        for param, values in zip(params, target_values)
+    }
+
+    # Remove any params that have no remaining intrusion values
+    filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
+
+    if not params:
+        print("No available intrusion values to inject.")
+        return df_test
     
+    # Sample params randomly for each intrusion sample
+    sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)
 
-    if len(sf_list) == 0:
-        params.pop(0)
-        target_values.pop(0)
-    else:
-        target_values[0] = sf_list
+    # Assign a random value from the corresponding valid list to each sample
+    intrusion_inserts = []
+    for i in range(num_intrusions):
+        param = sampled_params[i]
+        value = random.choice(filtered_target_values[param])
+        intrusion_inserts.append((i, param, value))
 
-    if len(bw_list) == 0:
-        params.pop(1)
-        target_values.pop(1)
-    else:
-        target_values[1] = bw_list
-
-
-    """if dataset_type == "rxpk":
-
-        rssi_existing_values = df_train.select("rssi").distinct().rdd.map(lambda r: r[0]).collect()
-        rssi_list = [x for x in target_values[2] if x not in rssi_existing_values]
-
-        if len(rssi_list) == 0:
-            params.pop(3)
-            target_values.pop(3)
-        else:
-            target_values[3] = rssi_list"""
-
-    # Apply intrusion values based on index
-    for param, values in zip(params, target_values):
-        # If not enough values are provided, repeat the last value
-        if len(values) < num_intrusions:
-            values += [values[-1]] * (num_intrusions - len(values))
-        value_map = create_map([lit(i) for i in chain(*zip(range(num_intrusions), values))])
-        indexed = indexed.withColumn(param, value_map[col("row_number")])
+    # Apply modifications
+    for param in set(sampled_params):
+        updates = {i: v for i, p, v in intrusion_inserts if p == param}
+        df_indexed = df_indexed.withColumn(
+            param,
+            when(col("row_number").isin(list(updates.keys())), 
+                 when(col("row_number").isNotNull(), 
+                      lit(None)  # placeholder that gets overwritten
+                 )).otherwise(col(param))
+        )
+        for i, v in updates.items():
+            df_indexed = df_indexed.withColumn(
+                param,
+                when(col("row_number") == i, lit(v)).otherwise(col(param))
+            )
 
     # Mark packets as intrusive
-    indexed = indexed.withColumn("intrusion", lit(1))
+    df_indexed = df_indexed.withColumn("intrusion", lit(1))
 
     # Prepare the non-modified dataframe
     df_unmodified = df_test.exceptAll(df_to_modify)
 
     # Join intrusive packets with normal packets
-    df_final = df_unmodified.unionByName(indexed.drop("row_number"), allowMissingColumns=True)
-
-    df_to_save = df_final.drop("features")
-
-    # Save final dataframe in JSON or PARQUET format (OPTIONAL)
-    if datasets_format == "json":
-        df_to_save.coalesce(1).write.mode("overwrite").json(output_file_path)
-    else:
-        df_to_save.coalesce(1).write.mode("overwrite").parquet(output_file_path)
+    df_final = df_unmodified.unionByName(df_indexed.drop("row_number"), allowMissingColumns=True)
 
     # Print the dataframe
     df_final.groupBy("intrusion").count().show()
 
     return df_final
-
 
 
 """

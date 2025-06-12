@@ -4,7 +4,7 @@ from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import FloatType, IntegerType
-from common.constants import SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL, RSSI_MIN, RSSI_MAX
+from common.constants import SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.spark_functions import modify_device_dataset
 from pyspark.ml.feature import Imputer
@@ -65,15 +65,13 @@ def pre_process_type(df, dataset_type):
 
     ### Ensure all attributes are in integer format
 
-    # Boolean attributes to integer (True -> 1; False -> 0; NULL -> -1)
+    # Boolean attributes to integer (True -> 1; False -> 0)
     boolean_attributes = get_boolean_attributes_names(df.schema)
-
     df = DataPreProcessing.bool_to_int(df, boolean_attributes)
 
     # hexadecimal attributes to decimal common for all dataset types
-    # this also replaces NULL and empty values with -1 to be supported by the algorithms
     # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
-    # these would be treated as categorical values, which is not the case
+    # these would be treated as categorical values, which is not supposed
     hex_attributes = ["AppNonce", "FPort", "MIC", "FCtrl", "FCnt", "FOpts", "MHDR", 
                       "CFList", "CFListType", "NetID", "RxDelay"]
 
@@ -83,6 +81,8 @@ def pre_process_type(df, dataset_type):
     return df.withColumn("intrusion", lit(0)) \
             .withColumn("prediction", lit(0)) \
             .withColumn("score", lit(0))
+    
+    #return df.select("SF", "BW", "tmst", "dataLen", "PHYPayload_Len" "DevAddr", "intrusion", "prediction")
 
 
 """
@@ -90,7 +90,7 @@ Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device
 
 """
-def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format):
+def prepare_df_for_device(spark_session, dataset_type, dev_addr):
 
     start_time = time.time()
 
@@ -107,19 +107,18 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
         print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
         return None, None, None
 
-    # Remove columns where all values are null or all values are -1
+    # Remove columns where all values are null
     non_null_columns = [
         c for c in df_model.columns
         if (
             # Check if NOT all values are null
-            (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0 and
-            # Check if NOT all values are -1
-            df_model.select(c).distinct().filter(col(c) != -1).count() > 0
+            (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
         )
     ]
 
     df_model = df_model.select(non_null_columns)
 
+    # Remove columns that are not used for model learning
     non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion", "prediction", "score"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
@@ -134,10 +133,6 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
-    df_model.printSchema()
-
-    print(len(df_model.columns))
-
     # Applies division in training and testing based in dataset size rules
     df_model_train, df_model_test = train_test_split(df_model)
 
@@ -145,30 +140,19 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, datasets_format
     #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
     #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-    dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
-    dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
-
-    # Save final dataframe in JSON or PARQUET format (OPTIONAL)
-    if datasets_format == "json":
-        df_model_train.coalesce(1).write.mode("overwrite").json(dataset_train_path)
-    else:
-        df_model_train.coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
-
     num_intrusions = 10
 
     intrusion_rate = num_intrusions / df_model_test.count()
 
     df_model_test = modify_device_dataset(df_train=df_model_train,
                                             df_test=df_model_test,
-                                            output_file_path=dataset_test_path,
-                                            params=["SF", "BW", "dataLen"], 
-                                            target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
-                                            datasets_format=datasets_format,
-                                            num_intrusions=num_intrusions,
-                                            dataset_type=dataset_type.value["name"])
+                                            params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
+                                            target_values=[SF_LIST, BW_LIST, 
+                                                           DATA_LEN_LIST_ABNORMAL, 
+                                                           DATA_LEN_LIST_ABNORMAL],
+                                            num_intrusions=num_intrusions)
     
-    df_model_train = DataPreProcessing.features_assembler(df_model_train)
-    df_model_test = DataPreProcessing.features_assembler(df_model_test)
+    df_model_train, df_model_test = DataPreProcessing.features_assembler(df_model_train, df_model_test)
 
     return df_model_train, df_model_test, intrusion_rate
 
