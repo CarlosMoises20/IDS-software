@@ -81,8 +81,6 @@ def pre_process_type(df, dataset_type):
     return df.withColumn("intrusion", lit(0)) \
             .withColumn("prediction", lit(0)) \
             .withColumn("score", lit(0))
-    
-    #return df.select("SF", "BW", "tmst", "dataLen", "PHYPayload_Len" "DevAddr", "intrusion", "prediction")
 
 
 """
@@ -137,10 +135,10 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     df_model_train, df_model_test = train_test_split(df_model)
 
     # NOTE: uncomment these two lines to print the number of training and testing samples for the device
-    #print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
-    #print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
+    print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
+    print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-    num_intrusions = 10
+    num_intrusions = 12
 
     intrusion_rate = num_intrusions / df_model_test.count()
 

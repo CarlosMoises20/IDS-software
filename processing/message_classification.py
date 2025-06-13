@@ -6,7 +6,6 @@ from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
-from models.autoencoder.AE_classifier import Autoencoder as AEClassifier
 from models.kNN import KNNAnomalyDetector
 from models.one_class_svm import OneClassSVM
 from pyspark.sql.streaming import DataStreamReader
@@ -125,7 +124,7 @@ class MessageClassification:
 
         start_time = time.time()
 
-        """### ISOLATION FOREST
+        ### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -138,15 +137,7 @@ class MessageClassification:
 
         model = if_class.train()
 
-        accuracy, matrix, df_model_test = if_class.test(model)"""
-        
-        """### AUTOENCODER (not good results on detecting intrusions)
-        
-        ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
-
-        model = ae.train()
-
-        accuracy, matrix, report = ae.test()"""
+        accuracy, matrix, df_model_test = if_class.test(model)
 
         """### kNN (TODO: try that GitHub repository, the other implementation is very innefficient with large datasets)
         
@@ -163,7 +154,7 @@ class MessageClassification:
 
         accuracy, matrix, report = knn.test(model)"""
 
-        ### One-Class SVM
+        """### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -177,20 +168,20 @@ class MessageClassification:
 
         df_preds = ocsvm.test(model)
 
-        accuracy, evaluation = ocsvm.evaluate(df_preds)
+        accuracy, evaluation = ocsvm.evaluate(df_preds)"""
 
-        if evaluation is not None:
+        """if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        """if matrix is not None:
+        if matrix is not None:
             print("Confusion matrix:\n", matrix) 
         
-        if report is not None:
+        """if report is not None:
             print("Report:\n", json.dumps(report, indent=4))
             #print("Report:\n", report)"""
 

@@ -84,13 +84,4 @@ class OneClassSVM:
             "F1-Score (anomaly)": f1_score
         }
 
-        # Print results
-        print(f"Accuracy: {accuracy:.4f}")
-        print("Confusion Matrix:")
-        for k, v in confusion.items():
-            print(f"{k}: {v}")
-        print("Classification Report:")
-        for k, v in report.items():
-            print(f"{k}: {v:.4f}")
-
         return accuracy, {**confusion, **report}

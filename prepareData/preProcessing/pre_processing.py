@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from pyspark.mllib.linalg.distributed import RowMatrix
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.mllib.linalg import Vectors as MLLibVectors
-from models.autoencoder.AE_dim_reducer import Autoencoder
+from models.AE_dim_reducer import Autoencoder
 from pyspark.sql import Row
 from decimal import Decimal
 from pyspark.sql import functions as F
@@ -40,19 +40,19 @@ class DataPreProcessing(ABC):
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
-        """# Normalize all assembled inside a scale (ISOLATION FOREST)
-        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=10000000000)
-        scaler_model = scaler.fit(df_train)
-
-        df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)"""
-
-        # Normalize all assembled removing the mean (ONE_CLASS_SVM)
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
+        # Normalize all assembled inside a scale
+        scaler = MinMaxScaler(inputCol="feat", outputCol="features", max=100000000)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
+
+        """# Normalize all assembled removing the mean
+        scaler = StandardScaler(inputCol="feat", outputCol="features")
+        scaler_model = scaler.fit(df_train)
+
+        df_train = scaler_model.transform(df_train)
+        df_test = scaler_model.transform(df_test)"""
 
         """# Autoencoder 
 
@@ -76,20 +76,20 @@ class DataPreProcessing(ABC):
         # Join e remover colunas temporárias
         df = df_with_index.join(encoded_with_index, on="idx").drop("idx", "feat")"""
 
-        # Fit PCA apenas no df_train
-        pca_model = PCA(k=len(column_names), inputCol="scaled", outputCol="features").fit(df_train)
+        """# Fit PCA apenas no df_train
+        pca_model = PCA(k=len(column_names), inputCol="feat", outputCol="features").fit(df_train)
         explained_variance = pca_model.explainedVariance.cumsum()
         k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
         # Fit PCA final no train
-        pca_final_model = PCA(k=k_optimal, inputCol="scaled", outputCol="features").fit(df_train)
+        pca_final_model = PCA(k=k_optimal, inputCol="feat", outputCol="features").fit(df_train)
 
         # Aplica ao train e test
         df_train = pca_final_model.transform(df_train)
         df_test = pca_final_model.transform(df_test)
 
         # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
 
         """# SVD: Converte para formato adequado para RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
