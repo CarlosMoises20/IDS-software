@@ -4,8 +4,6 @@ from abc import ABC, abstractmethod
 from pyspark.mllib.linalg.distributed import RowMatrix
 from pyspark.ml.linalg import Vectors, VectorUDT
 from pyspark.mllib.linalg import Vectors as MLLibVectors
-from models.AE_dim_reducer import Autoencoder
-from pyspark.sql import Row
 from decimal import Decimal
 from pyspark.sql import functions as F
 from common.spark_functions import get_all_attributes_names
@@ -40,79 +38,61 @@ class DataPreProcessing(ABC):
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
-        # Normalize all assembled inside a scale
-        scaler = MinMaxScaler(inputCol="feat", outputCol="features", max=100000000)
-        scaler_model = scaler.fit(df_train)
-
-        df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)
-
-        """# Normalize all assembled removing the mean
-        scaler = StandardScaler(inputCol="feat", outputCol="features")
+        """# Normalize all assembled features inside a scale
+        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=100000000)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)"""
 
-        """# Autoencoder 
+        # Normalize all assembled features removing the mean
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
+        scaler_model = scaler.fit(df_train)
 
-        df_for_ae = df.select("feat").withColumnRenamed("feat", "features")
-
-        # Treinar autoencoder
-        autoencoder = Autoencoder(df=df_for_ae, featuresCol="features")
-        autoencoder.train()
-
-        # Codificar dados
-        encoded_vectors = autoencoder.transform()
-
-        # Converter encoded_vectors para coluna no DataFrame original
-        encoded_rows = [Row(features=Vectors.dense(vec)) for vec in encoded_vectors]
-        encoded_df = df.sparkSession.createDataFrame(encoded_rows)
-
-        # Adicionar índices para o join
-        df_with_index = df.withColumn("idx", F.monotonically_increasing_id())
-        encoded_with_index = encoded_df.withColumn("idx", F.monotonically_increasing_id())
-
-        # Join e remover colunas temporárias
-        df = df_with_index.join(encoded_with_index, on="idx").drop("idx", "feat")"""
-
-        """# Fit PCA apenas no df_train
-        pca_model = PCA(k=len(column_names), inputCol="feat", outputCol="features").fit(df_train)
+        df_train = scaler_model.transform(df_train)
+        df_test = scaler_model.transform(df_test)
+        
+        # Fit PCA using the train dataset    
+        pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+        pca_model = pca.fit(df_train)
         explained_variance = pca_model.explainedVariance.cumsum()
+
+        # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
         k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        # Fit PCA final no train
-        pca_final_model = PCA(k=k_optimal, inputCol="feat", outputCol="features").fit(df_train)
+        # Do the same thing but with the determined optimal k (k_optimal)
+        pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+        pca_final_model = pca.fit(df_train)
 
-        # Aplica ao train e test
+        # Applies trained PCA model to train and test dataset
         df_train = pca_final_model.transform(df_train)
         df_test = pca_final_model.transform(df_test)
 
         # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        """# SVD: Converte para formato adequado para RowMatrix
+        """# SVD: Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
         mat = RowMatrix(rdd_vectors)
 
-        # Aplica SVD (máximo k = número de colunas)
+        # Applies SVD (maximum k = número de colunas)
         k_max = len(column_names)
         svd = mat.computeSVD(k_max, computeU=False)
 
-        # Calcula variância explicada acumulada (com base nos valores singulares)
+        # Calculates cumulated explained variance (according to the singular values)
         sigma = svd.s.toArray()
         total_variance = (sigma ** 2).sum()
         explained_variance = (sigma ** 2).cumsum() / total_variance
 
-        # Determina k ideal
+        # Determines the ideal k
         k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
         print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        # Projeta os dados para as k componentes principais via multiplicação manual (usando apenas top-k V)
+        # Projects data for the k principal components through manual multiplying (using only top-k V)
         V = svd.V.toArray()[:, :k_optimal]
 
-        # Aplica manualmente a transformação feat * V para obter os novos vetores reduzidos
+        # Manually applies the transformation feat * V to obtain the new reduced vectors
         def project_features(feat):
             # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
             projected_array = feat.dot(V)
