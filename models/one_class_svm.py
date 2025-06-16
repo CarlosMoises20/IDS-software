@@ -5,23 +5,27 @@ from sklearn.svm import OneClassSVM as OCSVM
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import DoubleType
 
-# TODO seems to be reasonably working, better than Isolation Forest: keep making improvements
 
 class OneClassSVM:
-    def __init__(self, spark_session, df_train, df_test, featuresCol, predictionCol, labelCol, intrusion_rate):
+    def __init__(self, spark_session, df_train, df_test, featuresCol, 
+                 predictionCol, labelCol, intrusion_rate):
+        
         self.__spark_session = spark_session
         self.__df_train = df_train
         self.__df_test = df_test
         self.__featuresCol = featuresCol
         self.__predictionCol = predictionCol
         self.__labelCol = labelCol
-        self.__nu = intrusion_rate * 0.01       # TODO review this
-        self.__features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        self.__gamma = 1 / self.__features.shape[1]
+        self.__nu = intrusion_rate * 0.1       # TODO review this again
 
     def train(self):
-        self.__model = OCSVM(kernel='rbf', nu=self.__nu, gamma=self.__gamma)
-        return self.__model.fit(self.__features)
+        features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        gamma = 1 / features.shape[1]   # gamma is the inverse of the size of each feature array of each sample
+        
+        # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
+        self.__model = OCSVM(kernel='rbf', nu=self.__nu, gamma=gamma)   
+
+        return self.__model.fit(features)
     
     def predict(self, model, features):
         return model.predict(features)
@@ -43,9 +47,12 @@ class OneClassSVM:
         pred_df = self.__spark_session.createDataFrame(data, [self.__labelCol, self.__predictionCol])
         return pred_df
 
-
+    """
+    Evaluates the model's results
+    
+    """
     def evaluate(self, df_with_preds):
-        """Avalia os resultados do modelo"""
+        
         df_eval = df_with_preds.withColumn(self.__predictionCol, col(self.__predictionCol).cast(DoubleType()))
 
         # Accuracy
@@ -57,8 +64,6 @@ class OneClassSVM:
         # Confusion Matrix
         cm = df_eval.groupBy(self.__labelCol, self.__predictionCol).count().collect()
         matrix = {(row[self.__labelCol], row[self.__predictionCol]): row["count"] for row in cm}
-
-        print(matrix)
 
         tn = matrix.get((0, 0), 0)
         fp = matrix.get((0, 1), 0)

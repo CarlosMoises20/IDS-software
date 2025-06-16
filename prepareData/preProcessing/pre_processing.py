@@ -45,7 +45,7 @@ class DataPreProcessing(ABC):
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)"""
 
-        # Normalize all assembled features removing the mean
+        # Normalize all assembled features removing the mean (ISOLATION FOREST, ONE-CLASS SVM)
         scaler = StandardScaler(inputCol="feat", outputCol="scaled")
         scaler_model = scaler.fit(df_train)
 
@@ -72,7 +72,7 @@ class DataPreProcessing(ABC):
         print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
         """# SVD: Converts for appropriate format for RowMatrix
-        rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+        rdd_vectors = df_train.select("feat").rdd.map(lambda row: MLLibVectors.dense(row["feat"]))
         mat = RowMatrix(rdd_vectors)
 
         # Applies SVD (maximum k = número de colunas)

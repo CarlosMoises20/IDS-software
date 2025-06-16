@@ -10,8 +10,8 @@ from pyspark.sql.types import DoubleType, IntegerType
 class IsolationForest:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol,
-                 scoreCol, predictionCol, labelCol, intrusion_rate, 
-                 maxSamples=0.3, maxFeatures=1.0, seed=42):
+                 scoreCol, predictionCol, labelCol,
+                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.15):
         
         self.__spark_session = spark_session
         self.__df_train = df_train.drop("prediction", "score")
@@ -20,7 +20,6 @@ class IsolationForest:
         self.__featuresCol = featuresCol
         self.__scoreCol = scoreCol
         self.__labelCol = labelCol
-        self.__intrusionRate = intrusion_rate
         self.__numTrees = self.__set_num_trees(df_train.count())
         print("numTrees:", self.__numTrees)
 
@@ -34,8 +33,8 @@ class IsolationForest:
                 .setPredictionCol(predictionCol) \
                 .setScoreCol(scoreCol) \
                 .setRandomSeed(seed) \
-                .setContamination(intrusion_rate) \
-                .setContaminationError(intrusion_rate * 0.2)
+                .setContamination(contamination) \
+                .setContaminationError(contamination * 0.5)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
@@ -43,7 +42,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(700 + num_training_samples, 2500)
+        return min(1500 + num_training_samples, 2500)
 
     """
     Fits the Isolation Forest model using training data.
@@ -64,7 +63,6 @@ class IsolationForest:
         return DataFrame(java_df, self.__spark_session)
     
 
-    """# Without threshold
     def evaluate(self, df_with_preds):
 
         evaluator = MulticlassClassificationEvaluator(
@@ -90,41 +88,8 @@ class IsolationForest:
 
         confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
 
-        return accuracy, confusion_matrix, self.__df_test"""
-
-    # With threshold
-    def evaluate(self, df_with_preds):
-
-        threshold = df_with_preds.approxQuantile(self.__scoreCol, [1 - self.__intrusionRate], 0.0001)[0]
-
-        self.__df_test = df_with_preds \
-            .withColumn(self.__predictionCol, (col(self.__scoreCol) >= threshold).cast(DoubleType())) \
-            .withColumn(self.__scoreCol, col(self.__scoreCol).cast(DoubleType()))
-
-        evaluator = MulticlassClassificationEvaluator(
-            labelCol=self.__labelCol,
-            predictionCol=self.__predictionCol,
-            metricName="accuracy"
-        )
-
-        accuracy = evaluator.evaluate(df_with_preds)
-
-        self.__df_test = df_with_preds \
-            .withColumn(self.__predictionCol, col(self.__predictionCol).cast(IntegerType()))
-
-        # Confusion Matrix
-        cm = self.__df_test.groupBy(self.__labelCol, self.__predictionCol).count().collect()
-        matrix = {(row[self.__labelCol], row[self.__predictionCol]): row["count"] for row in cm}
-        
-        tn = matrix.get((0, 0), 0)
-        fp = matrix.get((0, 1), 0)
-        fn = matrix.get((1, 0), 0)
-        tp = matrix.get((1, 1), 0)
-
-        confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
-
         return accuracy, confusion_matrix, self.__df_test
-    
+  
     def test(self, model):
 
         if self.__df_test is None:

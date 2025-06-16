@@ -91,13 +91,13 @@ class MessageClassification:
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
             # for every algorithms except kNN, store the model as artifact
-            #if model is not None:
+            if model is not None:
 
                 ## FOR ISOLATION FOREST
                 ## ??
 
                 ## FOR THE OTHER MODELS
-                #mlflow.sklearn.log_model(model, "model") 
+                mlflow.sklearn.log_model(model, "model") 
                 #mlflow.spark.log_model(model, "model") 
 
                 #print(model)
@@ -120,11 +120,11 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate, datasets_format):
+    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, intrusion_rate):
 
         start_time = time.time()
 
-        ### ISOLATION FOREST
+        """### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -132,12 +132,11 @@ class MessageClassification:
                                    featuresCol="features",
                                    scoreCol="score",
                                    predictionCol="prediction",
-                                   labelCol="intrusion",
-                                   intrusion_rate=intrusion_rate)
+                                   labelCol="intrusion")
 
         model = if_class.train()
 
-        accuracy, matrix, df_model_test = if_class.test(model)
+        accuracy, matrix, df_model_test = if_class.test(model)"""
 
         """### kNN (TODO: try that GitHub repository, the other implementation is very innefficient with large datasets)
         
@@ -154,7 +153,7 @@ class MessageClassification:
 
         accuracy, matrix, report = knn.test(model)"""
 
-        """### One-Class SVM
+        ### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -168,18 +167,18 @@ class MessageClassification:
 
         df_preds = ocsvm.test(model)
 
-        accuracy, evaluation = ocsvm.evaluate(df_preds)"""
+        accuracy, evaluation = ocsvm.evaluate(df_preds)
 
-        """if evaluation is not None:
+        if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")"""
+                print(f"{key}: {value}")
         
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        if matrix is not None:
-            print("Confusion matrix:\n", matrix) 
+        """if matrix is not None:
+            print("Confusion matrix:\n", matrix)""" 
         
         """if report is not None:
             print("Report:\n", json.dumps(report, indent=4))
@@ -236,7 +235,7 @@ class MessageClassification:
                 if (df_model_train, df_model_test, intrusion_rate) != (None, None, None):
                     
                     # Processing phase
-                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, intrusion_rate, datasets_format)         
+                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, intrusion_rate)         
         
         end_time = time.time()
 
