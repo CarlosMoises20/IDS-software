@@ -6,7 +6,6 @@ from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
-from models.kNN import KNNAnomalyDetector
 from models.one_class_svm import OneClassSVM
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import IsolationForest
@@ -91,13 +90,13 @@ class MessageClassification:
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
             # for every algorithms except kNN, store the model as artifact
-            if model is not None:
+            #if model is not None:
 
                 ## FOR ISOLATION FOREST
                 ## ??
 
                 ## FOR THE OTHER MODELS
-                mlflow.sklearn.log_model(model, "model") 
+                #mlflow.sklearn.log_model(model, "model") 
                 #mlflow.spark.log_model(model, "model") 
 
                 #print(model)
@@ -120,11 +119,11 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, intrusion_rate):
+    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, datasets_format):
 
         start_time = time.time()
 
-        """### ISOLATION FOREST
+        ### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -136,53 +135,35 @@ class MessageClassification:
 
         model = if_class.train()
 
-        accuracy, matrix, df_model_test = if_class.test(model)"""
+        accuracy, matrix, df_model_test = if_class.test(model)
 
-        """### kNN (TODO: try that GitHub repository, the other implementation is very innefficient with large datasets)
-        
-        model, accuracy, matrix, report = None, None, None, None
-
-        ### KNN to detect anomalies
-        knn = KNNAnomalyDetector(k=5, df_train=df_model_train,
-                                df_test=df_model_test, 
-                                featuresCol="features", 
-                                labelCol="intrusion",
-                                predictionCol="prediction")
-
-        model = knn.train()
-
-        accuracy, matrix, report = knn.test(model)"""
-
-        ### One-Class SVM
+        """### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
                             df_test=df_model_test,
                             featuresCol="features",
                             predictionCol="prediction",
-                            labelCol="intrusion",
-                            intrusion_rate=intrusion_rate)
+                            labelCol="intrusion")
         
         model = ocsvm.train()
 
-        df_preds = ocsvm.test(model)
+        accuracy, evaluation, df_model_test = ocsvm.test(model)"""
 
-        accuracy, evaluation = ocsvm.evaluate(df_preds)
-
-        if evaluation is not None:
+        """if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        """if matrix is not None:
-            print("Confusion matrix:\n", matrix)""" 
+        if matrix is not None:
+            print("Confusion matrix:\n", matrix) 
         
         """if report is not None:
-            print("Report:\n", json.dumps(report, indent=4))
-            #print("Report:\n", report)"""
+            #print("Report:\n", json.dumps(report, indent=4))
+            print("Report:\n", report)"""
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
@@ -227,15 +208,15 @@ class MessageClassification:
             for dataset_type in DatasetType:
 
                 # Pre-Processing phase
-                df_model_train, df_model_test, intrusion_rate = prepare_df_for_device(
+                df_model_train, df_model_test = prepare_df_for_device(
                     self.__spark_session, dataset_type, dev_addr
                 )  
 
                 # If there are samples for the device, the model will be created
-                if (df_model_train, df_model_test, intrusion_rate) != (None, None, None):
+                if (df_model_train, df_model_test) != (None, None):
                     
                     # Processing phase
-                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, intrusion_rate)         
+                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, datasets_format)         
         
         end_time = time.time()
 

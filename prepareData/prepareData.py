@@ -103,7 +103,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # no data to be used to train the model
     if df_model_count == 0:
         print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
-        return None, None, None
+        return None, None
 
     # Remove columns where all values are null
     non_null_columns = [
@@ -152,5 +152,5 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     
     df_model_train, df_model_test = DataPreProcessing.features_assembler(df_model_train, df_model_test)
 
-    return df_model_train, df_model_test, intrusion_rate
+    return df_model_train, df_model_test
 

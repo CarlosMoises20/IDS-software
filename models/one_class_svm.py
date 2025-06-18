@@ -1,14 +1,15 @@
-from pyspark.sql import DataFrame
-from pyspark.sql.functions import col, when
+
+from pyspark.sql.functions import col, monotonically_increasing_id
 import numpy as np
 from sklearn.svm import OneClassSVM as OCSVM
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import DoubleType
 
+# TODO write commens to explain each parameter on init
 
 class OneClassSVM:
     def __init__(self, spark_session, df_train, df_test, featuresCol, 
-                 predictionCol, labelCol, intrusion_rate):
+                 predictionCol, labelCol):
         
         self.__spark_session = spark_session
         self.__df_train = df_train
@@ -16,36 +17,61 @@ class OneClassSVM:
         self.__featuresCol = featuresCol
         self.__predictionCol = predictionCol
         self.__labelCol = labelCol
-        self.__nu = intrusion_rate * 0.1       # TODO review this again
 
     def train(self):
+        
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        
         gamma = 1 / features.shape[1]   # gamma is the inverse of the size of each feature array of each sample
         
+        threshold = 150
+
+        n_training_samples = self.__df_train.count()
+
+        nu = (1 / threshold) if n_training_samples <= threshold \
+                             else max((1 / n_training_samples), 0.001)
+        
+        print("nu:", nu)
+
         # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
-        self.__model = OCSVM(kernel='rbf', nu=self.__nu, gamma=gamma)   
+        self.__model = OCSVM(kernel='rbf', nu=nu, gamma=gamma)   
 
         return self.__model.fit(features)
-    
-    def predict(self, model, features):
-        return model.predict(features)
 
     def test(self, model):
-        features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
-        preds = self.predict(model, features)
+
+        df_preds = self.predict(model)
+
+        accuracy, evaluation = self.evaluate(df_preds)
+
+        return accuracy, evaluation, df_preds
+
+
+    def predict(self, model):
+
+        df_test_indexed = self.__df_test.withColumn("row_id", monotonically_increasing_id())
+
+        features = np.array(df_test_indexed.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        
+        preds = model.predict(features)
 
         # Convert scikit predictions to binary labels (-1: anomaly -> 1: normal -> 0)
         pred_labels = np.where(preds == -1, 1, 0)
 
-        # Extrai os rótulos reais do DataFrame de teste
-        true_labels = self.__df_test.select(self.__labelCol).rdd.map(lambda r: int(r[0])).collect()
+        # Extracts the real test labels from the dataframe
+        true_labels = df_test_indexed.select(self.__labelCol).rdd.map(lambda r: int(r[0])).collect()
 
-        # Converte todos os elementos para tipos nativos do Python
-        data = [(int(label), int(pred)) for label, pred in zip(true_labels, pred_labels)]
+        row_ids = df_test_indexed.select("row_id").rdd.map(lambda r: r[0]).collect()
 
-        # Cria DataFrame com os nomes das colunas
-        pred_df = self.__spark_session.createDataFrame(data, [self.__labelCol, self.__predictionCol])
-        return pred_df
+        data = [(row_id, int(label), int(pred)) for row_id, label, pred in zip(row_ids, true_labels, pred_labels)]
+
+        # Create a dataframe with the columns' names
+        pred_df = self.__spark_session.createDataFrame(data, ["row_id", self.__labelCol, self.__predictionCol])
+
+        joined_df = df_test_indexed.drop(self.__predictionCol, self.__labelCol) \
+                                    .join(pred_df, on="row_id", how="inner")
+
+        return joined_df.drop("row_id")
 
     """
     Evaluates the model's results

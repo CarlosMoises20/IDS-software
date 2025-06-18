@@ -38,7 +38,7 @@ class DataPreProcessing(ABC):
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
-        """# Normalize all assembled features inside a scale
+        """# Normalize all assembled features inside a scale (TODO test for the other algorithms like kNN)
         scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=100000000)
         scaler_model = scaler.fit(df_train)
 
