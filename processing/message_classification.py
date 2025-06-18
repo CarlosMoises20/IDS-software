@@ -7,7 +7,10 @@ from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
 from pyspark.sql.functions import col
 from models.one_class_svm import OneClassSVM
+from pyspark.ml.classification import NaiveBayes
+from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.streaming import DataStreamReader
+from models.autoencoder import Autoencoder
 from models.isolation_forest import IsolationForest
 
 class MessageClassification:
@@ -123,7 +126,16 @@ class MessageClassification:
 
         start_time = time.time()
 
-        ### ISOLATION FOREST
+        """### AUTOENCODER
+
+        ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
+
+        model = ae.train()
+
+        accuracy, matrix, report = ae.test()"""
+
+
+        """### ISOLATION FOREST
         
         if_class = IsolationForest(spark_session=self.__spark_session,
                                    df_train=df_model_train, 
@@ -135,9 +147,9 @@ class MessageClassification:
 
         model = if_class.train()
 
-        accuracy, matrix, df_model_test = if_class.test(model)
+        accuracy, matrix, df_model_test = if_class.test(model)"""
 
-        """### One-Class SVM
+        ### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -148,18 +160,18 @@ class MessageClassification:
         
         model = ocsvm.train()
 
-        accuracy, evaluation, df_model_test = ocsvm.test(model)"""
+        accuracy, evaluation, df_model_test = ocsvm.test(model)
 
-        """if evaluation is not None:
+        if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")"""
+                print(f"{key}: {value}")
         
         if accuracy is not None:
             print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        if matrix is not None:
-            print("Confusion matrix:\n", matrix) 
+        """if matrix is not None:
+            print("Confusion matrix:\n", matrix)""" 
         
         """if report is not None:
             #print("Report:\n", json.dumps(report, indent=4))

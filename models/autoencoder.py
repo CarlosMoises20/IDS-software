@@ -115,7 +115,7 @@ class Autoencoder(nn.Module):
         device: 'cpu' or 'cuda' for GPU acceleration.
 
     """
-    def train(self, num_epochs=20, learning_rate=0.98, weight_decay=0.00001, momentum=0.8):
+    def train(self, num_epochs=30, learning_rate=0.98, weight_decay=0.00001, momentum=0.8):
 
         self.to(self.__device)
         

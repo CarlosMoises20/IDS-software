@@ -2,4 +2,5 @@ pyspark==3.3.2
 numpy>=1.15
 torch>=1.10.0
 mlflow>=2.21.2
-#graphframes==0.6    # if DBSCAN is used
+scikit-learn==1.6.1
+graphframes==0.6    # if DBSCAN is used
