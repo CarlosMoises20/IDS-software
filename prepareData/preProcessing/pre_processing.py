@@ -45,8 +45,9 @@ class DataPreProcessing(ABC):
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)"""
 
-        # Normalize all assembled features removing the mean (ISOLATION FOREST, ONE-CLASS SVM)
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
+        # Normalize all assembled features using standards (ISOLATION FOREST, ONE-CLASS SVM)
+        # TODO compare it with mean, without mean, with std, without std
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)

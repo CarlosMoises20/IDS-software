@@ -1,4 +1,9 @@
 
+from scipy.spatial import distance
+
+def euclidean_dist(x, y):
+    return distance.euclidean(x, y)
+
 
 """
 Auxiliary function to print processing time on an adequate format, in hours, minutes and seconds,

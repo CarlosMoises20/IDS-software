@@ -5,13 +5,20 @@ from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
-from pyspark.sql.functions import col
+from pyod.models.hbos import HBOS
+import numpy as np
+from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.cluster import DBSCAN
+from pyspark.sql.functions import col, count
 from models.one_class_svm import OneClassSVM
 from pyspark.ml.classification import NaiveBayes
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.streaming import DataStreamReader
+from pyspark.ml.clustering import KMeans
 from models.autoencoder import Autoencoder
 from models.isolation_forest import IsolationForest
+import math
+from scipy.spatial import distance
 
 class MessageClassification:
 
@@ -126,6 +133,38 @@ class MessageClassification:
 
         start_time = time.time()
 
+        pandas_df = df_model_train.select("features").toPandas()
+        X = np.array(pandas_df['features'].tolist())
+
+        clf = HBOS()
+        clf.fit(X)
+        scores = clf.decision_function(X)
+        labels = clf.predict(X)  # 1 = outlier, 0 = inlier
+
+        print("Scores:", scores)
+        print("Labels:", labels)
+
+        """# DBSCAN
+        
+        pandas_df = df_model_train.toPandas()
+
+        X = np.array(pandas_df['features'].tolist())
+
+        dbscan = DBSCAN(eps=0.7, min_samples=max(5, round(0.01 * df_model_train.count())))
+        clusters = dbscan.fit_predict(X)  # applies clustering and returns the labels"""
+
+
+        """dbscan = SparkDBSCAN(spark_session=self.__spark_session,
+                             df_train=df_model_train,
+                             df_test=df_model_test,
+                             featuresCol="features",
+                             labelCol="intrusion",
+                             predictionCol="prediction")
+        
+        model = dbscan.train()
+
+        accuracy, matrix, df_model_test = dbscan.test(model)"""
+
         """### AUTOENCODER
 
         ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
@@ -133,7 +172,6 @@ class MessageClassification:
         model = ae.train()
 
         accuracy, matrix, report = ae.test()"""
-
 
         """### ISOLATION FOREST
         
@@ -149,7 +187,7 @@ class MessageClassification:
 
         accuracy, matrix, df_model_test = if_class.test(model)"""
 
-        ### One-Class SVM
+        """### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -160,24 +198,24 @@ class MessageClassification:
         
         model = ocsvm.train()
 
-        accuracy, evaluation, df_model_test = ocsvm.test(model)
+        accuracy, evaluation, df_model_test = ocsvm.test(model)"""
 
-        if evaluation is not None:
+        """if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
-        if accuracy is not None:
-            print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
+        """if accuracy is not None:
+            print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')"""
         
         """if matrix is not None:
-            print("Confusion matrix:\n", matrix)""" 
+            print("Confusion matrix:\n", matrix)"""
         
         """if report is not None:
             #print("Report:\n", json.dumps(report, indent=4))
             print("Report:\n", report)"""
 
-        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
+        #self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
