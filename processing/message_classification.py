@@ -1,16 +1,15 @@
 
-import time, mlflow, shutil, os, json
+import time, mlflow, shutil, os, json, itertools
 import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from mlflow.tracking import MlflowClient
-from pyod.models.hbos import HBOS
 import numpy as np
-from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.cluster import DBSCAN
-from pyspark.sql.functions import col, count
 from models.one_class_svm import OneClassSVM
+from models.hbos import HBOS
+from models.kNN import SparkKNN
 from pyspark.ml.classification import NaiveBayes
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.streaming import DataStreamReader
@@ -100,14 +99,14 @@ class MessageClassification:
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
             # for every algorithms except kNN, store the model as artifact
-            #if model is not None:
+            if model is not None:
 
                 ## FOR ISOLATION FOREST
                 ## ??
 
                 ## FOR THE OTHER MODELS
                 #mlflow.sklearn.log_model(model, "model") 
-                #mlflow.spark.log_model(model, "model") 
+                mlflow.spark.log_model(model, "model") 
 
                 #print(model)
 
@@ -133,16 +132,73 @@ class MessageClassification:
 
         start_time = time.time()
 
-        pandas_df = df_model_train.select("features").toPandas()
-        X = np.array(pandas_df['features'].tolist())
+        #kNN (k-Nearest Neighbors)
+        
+        knn = SparkKNN(spark_session=self.__spark_session, 
+                       k=50, 
+                       df_train=df_model_train,
+                       df_test=df_model_test,
+                       featuresCol="features",
+                       labelCol="intrusion",
+                       predictionCol="prediction")
+        
+        model = knn.train()
+        accuracy, matrix, report = knn.test(model)
 
-        clf = HBOS()
-        clf.fit(X)
-        scores = clf.decision_function(X)
-        labels = clf.predict(X)  # 1 = outlier, 0 = inlier
+        """# HBOS (Histogram-Based Outlier Score)
+        hbos = HBOS(df_train=df_model_train, 
+                    df_test=df_model_test,
+                    featuresCol='features',
+                    labelCol='intrusion')
 
-        print("Scores:", scores)
-        print("Labels:", labels)
+        accuracy_list = []
+        class_1_recall_list = []
+        class_0_recall_list = []
+        models = []
+        matrix_list = []
+        report_list = []
+        contamination_list = [0.01, 0.05, 0.1, 0.15, 0.17, 0.2, 0.33]
+
+        # test models with different contamination levels of the training dataset, to return the model with the best results
+        for contamination_level in contamination_list:
+            model = hbos.train(contamination=contamination_level)
+            accuracy, matrix, report = hbos.test(model)
+            accuracy_list.append(accuracy)
+            class_1_recall_list.append(report['1']['recall'])
+            class_0_recall_list.append(report['0']['recall'])
+            models.append(model)
+            matrix_list.append(matrix)
+            report_list.append(report)
+
+            # NOTE: uncomment these lines to print the results for each contamination-case model
+            #print(f'Recall (class 1) for contamination {contamination_level}: {round(report["1"]["recall"] * 100, 2)}%')
+            #print(f'Recall (class 0) for contamination {contamination_level}: {round(report["0"]["recall"] * 100, 2)}%')
+            #print(f"CM for contamination {contamination_level}:\n{matrix}")
+            #print(f"Accuracy for contamination {contamination_level}: {round(accuracy * 100, 2)}%\n")
+            #print(f"Report for contamination {contamination_level} and {n_bins} bins:\n{json.dumps(report, indent=4)}\n\n\n")
+
+        # return the highest recall for class 1 (to ensure that the model detects as much anomalies as possible)
+        max_class_1_recall = max(class_1_recall_list)
+        indices_max_recall_1  = [i for i, r in enumerate(class_1_recall_list) if r == max_class_1_recall]
+        best_index = indices_max_recall_1[0]
+        min_recall_0 = class_0_recall_list[best_index]
+
+        # if two models or more have the same highest recall for class 1, choose the model with the lowest recall for class 0
+        # to ensure that we detect as much anomalies as possible. It's better to have some false positives than false negatives
+        # We want to minimize false negatives (anomalies detected as normal packets) as much as possible
+        # If the recall for class 0 is still the same between those models, choosing one model or another is the same thing,
+        # since the accuracy is the same because the test dataset is the same
+        for i in indices_max_recall_1[1:]:
+            if class_0_recall_list[i] < min_recall_0:
+                best_index = i
+                min_recall_0 = class_0_recall_list[i]
+
+        #class_1_recall = class_1_recall_list[best_index]
+        #class_0_recall = class_0_recall_list[best_index]
+        print(f"Contamination: {contamination_list[best_index] * 100}%")
+        accuracy = accuracy_list[best_index]
+        model = models[best_index]
+        report = report_list[best_index]"""
 
         """# DBSCAN
         
@@ -152,18 +208,6 @@ class MessageClassification:
 
         dbscan = DBSCAN(eps=0.7, min_samples=max(5, round(0.01 * df_model_train.count())))
         clusters = dbscan.fit_predict(X)  # applies clustering and returns the labels"""
-
-
-        """dbscan = SparkDBSCAN(spark_session=self.__spark_session,
-                             df_train=df_model_train,
-                             df_test=df_model_test,
-                             featuresCol="features",
-                             labelCol="intrusion",
-                             predictionCol="prediction")
-        
-        model = dbscan.train()
-
-        accuracy, matrix, df_model_test = dbscan.test(model)"""
 
         """### AUTOENCODER
 
@@ -205,17 +249,17 @@ class MessageClassification:
             for key, value in evaluation.items():
                 print(f"{key}: {value}")"""
         
-        """if accuracy is not None:
-            print(f'accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')"""
+        if accuracy is not None:
+            print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        """if matrix is not None:
-            print("Confusion matrix:\n", matrix)"""
+        if matrix is not None:
+            print("Confusion matrix:\n", matrix)
         
-        """if report is not None:
+        if report is not None:
             #print("Report:\n", json.dumps(report, indent=4))
-            print("Report:\n", report)"""
+            print("Report:\n", report)
 
-        #self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
+        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'

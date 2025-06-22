@@ -18,8 +18,11 @@ SPARK_FILES_MAX_PARTITION_BYTES = "134217728"
 SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"                        
 SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     
 SPARK_SQL_ANSI_ENABLED = "false"
-SPARK_IFOREST_JAR = os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar")
-SPARK_PACKAGES = "graphframes:graphframes:0.8.1-spark3.0-s_2.12"
+
+SPARK_JARS = [
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "kNN_IS-3.0.jar")
+]
 
 
 '''LORAWAN PARAMETERS VALUES'''

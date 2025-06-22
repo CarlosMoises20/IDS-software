@@ -13,8 +13,9 @@ Auxiliary function to create spark session
 """
 def create_spark_session():
 
-    if not os.path.exists(SPARK_IFOREST_JAR):
-        raise FileNotFoundError(f"JAR not found: {SPARK_IFOREST_JAR}")
+    for jar in SPARK_JARS:
+        if not os.path.exists(jar):
+            raise FileNotFoundError(f"JAR not found: {jar}")
 
     return SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
@@ -29,8 +30,7 @@ def create_spark_session():
                             .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
-                            .config("spark.jars", SPARK_IFOREST_JAR) \
-                            .config("spark.jars.packages", SPARK_PACKAGES) \
+                            .config("spark.jars", ",".join(SPARK_JARS)) \
                             .getOrCreate()
 
 

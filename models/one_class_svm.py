@@ -5,7 +5,7 @@ from sklearn.svm import OneClassSVM as OCSVM
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
 from pyspark.sql.types import DoubleType
 
-# TODO write commens to explain each parameter on init
+# TODO write comments to explain each parameter on init
 
 class OneClassSVM:
     def __init__(self, spark_session, df_train, df_test, featuresCol, 
@@ -39,11 +39,8 @@ class OneClassSVM:
         return self.__model.fit(features)
 
     def test(self, model):
-
         df_preds = self.predict(model)
-
         accuracy, evaluation = self.evaluate(df_preds)
-
         return accuracy, evaluation, df_preds
 
 
