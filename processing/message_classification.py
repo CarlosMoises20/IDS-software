@@ -9,6 +9,7 @@ import numpy as np
 from sklearn.cluster import DBSCAN
 from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
+from models.lof import LOF
 from models.kNN import SparkKNN
 from pyspark.ml.classification import NaiveBayes
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
@@ -132,7 +133,21 @@ class MessageClassification:
 
         start_time = time.time()
 
-        #kNN (k-Nearest Neighbors)
+        # LOF (Local Outlier Factor)
+
+        lof = LOF(spark_session=self.__spark_session,
+                  df_train=df_model_train,
+                  df_test=df_model_test,
+                  featuresCol="features",
+                  predictionCol="prediction",
+                  labelCol="intrusion")
+        
+        model = lof.train()
+
+        accuracy, matrix, report = lof.test(model)
+
+
+        """#kNN (k-Nearest Neighbors)
         
         knn = SparkKNN(spark_session=self.__spark_session, 
                        k=50, 
@@ -143,7 +158,7 @@ class MessageClassification:
                        predictionCol="prediction")
         
         model = knn.train()
-        accuracy, matrix, report = knn.test(model)
+        accuracy, matrix, report = knn.test(model)"""
 
         """# HBOS (Histogram-Based Outlier Score)
         hbos = HBOS(df_train=df_model_train, 
