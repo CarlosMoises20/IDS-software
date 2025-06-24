@@ -20,9 +20,9 @@ SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"
 SPARK_SQL_ANSI_ENABLED = "false"
 
 SPARK_JARS = [
-    os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar")
-    #os.path.join(os.environ.get("SPARK_HOME"), "jars", "kNN_IS-3.0.jar")
-    #os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-lof-1.0.jar")
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "kNN_IS-3.0.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-lof-1.0.jar")
 ]
 
 
