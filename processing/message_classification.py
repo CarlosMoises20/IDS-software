@@ -106,8 +106,8 @@ class MessageClassification:
                 ## ??
 
                 ## FOR THE OTHER MODELS
-                #mlflow.sklearn.log_model(model, "model") 
-                mlflow.spark.log_model(model, "model") 
+                mlflow.sklearn.log_model(model, "model") 
+                #mlflow.spark.log_model(model, "model") 
 
                 #print(model)
 
@@ -133,19 +133,16 @@ class MessageClassification:
 
         start_time = time.time()
 
-        # LOF (Local Outlier Factor)
+        """# LOF (Local Outlier Factor)
 
-        lof = LOF(spark_session=self.__spark_session,
-                  df_train=df_model_train,
+        lof = LOF(df_train=df_model_train,
                   df_test=df_model_test,
                   featuresCol="features",
-                  predictionCol="prediction",
                   labelCol="intrusion")
         
         model = lof.train()
 
-        accuracy, matrix, report = lof.test(model)
-
+        accuracy, matrix, report = lof.test(model)"""
 
         """#kNN (k-Nearest Neighbors)
         
@@ -232,19 +229,16 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        """### ISOLATION FOREST
+        ### ISOLATION FOREST
         
-        if_class = IsolationForest(spark_session=self.__spark_session,
-                                   df_train=df_model_train, 
+        if_class = IsolationForest(df_train=df_model_train, 
                                    df_test=df_model_test, 
                                    featuresCol="features",
-                                   scoreCol="score",
-                                   predictionCol="prediction",
                                    labelCol="intrusion")
 
         model = if_class.train()
 
-        accuracy, matrix, df_model_test = if_class.test(model)"""
+        accuracy, matrix, report = if_class.test(model)
 
         """### One-Class SVM
 
@@ -271,8 +265,8 @@ class MessageClassification:
             print("Confusion matrix:\n", matrix)
         
         if report is not None:
-            #print("Report:\n", json.dumps(report, indent=4))
-            print("Report:\n", report)
+            print("Report:\n", json.dumps(report, indent=4))
+            #print("Report:\n", report)
 
         self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 

@@ -1,13 +1,76 @@
 
 from pyspark.sql.functions import col
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql import DataFrame
 from pyspark.sql.types import DoubleType, IntegerType
-
-
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
+from sklearn.ensemble import IsolationForest as IF
+import numpy as np
+from pyspark.sql import DataFrame
 
 
 class IsolationForest:
+
+    def __init__(self, df_train, df_test, featuresCol,
+                 labelCol, seed=42):
+        
+        self.__df_train = df_train.select(featuresCol, labelCol)
+        self.__df_test = df_test.select(featuresCol, labelCol)
+        self.__featuresCol = featuresCol
+        self.__labelCol = labelCol
+        self.__numTrees = self.__set_num_trees(df_train.count())
+        print("numTrees:", self.__numTrees)
+
+        # Build Java IsolationForest Estimator
+        self.__model = IF(n_estimators=self.__numTrees, 
+                          n_jobs=-1,
+                          random_state=seed)
+
+    """
+    This function adjusts the number of trees in training according to the size of the training dataset
+    The larger the training dataset, the larger the number of trees, to maintain the efficacy of the model
+    
+    """
+    def __set_num_trees(self, num_training_samples):
+        return min(10000 + num_training_samples * 2, 30000)
+
+    """
+    Fits the Isolation Forest model using training data.
+    
+    """
+    def train(self):
+        features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        return self.__model.fit(features)
+
+    """
+    Apply the fitted model to a new dataset (e.g., test set).
+    
+    """
+    def predict(self, model):
+        if model is None:
+            raise RuntimeError("Model does not exist!")
+        features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        y_pred = model.predict(features)
+        return np.array([0 if pred == 1 else 1 for pred in y_pred])
+    
+
+    def evaluate(self, y_pred):
+        y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
+        report = classification_report(y_true, y_pred, output_dict=True)
+        conf_matrix = confusion_matrix(y_true, y_pred)
+        accuracy = accuracy_score(y_true, y_pred)
+        return accuracy, conf_matrix, report
+  
+    def test(self, model):
+
+        if self.__df_test is None:
+            print("Test dataset is empty. Skipping testing.")
+            return None, None
+
+        y_pred = self.predict(model)
+        return self.evaluate(y_pred)
+
+
+class IsolationForestLinkedIn:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol,
                  scoreCol, predictionCol, labelCol,

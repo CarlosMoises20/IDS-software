@@ -13,7 +13,6 @@ class SparkKNN:
         self.__spark_session = spark_session
         self.__df_train = df_train.select(featuresCol, labelCol)
         self.__df_test = df_test.select(featuresCol, labelCol)
-        self.__featuresCol = featuresCol
         self.__labelCol = labelCol
         self.__predictionCol = predictionCol
         self.__class_instance = spark_session._jvm.org.apache.spark.ml.classification.kNN_IS.__getattr__("kNN_ISClassifier$")
