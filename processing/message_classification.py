@@ -1,5 +1,5 @@
 
-import time, mlflow, shutil, os, json, itertools
+import time, mlflow, shutil, os, json
 import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
@@ -10,15 +10,10 @@ from sklearn.cluster import DBSCAN
 from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
 from models.lof import LOF
-from models.kNN import SparkKNN
-from pyspark.ml.classification import NaiveBayes
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
+from models.kNN import *
 from pyspark.sql.streaming import DataStreamReader
-from pyspark.ml.clustering import KMeans
 from models.autoencoder import Autoencoder
 from models.isolation_forest import IsolationForest
-import math
-from scipy.spatial import distance
 
 class MessageClassification:
 
@@ -106,8 +101,8 @@ class MessageClassification:
                 ## ??
 
                 ## FOR THE OTHER MODELS
-                mlflow.sklearn.log_model(model, "model") 
-                #mlflow.spark.log_model(model, "model") 
+                #mlflow.sklearn.log_model(model, "model") 
+                mlflow.spark.log_model(model, "model") 
 
                 #print(model)
 
@@ -146,13 +141,11 @@ class MessageClassification:
 
         """#kNN (k-Nearest Neighbors)
         
-        knn = SparkKNN(spark_session=self.__spark_session, 
-                       k=50, 
-                       df_train=df_model_train,
-                       df_test=df_model_test,
-                       featuresCol="features",
-                       labelCol="intrusion",
-                       predictionCol="prediction")
+        knn = KNNAnomalyDetector(df_train=df_model_train,
+                                df_test=df_model_test,
+                                featuresCol="features",
+                                labelCol="intrusion",
+                                predictionCol="prediction")
         
         model = knn.train()
         accuracy, matrix, report = knn.test(model)"""
@@ -212,14 +205,16 @@ class MessageClassification:
         model = models[best_index]
         report = report_list[best_index]"""
 
-        """# DBSCAN
+        # DBSCAN
         
         pandas_df = df_model_train.toPandas()
 
         X = np.array(pandas_df['features'].tolist())
 
         dbscan = DBSCAN(eps=0.7, min_samples=max(5, round(0.01 * df_model_train.count())))
-        clusters = dbscan.fit_predict(X)  # applies clustering and returns the labels"""
+        clusters = dbscan.fit_predict(X)  # applies clustering and returns the labels
+
+        print(clusters)
 
         """### AUTOENCODER
 
@@ -229,7 +224,7 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        ### ISOLATION FOREST
+        """### ISOLATION FOREST
         
         if_class = IsolationForest(df_train=df_model_train, 
                                    df_test=df_model_test, 
@@ -238,7 +233,7 @@ class MessageClassification:
 
         model = if_class.train()
 
-        accuracy, matrix, report = if_class.test(model)
+        accuracy, matrix, report = if_class.test(model)"""
 
         """### One-Class SVM
 
@@ -258,17 +253,17 @@ class MessageClassification:
             for key, value in evaluation.items():
                 print(f"{key}: {value}")"""
         
-        if accuracy is not None:
+        """if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
             print("Confusion matrix:\n", matrix)
         
         if report is not None:
-            print("Report:\n", json.dumps(report, indent=4))
-            #print("Report:\n", report)
+            #print("Report:\n", json.dumps(report, indent=4))
+            print("Report:\n", report)
 
-        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
+        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)"""
 
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'

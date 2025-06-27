@@ -70,6 +70,7 @@ class IsolationForest:
         return self.evaluate(y_pred)
 
 
+## NOTE still here to register results, after choosing the best algorithm (or the best 2/3 algorithms), delete this
 class IsolationForestLinkedIn:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol,

@@ -6,69 +6,14 @@ from pyspark.sql.window import Window
 from pyspark.sql.functions import row_number
 
 
-class SparkKNN:
-    
-    def __init__(self, spark_session, k, df_train, df_test, featuresCol, labelCol, predictionCol):
-
-        self.__spark_session = spark_session
-        self.__df_train = df_train.select(featuresCol, labelCol)
-        self.__df_test = df_test.select(featuresCol, labelCol)
-        self.__labelCol = labelCol
-        self.__predictionCol = predictionCol
-        self.__class_instance = spark_session._jvm.org.apache.spark.ml.classification.kNN_IS.__getattr__("kNN_ISClassifier$")
-        self.__model_class = self.__class_instance \
-                                    .setK(k) \
-                                    .setFeaturesCol(featuresCol) \
-                                    .setLabelCol(labelCol) \
-                                    .setPredictionCol(predictionCol)
-
-
-    def train(self):
-        return self.__model_class.train(self.__df_train)
-    
-    def test(self, model):
-        df_preds = self.predict(model)
-        return self.evaluate(df_preds)
-
-    def predict(self, model):
-
-        if model is None:
-            raise Exception("Model must be created first!")
-
-        preds_jdf = model.transform(self.__df_test._jdf)
-
-        return self.__spark_session.createDataFrame(preds_jdf)
-    
-
-    def evaluate(self, df_preds):
-
-        # Join with true labels
-        df_true = self.__df_test.withColumn("id", monotonically_increasing_id())
-        df_pred = df_preds.withColumn("id", monotonically_increasing_id())
-
-        joined = df_true.select(self.__labelCol, "id") \
-                        .join(df_pred.select(self.__predictionCol, "id"), on="id")
-        
-        rows = joined.select(self.__labelCol, self.__predictionCol).collect()
-        y_true = [row[self.__labelCol] for row in rows]
-        y_pred = [row[self.__predictionCol] for row in rows]
-
-        report = classification_report(y_true, y_pred, zero_division=0)
-        matrix = confusion_matrix(y_true, y_pred)
-        accuracy = accuracy_score(y_true, y_pred)
-
-        return accuracy, matrix, report
-
-
-"""
 class KNNAnomalyDetector:
 
-    def __init__(self, k, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=95):
-        self.__k = k
+    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.97):
+        self.__k = max(4, min(15, int(0.007 * df_train.count())))
         self.__df_train = df_train.withColumn("id", monotonically_increasing_id()).select(
             "id", featuresCol, labelCol, predictionCol
         )
-        self.__df_test = df_test.withColumn("id", monotonically_increasing_id()).select(
+        self.__df_test = df_test.withColumn("id", monotonically_increasing_id() + df_train.count()).select(
             "id", featuresCol, labelCol, predictionCol
         )
         self.__featuresCol = featuresCol
@@ -90,7 +35,7 @@ class KNNAnomalyDetector:
         joined = model.approxSimilarityJoin(
             df_query.select("id", self.__featuresCol),
             df_reference.select("id", self.__featuresCol),
-            float("inf"),  # pegar todas as distâncias
+            float("inf"),  # take every distances
             distCol="distCol"
         )
 
@@ -101,13 +46,19 @@ class KNNAnomalyDetector:
         windowSpec = Window.partitionBy("datasetA.id").orderBy("distCol")
         neighbors_ranked = joined.withColumn("rank", row_number().over(windowSpec))
 
-        # Pega apenas os k vizinhos mais próximos
+        # Takes only the k nearest neighbors
         top_k = neighbors_ranked.filter(col("rank") <= self.__k)
 
-        # Média das distâncias para cada observação da query
-        avg_dists = top_k.groupBy("datasetA.id").agg(avg("distCol").alias("avg_dist"))
+        # Distance averages for each query observation
+        avg_dists = top_k.select(col("datasetA.id").alias("query_id"), col("distCol")) \
+                        .groupBy("query_id") \
+                        .agg(avg("distCol").alias("avg_dist"))
 
-        return avg_dists.withColumnRenamed("datasetA.id", "query_id")
+        all_queries = df_query.select(col("id").alias("query_id"))
+
+        avg_dists = all_queries.join(avg_dists, on="query_id", how="left")
+
+        return avg_dists
 
     def train(self):
 
@@ -117,7 +68,7 @@ class KNNAnomalyDetector:
         avg_dists = self.__compute_avg_distances(model, self.__df_train, self.__df_train, is_train=True)
 
         # Compute threshold based on percentile
-        dist_percentiles = avg_dists.approxQuantile("avg_dist", [self.__threshold_percentile / 100], 0.01)
+        dist_percentiles = avg_dists.approxQuantile("avg_dist", [self.__threshold_percentile], 0.01)
         self.__threshold = dist_percentiles[0]
 
         return model
@@ -158,4 +109,4 @@ class KNNAnomalyDetector:
         
         predictions = self.predict(model)
 
-        return self.evaluate(predictions)"""
+        return self.evaluate(predictions)
