@@ -13,7 +13,7 @@ from models.lof import LOF
 from models.kNN import *
 from pyspark.sql.streaming import DataStreamReader
 from models.autoencoder import Autoencoder
-from models.isolation_forest import IsolationForest
+from models.isolation_forest import *
 
 class MessageClassification:
 
@@ -46,7 +46,9 @@ class MessageClassification:
         run_id = runs[0].info.run_id
         
         try:
-            model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
+            # TODO review this for the case of sklearn, pyod and pytorch models!
+            #model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
+            model = mlflow.sklearn.load_model(f"./mlruns/0/{run_id}/artifacts/model")
         except:
             model = None
 
@@ -70,6 +72,7 @@ class MessageClassification:
         # If a model associated to the device already exists, delete it to replace it with
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
+        # TODO fix this to also replace the model in case of sklearn, pyod and pytorch models!
         if old_run_id is not None:
             self.__mlflowclient.delete_run(old_run_id)
             print(f"Old model from device {dev_addr} deleted.")
@@ -90,6 +93,8 @@ class MessageClassification:
                 print(f"Artefact directory not found: {run_path}")
 
         # Create model based on DevAddr and store it as an artifact using MLFlow
+        # TODO consider a generated ID to represent the run id for the logic specially 
+        # for the case of sklearn, pyod and pytorch models!
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"].lower()}'):
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
@@ -101,8 +106,8 @@ class MessageClassification:
                 ## ??
 
                 ## FOR THE OTHER MODELS
-                #mlflow.sklearn.log_model(model, "model") 
-                mlflow.spark.log_model(model, "model") 
+                mlflow.sklearn.log_model(model, "model") 
+                #mlflow.spark.log_model(model, "model") 
 
                 #print(model)
 
@@ -205,17 +210,6 @@ class MessageClassification:
         model = models[best_index]
         report = report_list[best_index]"""
 
-        # DBSCAN
-        
-        pandas_df = df_model_train.toPandas()
-
-        X = np.array(pandas_df['features'].tolist())
-
-        dbscan = DBSCAN(eps=0.7, min_samples=max(5, round(0.01 * df_model_train.count())))
-        clusters = dbscan.fit_predict(X)  # applies clustering and returns the labels
-
-        print(clusters)
-
         """### AUTOENCODER
 
         ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
@@ -224,16 +218,19 @@ class MessageClassification:
 
         accuracy, matrix, report = ae.test()"""
 
-        """### ISOLATION FOREST
+        ### ISOLATION FOREST
         
-        if_class = IsolationForest(df_train=df_model_train, 
-                                   df_test=df_model_test, 
-                                   featuresCol="features",
-                                   labelCol="intrusion")
+        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
+                                           df_train=df_model_train, 
+                                           df_test=df_model_test, 
+                                           featuresCol="features",
+                                           scoreCol="score",
+                                           predictionCol="predictionCol",
+                                           labelCol="intrusion")
 
         model = if_class.train()
 
-        accuracy, matrix, report = if_class.test(model)"""
+        accuracy, matrix, recall_class_1, df_model_test = if_class.test(model)
 
         """### One-Class SVM
 
@@ -253,17 +250,22 @@ class MessageClassification:
             for key, value in evaluation.items():
                 print(f"{key}: {value}")"""
         
-        """if accuracy is not None:
+        if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         if matrix is not None:
             print("Confusion matrix:\n", matrix)
-        
-        if report is not None:
-            #print("Report:\n", json.dumps(report, indent=4))
-            print("Report:\n", report)
 
-        self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)"""
+        if recall_class_1 is not None:
+            print(f"Recall (class 1): {round(recall_class_1 * 100, 2)}%", )
+        
+        """if report is not None:
+            print("Report:\n", json.dumps(report, indent=4)) # for sklearn models
+            #print("Report:\n", report)"""
+
+        # TODO uncomment after finishing all results' tables and after
+        # fixing model replacement on sklearn, pyod and pytorch models!
+        #self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'

@@ -39,15 +39,15 @@ class DataPreProcessing(ABC):
         df_test = assembler.transform(df_test)
 
         """# Normalize all assembled features inside a scale (TODO test for the other algorithms like kNN)
-        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=100000000)
+        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=1000000)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)"""
 
-        # Normalize all assembled features using standards (ISOLATION FOREST, ONE-CLASS SVM)
-        # TODO compare it with mean, without mean, with std, without std
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        # Normalize all assembled features using standards
+        # TODO test, for all algorithms, with mean, with std, without mean, without std
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=False, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
@@ -73,7 +73,7 @@ class DataPreProcessing(ABC):
         print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
         """# SVD: Converts for appropriate format for RowMatrix
-        rdd_vectors = df_train.select("feat").rdd.map(lambda row: MLLibVectors.dense(row["feat"]))
+        rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
         mat = RowMatrix(rdd_vectors)
 
         # Applies SVD (maximum k = número de colunas)

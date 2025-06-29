@@ -27,11 +27,14 @@ class IsolationForest:
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
-    The larger the training dataset, the larger the number of trees, to maintain the efficacy of the model
+    The larger the training dataset, the larger the necessary number of trees to maintain
+    the efficacy of the model. We need to be careful to choose the adequate number of trees, because too few 
+    trees make the model to not learn all patterns, and too many trees make the model too overfitted and takes
+    too much time to be generated, making it less efficient
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(10000 + num_training_samples * 2, 30000)
+        return min(10000 + int(num_training_samples // 1.5), 45000)
 
     """
     Fits the Isolation Forest model using training data.
@@ -56,8 +59,9 @@ class IsolationForest:
     def evaluate(self, y_pred):
         y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
         report = classification_report(y_true, y_pred, output_dict=True)
-        conf_matrix = confusion_matrix(y_true, y_pred)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         accuracy = accuracy_score(y_true, y_pred)
+        conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         return accuracy, conf_matrix, report
   
     def test(self, model):
@@ -70,16 +74,16 @@ class IsolationForest:
         return self.evaluate(y_pred)
 
 
-## NOTE still here to register results, after choosing the best algorithm (or the best 2/3 algorithms), delete this
+## TODO this seems to have better results, but verify it later
 class IsolationForestLinkedIn:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol,
                  scoreCol, predictionCol, labelCol,
-                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.15):
+                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.1):
         
         self.__spark_session = spark_session
-        self.__df_train = df_train.drop("prediction", "score")
-        self.__df_test = df_test.drop("prediction", "score")
+        self.__df_train = df_train.drop(predictionCol, scoreCol)
+        self.__df_test = df_test.drop(predictionCol, scoreCol)
         self.__predictionCol = predictionCol
         self.__featuresCol = featuresCol
         self.__scoreCol = scoreCol
@@ -152,7 +156,9 @@ class IsolationForestLinkedIn:
 
         confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
 
-        return accuracy, confusion_matrix, self.__df_test
+        recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+
+        return accuracy, confusion_matrix, recall_class_1, self.__df_test
   
     def test(self, model):
 
