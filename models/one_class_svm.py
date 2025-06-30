@@ -28,6 +28,7 @@ class OneClassSVM:
 
         n_training_samples = self.__df_train.count()
 
+        # TODO review this
         nu = (1 / threshold) if n_training_samples <= threshold \
                              else max((1 / n_training_samples), 0.001)
         

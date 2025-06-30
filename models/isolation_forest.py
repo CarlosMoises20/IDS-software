@@ -58,7 +58,7 @@ class IsolationForest:
 
     def evaluate(self, y_pred):
         y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
-        report = classification_report(y_true, y_pred, output_dict=True)
+        report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         accuracy = accuracy_score(y_true, y_pred)
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}

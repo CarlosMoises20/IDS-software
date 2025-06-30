@@ -96,8 +96,9 @@ class KNNAnomalyDetector:
         y_true = [row[self.__labelCol] for row in labeled.collect()]
         y_pred = [row[self.__predictionCol] for row in labeled.collect()]
 
-        report = classification_report(y_true, y_pred, zero_division=0)
-        matrix = confusion_matrix(y_true, y_pred)
+        report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         accuracy = accuracy_score(y_true, y_pred)
 
         return accuracy, matrix, report

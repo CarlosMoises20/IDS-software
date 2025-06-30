@@ -59,7 +59,8 @@ class HBOS:
     """
     def evaluate(self, Y_pred):
         Y_true = self.__df_test[self.__labelCol].values
-        cm = confusion_matrix(Y_true, Y_pred)
+        tn, fp, fn, tp = confusion_matrix(Y_true=Y_true, y_pred=Y_pred).ravel()
+        conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         accuracy = accuracy_score(Y_true, Y_pred)
-        report = classification_report(Y_true, Y_pred, output_dict=True)
-        return accuracy, cm, report
+        report = classification_report(Y_true, Y_pred, output_dict=True, zero_division=0)
+        return accuracy, conf_matrix, report

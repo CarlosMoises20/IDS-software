@@ -28,10 +28,11 @@ class LOF:
         self.__labelCol = labelCol
 
 
-    def train(self, n_neighbors=3, n_jobs=-1):
+    def train(self, n_neighbors=3):
         model = LOFModel(n_neighbors=n_neighbors, 
-                         n_jobs=n_jobs,
-                         novelty=True)
+                         n_jobs=-1,
+                         novelty=True,
+                         p=1)
         features = np.array(self.__df_train.rdd.map(lambda x: x[0]).collect())
         return model.fit(features)
 
@@ -48,7 +49,8 @@ class LOF:
     
     def evaluate(self, y_pred):
         y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
-        report = classification_report(y_true, y_pred, output_dict=True)
-        conf_matrix = confusion_matrix(y_true, y_pred)
+        report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         accuracy = accuracy_score(y_true, y_pred)
         return accuracy, conf_matrix, report
