@@ -34,7 +34,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(10000 + int(num_training_samples // 1.5), 45000)
+        return min(5000 + int(num_training_samples * 2), 45000)
 
     """
     Fits the Isolation Forest model using training data.
@@ -158,7 +158,7 @@ class IsolationForestLinkedIn:
 
         recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0
 
-        return accuracy, confusion_matrix, recall_class_1, self.__df_test
+        return accuracy, confusion_matrix, recall_class_1
   
     def test(self, model):
 

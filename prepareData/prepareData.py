@@ -138,9 +138,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
     print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-    num_intrusions = 12
-
-    intrusion_rate = num_intrusions / df_model_test.count()
+    num_intrusions = 5
 
     df_model_test = modify_device_dataset(df_train=df_model_train,
                                             df_test=df_model_test,

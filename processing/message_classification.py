@@ -12,7 +12,6 @@ from models.hbos import HBOS
 from models.lof import LOF
 from models.kNN import *
 from pyspark.sql.streaming import DataStreamReader
-from models.autoencoder import Autoencoder
 from models.isolation_forest import *
 
 class MessageClassification:
@@ -259,28 +258,27 @@ class MessageClassification:
         model = models[best_index]
         report = report_list[best_index]"""
 
-        """### AUTOENCODER
-
-        ae = Autoencoder(df_train=df_model_train, df_test=df_model_test)
-
-        model = ae.train()
-
-        accuracy, matrix, report = ae.test()"""
-
-        """### ISOLATION FOREST
+        """### ISOLATION FOREST (sklearn)
         
-        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
-                                           df_train=df_model_train, 
-                                           df_test=df_model_test, 
-                                           featuresCol="features",
-                                           scoreCol="score",
-                                           predictionCol="predictionCol",
-                                           labelCol="intrusion")
-
+        if_class = IsolationForest(df_train=df_model_train, 
+                                    df_test=df_model_test, 
+                                    featuresCol="features",
+                                    labelCol="intrusion")
+        
         model = if_class.train()
 
-        accuracy, matrix, recall_class_1, df_model_test = if_class.test(model)"""
-
+        accuracy, matrix, report = if_class.test(model)"""
+        
+        """### ISOLATION FOREST (linkedin)
+        
+        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
+                                    df_train=df_model_train, 
+                                    df_test=df_model_test, 
+                                    featuresCol="features",
+                                    scoreCol="score",
+                                    predictionCol="predictionCol",
+                                    labelCol="intrusion")"""
+        
         ### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
@@ -291,8 +289,7 @@ class MessageClassification:
                             labelCol="intrusion")
         
         model = ocsvm.train()
-
-        accuracy, evaluation, df_model_test = ocsvm.test(model)
+        accuracy, evaluation = ocsvm.test(model)
 
         if evaluation is not None:
             print("Evaluation Report:\n")
@@ -303,19 +300,21 @@ class MessageClassification:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
         """if matrix is not None:
-            print("Confusion matrix:\n", matrix)
+            print("Confusion matrix:\n", matrix)"""
 
-        if recall_class_1 is not None:
-            print(f"Recall (class 1): {round(recall_class_1 * 100, 2)}%", )
+        """if recall_class_1 is not None:
+            print(f"Recall (class 1): {round(recall_class_1 * 100, 2)}%")"""
         
-        if report is not None:
-            print("Report:\n", json.dumps(report, indent=4)) # for sklearn models
+        """if report is not None:
+            print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
             #print("Report:\n", report)"""
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!
         #self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
 
+        """# NOTE uncomment to store the training and testing datasets
+        
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
@@ -325,7 +324,7 @@ class MessageClassification:
             df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
         else:
             df_model_train.coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
-            df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)
+            df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)"""
 
         end_time = time.time()
 
@@ -341,9 +340,8 @@ class MessageClassification:
     It stores the models as artifacts using MLFlow, as well as their associated informations 
     such as metric evaluations and the associated DevAddr 
 
-        dev_addr_list - an optional parameter to specify, as a list of strings, the DevAddr of the devices
-                        from which the user pretends to create models; if not specified, models from all 
-                        devices will be created
+        dev_addr_list - a parameter to specify, as a list of strings, the DevAddr of the devices
+                        from which the user pretends to create models
 
     """
     def create_ml_models(self, dev_addr_list, datasets_format):

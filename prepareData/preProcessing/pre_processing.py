@@ -39,7 +39,7 @@ class DataPreProcessing(ABC):
         df_test = assembler.transform(df_test)
 
         """# Normalize all assembled features inside a scale (TODO test for the other algorithms like kNN)
-        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=1000000)
+        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled")
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
@@ -47,13 +47,13 @@ class DataPreProcessing(ABC):
 
         # Normalize all assembled features using standards
         # TODO test, for all algorithms, with mean, with std, without mean, without std
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
         
-        """# Fit PCA using the train dataset    
+        # Fit PCA using the train dataset    
         pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
         pca_model = pca.fit(df_train)
         explained_variance = pca_model.explainedVariance.cumsum()
@@ -70,9 +70,9 @@ class DataPreProcessing(ABC):
         df_test = pca_final_model.transform(df_test)
 
         # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        # SVD: Converts for appropriate format for RowMatrix
+        """# SVD: Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
         mat = RowMatrix(rdd_vectors)
 
@@ -101,7 +101,7 @@ class DataPreProcessing(ABC):
 
         project_udf = F.udf(project_features, returnType=VectorUDT())
         df_train = df_train.withColumn("features", project_udf("scaled"))
-        df_test = df_test.withColumn("features", project_udf("scaled"))
+        df_test = df_test.withColumn("features", project_udf("scaled"))"""
 
         return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
        

@@ -22,27 +22,25 @@ class OneClassSVM:
         
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
         
-        gamma = 1 / features.shape[1]   # gamma is the inverse of the size of each feature array of each sample
-        
-        threshold = 150
+        N = self.__df_train.count()
 
-        n_training_samples = self.__df_train.count()
+        nu = max(0.001, min(0.05, 5 / N))
 
-        # TODO review this
-        nu = (1 / threshold) if n_training_samples <= threshold \
-                             else max((1 / n_training_samples), 0.001)
-        
         print("nu:", nu)
 
         # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
-        self.__model = OCSVM(kernel='rbf', nu=nu, gamma=gamma)   
+        # gamma = 'scale' allows the model to adapt to the data variance
+        self.__model = OCSVM(gamma='auto',
+                             max_iter=-1, 
+                             tol=0.001, 
+                             nu=nu)   
 
         return self.__model.fit(features)
 
     def test(self, model):
         df_preds = self.predict(model)
         accuracy, evaluation = self.evaluate(df_preds)
-        return accuracy, evaluation, df_preds
+        return accuracy, evaluation
 
 
     def predict(self, model):
@@ -102,15 +100,18 @@ class OneClassSVM:
         }
 
         # Metrics
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        f1_score = (2 * precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
+        precision_class_1 = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        recall_class_0 = tn / (tn + fp) if (tn + fp) > 0 else 0.0
+        f1_score_class_1 = (2 * precision_class_1 * recall_class_1) / (precision_class_1 + recall_class_1) \
+                                if (precision_class_1 + recall_class_1) > 0 else 0.0
 
         report = {
             "Accuracy": accuracy,
-            "Precision (anomaly)": precision,
-            "Recall (anomaly)": recall,
-            "F1-Score (anomaly)": f1_score
+            "Precision (anomaly)": precision_class_1,
+            "Recall (anomaly)": recall_class_1,
+            "Recall (normal)": recall_class_0,
+            "F1-Score (anomaly)": f1_score_class_1
         }
 
         return accuracy, {**confusion, **report}

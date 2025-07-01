@@ -8,8 +8,9 @@ from pyspark.sql.functions import row_number
 
 class KNNAnomalyDetector:
 
-    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.97):
-        self.__k = max(4, min(15, int(0.007 * df_train.count())))
+    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.99):
+        self.__k = max(10, min(30, int(0.01 * df_train.count())))
+        print("k:", self.__k)
         self.__df_train = df_train.withColumn("id", monotonically_increasing_id()).select(
             "id", featuresCol, labelCol, predictionCol
         )
