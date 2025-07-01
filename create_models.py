@@ -10,7 +10,7 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Run Message Classification for a specific DevAddr')
-    parser.add_argument('--dev_addr', type=str, nargs='+', required=True, help='List of DevAddr to filter by')
+    parser.add_argument('--dev_addr', type=str, nargs='+', required=False, help='List of DevAddr to filter by')
     parser.add_argument('--datasets_format', type=str, choices=['json', 'parquet'], default='json',
                         help='Format of datasets to use (json or parquet)')
     parser.add_argument('--skip_dataset_generation_if_exists', type=str, choices=['True', 'False'], default='True',

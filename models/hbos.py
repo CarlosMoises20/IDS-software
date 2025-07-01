@@ -21,18 +21,34 @@ class HBOS:
     
     """
     def __init__(self, df_train, df_test, featuresCol, labelCol):
-        self.__df_train = df_train.select(featuresCol).toPandas()
-        self.__df_test = df_test.select(featuresCol, labelCol).toPandas()
+        self.__df_train = df_train
+        self.__df_test = df_test
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
 
-    """Train the model using the indicated contamination, that represents the outlier rate
+    """
+    Train the model using the indicated contamination, that represents the outlier rate
     in the training dataset
     
     """
-    def train(self, contamination, n_bins=10):
-        model = HBOSModel(contamination=contamination, n_bins=n_bins)
-        X = np.array(self.__df_train[self.__featuresCol].tolist())
+    def train(self):
+        N = self.__df_train.count()
+        M = 35
+        min_contamination = 0.01
+        max_contamination = 0.2
+        
+        # ensure contamination is always between min_contamination and max_contamination, and is higher in smaller datasets
+        # the higher the N, the larger the dataset and the lower the contamination is expected to be
+        # M controls the scale: higher M means contamination starts higher for small N and decreases more slowly as N grows
+        contamination = max(min_contamination, min(max_contamination, M / N))
+        print("contamination:", contamination)
+
+        model = HBOSModel(contamination=contamination, n_bins=10)
+        
+        df_train = self.__df_train.select(self.__featuresCol).toPandas()
+        
+        X = np.array(df_train[self.__featuresCol].tolist())
+        
         return model.fit(X)
 
     """
@@ -40,6 +56,10 @@ class HBOS:
     
     """
     def test(self, model):
+        if self.__df_test is None:
+            print("Test dataset is empty. Skipping testing")
+            return None, None, None
+        
         Y_pred = self.predict(model)
         accuracy, matrix, report = self.evaluate(Y_pred)
         return accuracy, matrix, report
@@ -49,6 +69,7 @@ class HBOS:
     
     """
     def predict(self, model):
+        self.__df_test = self.__df_test.select(self.__featuresCol, self.__labelCol).toPandas()
         Y = np.array(self.__df_test[self.__featuresCol].tolist())
         return model.predict(Y)
 
@@ -59,7 +80,7 @@ class HBOS:
     """
     def evaluate(self, Y_pred):
         Y_true = self.__df_test[self.__labelCol].values
-        tn, fp, fn, tp = confusion_matrix(Y_true=Y_true, y_pred=Y_pred).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true=Y_true, y_pred=Y_pred).ravel()
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         accuracy = accuracy_score(Y_true, Y_pred)
         report = classification_report(Y_true, Y_pred, output_dict=True, zero_division=0)

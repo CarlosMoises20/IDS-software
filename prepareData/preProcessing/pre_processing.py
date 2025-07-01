@@ -36,14 +36,18 @@ class DataPreProcessing(ABC):
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
 
         df_train = assembler.transform(df_train)
-        df_test = assembler.transform(df_test)
+        
+        if df_test is not None:
+            df_test = assembler.transform(df_test)
 
         """# Normalize all assembled features inside a scale (TODO test for the other algorithms like kNN)
         scaler = MinMaxScaler(inputCol="feat", outputCol="scaled")
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)"""
+        
+        if df_test is not None:
+            df_test = scaler_model.transform(df_test)"""
 
         # Normalize all assembled features using standards
         # TODO test, for all algorithms, with mean, with std, without mean, without std
@@ -51,26 +55,39 @@ class DataPreProcessing(ABC):
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)
+
+        if df_test is not None:
+            df_test = scaler_model.transform(df_test)
         
-        # Fit PCA using the train dataset    
-        pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
-        pca_model = pca.fit(df_train)
-        explained_variance = pca_model.explainedVariance.cumsum()
 
-        # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
-        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+        if df_train.count() > 1:
+            
+            # Fit PCA using the train dataset    
+            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+            pca_model = pca.fit(df_train)
+            explained_variance = pca_model.explainedVariance.cumsum()
 
-        # Do the same thing but with the determined optimal k (k_optimal)
-        pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
-        pca_final_model = pca.fit(df_train)
+            # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        # Applies trained PCA model to train and test dataset
-        df_train = pca_final_model.transform(df_train)
-        df_test = pca_final_model.transform(df_test)
+            # Do the same thing but with the determined optimal k (k_optimal)
+            pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+            pca_final_model = pca.fit(df_train)
 
-        # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+            # Applies trained PCA model to train and test dataset
+            df_train = pca_final_model.transform(df_train)
+
+            if df_test is not None:
+                df_test = pca_final_model.transform(df_test)
+
+            # Prints the chosen value for k
+            print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+
+        else:
+            df_train = df_train.withColumnRenamed("scaled", "features")
+            
+            if df_test is not None:
+                df_test = df_test.withColumnRenamed("scaled", "features")
 
         """# SVD: Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
@@ -101,9 +118,14 @@ class DataPreProcessing(ABC):
 
         project_udf = F.udf(project_features, returnType=VectorUDT())
         df_train = df_train.withColumn("features", project_udf("scaled"))
-        df_test = df_test.withColumn("features", project_udf("scaled"))"""
 
-        return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
+        if df_test is not None:
+            df_test = df_test.withColumn("features", project_udf("scaled"))"""
+
+        if df_test is not None:
+            return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
+        
+        return df_train.drop("feat", "scaled"), None
        
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())

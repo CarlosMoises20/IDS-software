@@ -4,6 +4,7 @@ import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
+from pyspark.sql.functions import count
 from mlflow.tracking import MlflowClient
 import numpy as np
 from sklearn.cluster import DBSCAN
@@ -132,67 +133,18 @@ class MessageClassification:
 
         start_time = time.time()
 
-        """# LOF (Local Outlier Factor)
+        """# LOF (Local Outlier Factor) NOT FOR UNDER 5-10 TRAINING SAMPLES BECAUSE OF K
 
         lof = LOF(df_train=df_model_train,
                   df_test=df_model_test,
                   featuresCol="features",
                   labelCol="intrusion")
         
-        #model = lof.train()
+        model = lof.train()
 
-        #accuracy, matrix, report = lof.test(model)
-
-        accuracy_list = []
-        class_1_recall_list = []
-        class_0_recall_list = []
-        models = []
-        matrix_list = []
-        report_list = []
-        n_neighbors_list = [3, 5, 7, 10]
-
-        # test models with different k levels of the training dataset, to return the model with the best results
-        for n_neighbors in n_neighbors_list:
-            model = lof.train(n_neighbors=n_neighbors)
-            accuracy, matrix, report = lof.test(model)
-            accuracy_list.append(accuracy)
-            class_1_recall_list.append(report['1']['recall'])
-            class_0_recall_list.append(report['0']['recall'])
-            models.append(model)
-            matrix_list.append(matrix)
-            report_list.append(report)
-
-            # NOTE: uncomment these lines to print the results for each k-case model
-            #print(f'Recall (class 1) for k={n_neighbors}: {round(report["1"]["recall"] * 100, 2)}%')
-            #print(f'Recall (class 0) for k={n_neighbors}: {round(report["0"]["recall"] * 100, 2)}%')
-            #print(f"CM for k={n_neighbors}:\n{matrix}")
-            #print(f"Accuracy for k={n_neighbors}: {round(accuracy * 100, 2)}%\n")
-            #print(f"Report for k={n_neighbors} and {n_bins} bins:\n{json.dumps(report, indent=4)}\n\n\n")
-
-        # return the highest recall for class 1 (to ensure that the model detects as much anomalies as possible)
-        max_class_1_recall = max(class_1_recall_list)
-        indices_max_recall_1  = [i for i, r in enumerate(class_1_recall_list) if r == max_class_1_recall]
-        best_index = indices_max_recall_1[0]
-        min_recall_0 = class_0_recall_list[best_index]
-
-        # if two models or more have the same highest recall for class 1, choose the model with the lowest recall for class 0
-        # to ensure that we detect as much anomalies as possible. It's better to have some false positives than false negatives
-        # We want to minimize false negatives (anomalies detected as normal packets) as much as possible
-        # If the recall for class 0 is still the same between those models, choosing one model or another is the same thing,
-        # since the accuracy is the same because the test dataset is the same
-        for i in indices_max_recall_1[1:]:
-            if class_0_recall_list[i] < min_recall_0:
-                best_index = i
-                min_recall_0 = class_0_recall_list[i]
-
-        recall_class_1 = class_1_recall_list[best_index]
-        #class_0_recall = class_0_recall_list[best_index]
-        print(f"Chosen k: {n_neighbors_list[best_index]}")
-        accuracy = accuracy_list[best_index]
-        model = models[best_index]
-        report = report_list[best_index]"""
-
-        """#kNN (k-Nearest Neighbors)
+        accuracy, matrix, report = lof.test(model)"""
+        
+        """#kNN (k-Nearest Neighbors) NOT FOR UNDER 5-10 TRAINING SAMPLES BECAUSE OF K
         
         knn = KNNAnomalyDetector(df_train=df_model_train,
                                 df_test=df_model_test,
@@ -201,39 +153,82 @@ class MessageClassification:
                                 predictionCol="prediction")
         
         model = knn.train()
-        accuracy, matrix, report = knn.test(model)"""
+        
+        if df_model_test is not None:
+            accuracy, matrix, report = knn.test(model)"""
 
-        """# HBOS (Histogram-Based Outlier Score)
+        # HBOS (Histogram-Based Outlier Score)
         hbos = HBOS(df_train=df_model_train, 
                     df_test=df_model_test,
                     featuresCol='features',
                     labelCol='intrusion')
+        
+        model = hbos.train()
+        accuracy, matrix, report = hbos.test(model)
+       
+        """### ISOLATION FOREST (sklearn)
+        
+        if_class = IsolationForest(df_train=df_model_train, 
+                                    df_test=df_model_test, 
+                                    featuresCol="features",
+                                    labelCol="intrusion")
+        
+        model = if_class.train()
+        accuracy, matrix, report = if_class.test(model)"""
+        
+        """### ISOLATION FOREST (linkedin)
+        
+        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
+                                    df_train=df_model_train, 
+                                    df_test=df_model_test, 
+                                    featuresCol="features",
+                                    scoreCol="score",
+                                    predictionCol="predictionCol",
+                                    labelCol="intrusion")
+                                    
+        model = if_class.train()
+        accuracy, matrix, recall_class_1 = if_class.test(model)"""
+        
+        """### One-Class SVM
 
+        ocsvm = OneClassSVM(spark_session=self.__spark_session,
+                            df_train=df_model_train,
+                            df_test=df_model_test,
+                            featuresCol="features",
+                            predictionCol="prediction",
+                            labelCol="intrusion")
+        
+        model = ocsvm.train()
+        accuracy, evaluation = None, None
+
+        if df_model_test is not None:
+            accuracy, evaluation, df_model_test = ocsvm.test(model)"""
+
+        """## OCSVM: testing various NUs 
+        
         accuracy_list = []
         class_1_recall_list = []
         class_0_recall_list = []
         models = []
-        matrix_list = []
-        report_list = []
-        contamination_list = [0.01, 0.05, 0.1, 0.15, 0.17, 0.2, 0.33]
+        evaluation_list = []
+        nu_list = [0.01, 0.02, 0.05, 0.1, 0.13, 0.15]
 
         # test models with different contamination levels of the training dataset, to return the model with the best results
-        for contamination_level in contamination_list:
-            model = hbos.train(contamination=contamination_level)
-            accuracy, matrix, report = hbos.test(model)
+        for nu in nu_list:
+            model = ocsvm.train(nu=nu)
+            accuracy, evaluation, _ = ocsvm.test(model)
             accuracy_list.append(accuracy)
-            class_1_recall_list.append(report['1']['recall'])
-            class_0_recall_list.append(report['0']['recall'])
+            class_1_recall_list.append(evaluation["Recall (anomaly)"])
+            class_0_recall_list.append(evaluation["Recall (normal)"])
             models.append(model)
-            matrix_list.append(matrix)
-            report_list.append(report)
+            evaluation_list.append(evaluation)
 
             # NOTE: uncomment these lines to print the results for each contamination-case model
-            #print(f'Recall (class 1) for contamination {contamination_level}: {round(report["1"]["recall"] * 100, 2)}%')
-            #print(f'Recall (class 0) for contamination {contamination_level}: {round(report["0"]["recall"] * 100, 2)}%')
-            #print(f"CM for contamination {contamination_level}:\n{matrix}")
-            #print(f"Accuracy for contamination {contamination_level}: {round(accuracy * 100, 2)}%\n")
-            #print(f"Report for contamination {contamination_level} and {n_bins} bins:\n{json.dumps(report, indent=4)}\n\n\n")
+            print(f'F1-Score (class 1) for nu={nu}: {round(evaluation["F1-Score (anomaly)"] * 100, 2)}%')
+            print(f'Recall (class 1) for nu={nu}: {round(evaluation["Recall (anomaly)"] * 100, 2)}%')
+            print(f'Recall (class 0) for nu={nu}: {round(evaluation["Recall (normal)"] * 100, 2)}%')
+            print(f"Accuracy for nu={nu}: {round(accuracy * 100, 2)}%\n")
+            print(f"Evaluation for nu={nu}:\n{json.dumps(evaluation, indent=4)}\n\n\n")
 
         # return the highest recall for class 1 (to ensure that the model detects as much anomalies as possible)
         max_class_1_recall = max(class_1_recall_list)
@@ -253,61 +248,28 @@ class MessageClassification:
 
         #recall_class_1 = class_1_recall_list[best_index]
         #recall_class_0 = class_0_recall_list[best_index]
-        print(f"Contamination: {contamination_list[best_index] * 100}%")
+        print(f"Chosen nu: {nu_list[best_index] * 100}%")
         accuracy = accuracy_list[best_index]
         model = models[best_index]
-        report = report_list[best_index]"""
+        evaluation = evaluation_list[best_index]"""
 
-        """### ISOLATION FOREST (sklearn)
-        
-        if_class = IsolationForest(df_train=df_model_train, 
-                                    df_test=df_model_test, 
-                                    featuresCol="features",
-                                    labelCol="intrusion")
-        
-        model = if_class.train()
-
-        accuracy, matrix, report = if_class.test(model)"""
-        
-        """### ISOLATION FOREST (linkedin)
-        
-        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
-                                    df_train=df_model_train, 
-                                    df_test=df_model_test, 
-                                    featuresCol="features",
-                                    scoreCol="score",
-                                    predictionCol="predictionCol",
-                                    labelCol="intrusion")"""
-        
-        ### One-Class SVM
-
-        ocsvm = OneClassSVM(spark_session=self.__spark_session,
-                            df_train=df_model_train,
-                            df_test=df_model_test,
-                            featuresCol="features",
-                            predictionCol="prediction",
-                            labelCol="intrusion")
-        
-        model = ocsvm.train()
-        accuracy, evaluation = ocsvm.test(model)
-
-        if evaluation is not None:
+        """if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
         if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
         
-        """if matrix is not None:
-            print("Confusion matrix:\n", matrix)"""
-
         """if recall_class_1 is not None:
-            print(f"Recall (class 1): {round(recall_class_1 * 100, 2)}%")"""
+            print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((recall_class_1 * 100), 2)}%')"""
+
+        if matrix is not None:
+            print("Confusion matrix:\n", matrix)
         
-        """if report is not None:
+        if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report)"""
+            #print("Report:\n", report)
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!
@@ -349,6 +311,20 @@ class MessageClassification:
         ### Begin processing
         start_time = time.time()
 
+        if dev_addr_list is None:
+
+            df_rxpk = self.__spark_session.read.json(f'./generatedDatasets/rxpk/lorawan_dataset.json')
+            df_txpk = self.__spark_session.read.json(f'./generatedDatasets/txpk/lorawan_dataset.json')
+
+            rxpk_counts = df_rxpk.groupBy("DevAddr").agg(count("*")).orderBy("DevAddr").collect()
+            txpk_counts = df_txpk.groupBy("DevAddr").agg(count("*")).orderBy("DevAddr").collect()
+
+            rxpk_devaddr_list = [str(row['DevAddr']) for row in rxpk_counts]
+            txpk_devaddr_list = [str(row['DevAddr']) for row in txpk_counts]
+
+            dev_addr_list = list(set(rxpk_devaddr_list + txpk_devaddr_list))
+
+
         # create each model in sequence
         for dev_addr in dev_addr_list:
 
@@ -357,7 +333,7 @@ class MessageClassification:
                 # Pre-Processing phase
                 df_model_train, df_model_test = prepare_df_for_device(
                     self.__spark_session, dataset_type, dev_addr
-                )  
+                )
 
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test) != (None, None):

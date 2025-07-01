@@ -10,11 +10,9 @@ from pyspark.sql import DataFrame
 
 class IsolationForest:
 
-    def __init__(self, df_train, df_test, featuresCol,
-                 labelCol, seed=42):
-        
+    def __init__(self, df_train, df_test, featuresCol, labelCol, seed=42):
         self.__df_train = df_train.select(featuresCol, labelCol)
-        self.__df_test = df_test.select(featuresCol, labelCol)
+        self.__df_test = df_test.select(featuresCol, labelCol) if df_test is not None else None
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
         self.__numTrees = self.__set_num_trees(df_train.count())
@@ -68,7 +66,7 @@ class IsolationForest:
 
         if self.__df_test is None:
             print("Test dataset is empty. Skipping testing.")
-            return None, None
+            return None, None, None
 
         y_pred = self.predict(model)
         return self.evaluate(y_pred)
@@ -79,11 +77,11 @@ class IsolationForestLinkedIn:
 
     def __init__(self, spark_session, df_train, df_test, featuresCol,
                  scoreCol, predictionCol, labelCol,
-                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.1):
+                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.2):
         
         self.__spark_session = spark_session
-        self.__df_train = df_train.drop(predictionCol, scoreCol)
-        self.__df_test = df_test.drop(predictionCol, scoreCol)
+        self.__df_train = df_train
+        self.__df_test = df_test if df_test is not None else None
         self.__predictionCol = predictionCol
         self.__featuresCol = featuresCol
         self.__scoreCol = scoreCol
@@ -102,7 +100,7 @@ class IsolationForestLinkedIn:
                 .setScoreCol(scoreCol) \
                 .setRandomSeed(seed) \
                 .setContamination(contamination) \
-                .setContaminationError(contamination * 0.5)
+                .setContaminationError(contamination * 0.8)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
@@ -117,6 +115,7 @@ class IsolationForestLinkedIn:
     
     """
     def train(self):
+        self.__df_train = self.__df_train.drop(self.__predictionCol, self.__scoreCol)
         return self.__model.fit(self.__df_train.select(self.__featuresCol, self.__labelCol)._jdf)
 
     """
@@ -126,6 +125,8 @@ class IsolationForestLinkedIn:
     def predict(self, model, df):
         if model is None:
             raise RuntimeError("Model does not exist!")
+        
+        self.__df_test = df.drop(self.__predictionCol, self.__scoreCol)._jdf
         
         java_df = model.transform(df)
         return DataFrame(java_df, self.__spark_session)
@@ -164,8 +165,8 @@ class IsolationForestLinkedIn:
 
         if self.__df_test is None:
             print("Test dataset is empty. Skipping testing.")
-            return None, None
+            return None, None, None
 
-        df_predictions = self.predict(model, self.__df_test._jdf)
+        df_predictions = self.predict(model, self.__df_test)
 
         return self.evaluate(df_predictions)

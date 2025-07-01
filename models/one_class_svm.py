@@ -18,29 +18,35 @@ class OneClassSVM:
         self.__predictionCol = predictionCol
         self.__labelCol = labelCol
 
-    def train(self):
+    def train(self, nu=0.1):
         
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
         
         N = self.__df_train.count()
+        M = 45
+        min_nu = 0.01
+        max_nu = 0.15
 
-        nu = max(0.001, min(0.05, 5 / N))
+        # ensure nu is always between min_nu and max_nu, and is higher in smaller datasets
+        # the higher the N, the larger the dataset and the lower the contamination is expected to be
+        # M controls the scale: higher M means contamination starts higher for small N and decreases more slowly as N grows
+        nu = max(min_nu, min(max_nu, M / N))
 
         print("nu:", nu)
 
         # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
-        self.__model = OCSVM(gamma='auto',
-                             max_iter=-1, 
-                             tol=0.001, 
-                             nu=nu)   
+        self.__model = OCSVM(tol=0.00001, nu=nu)
 
         return self.__model.fit(features)
 
     def test(self, model):
+        if self.__df_test is None:
+            print("Test dataset is empty. Skipping testing.")
+            return None, None, None
         df_preds = self.predict(model)
         accuracy, evaluation = self.evaluate(df_preds)
-        return accuracy, evaluation
+        return accuracy, evaluation, df_preds
 
 
     def predict(self, model):

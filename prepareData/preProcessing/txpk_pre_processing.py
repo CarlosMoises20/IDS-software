@@ -26,7 +26,7 @@ class TxpkPreProcessing(DataPreProcessing):
         # of attributes inside the 'txpk' struct attribute
         selected_columns = [
             "AppNonce", "CFList", "DLSettings", "DevAddr", "FCtrl",
-            "FCnt", "FOpts", "FPort", "PHYPayload", "MIC", "MHDR", "NetID",
+            "FCnt", "FOpts", "FPort", "PHYPayload", "MIC", "MHDR",
             "RxDelay", "txpk.*"
         ]
 

@@ -121,18 +121,10 @@ def train_test_split(df_model, seed=42):
 
     # If there is only one sample for the device, use that sample for training, 
     # and don't apply testing for that model
-    if total_count == 1:
+    if total_count <= 15:
         df_model_train, df_model_test = df_model, None
 
-    # If there are between 2 and 9 samples, split the samples for training and testing by 50-50
-    elif total_count < 10:
-        df_model_train, df_model_test = df_model.randomSplit([0.5, 0.5], seed)
-
-    # If there are between 10 and 20 samples, split the samples for training and testing by 70-30
-    elif total_count < 20:
-        df_model_train, df_model_test = df_model.randomSplit([0.7, 0.3], seed)
-
-    # If there are 20 or more samples, split the samples for training and testing by 80-20
+    # If there are 16 or more samples, split the samples for training and testing by 80-20
     else:
         df_model_train, df_model_test = df_model.randomSplit([0.8, 0.2], seed)
 

@@ -72,8 +72,8 @@ def pre_process_type(df, dataset_type):
     # hexadecimal attributes to decimal common for all dataset types
     # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
     # these would be treated as categorical values, which is not supposed
-    hex_attributes = ["AppNonce", "FPort", "MIC", "FCtrl", "FCnt", "FOpts", "MHDR", 
-                      "CFList", "CFListType", "NetID", "RxDelay"]
+    hex_attributes = ["AppNonce", "DLSettings", "FPort", "MIC", "FCtrl", "FCnt", "FOpts", "MHDR", 
+                      "CFList", "CFListType", "RxDelay"]
 
     df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
@@ -97,11 +97,10 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     ).filter(col("DevAddr") == dev_addr)
 
     df_model = df_model.cache()
-    df_model_count = df_model.count()
 
     # If there are no samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model
-    if df_model_count == 0:
+    if df_model.count() == 0:
         print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
         return None, None
 
@@ -134,20 +133,26 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # Applies division in training and testing based in dataset size rules
     df_model_train, df_model_test = train_test_split(df_model)
 
-    # NOTE: uncomment these two lines to print the number of training and testing samples for the device
+    # NOTE: uncomment this line to print the number of training samples for the device
     print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
-    print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-    num_intrusions = 5
+    if df_model_test is not None:
 
-    df_model_test = modify_device_dataset(df_train=df_model_train,
-                                            df_test=df_model_test,
-                                            params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
-                                            target_values=[SF_LIST, BW_LIST, 
-                                                           DATA_LEN_LIST_ABNORMAL, 
-                                                           DATA_LEN_LIST_ABNORMAL],
-                                            num_intrusions=num_intrusions)
-    
+        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
+        # and the number of intrusions is higher in larger datasets
+        num_intrusions = max(1, min(round(0.1 * df_model_test.count()), 12))
+
+        df_model_test = modify_device_dataset(df_train=df_model_train,
+                                                df_test=df_model_test,
+                                                params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
+                                                target_values=[SF_LIST, BW_LIST, 
+                                                            DATA_LEN_LIST_ABNORMAL, 
+                                                            DATA_LEN_LIST_ABNORMAL],
+                                                num_intrusions=num_intrusions)
+
+        # NOTE: uncomment this line to print the number of testing samples for the device
+        print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
+
     df_model_train, df_model_test = DataPreProcessing.features_assembler(df_model_train, df_model_test)
 
     return df_model_train, df_model_test

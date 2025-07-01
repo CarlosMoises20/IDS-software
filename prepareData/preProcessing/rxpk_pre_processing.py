@@ -26,7 +26,7 @@ class RxpkPreProcessing(DataPreProcessing):
         # that filter also removes more irrelevant, redundant and correlated attributes, as well as 
         # attributes that are always NULL
         df = df.withColumn("rxpk", expr("""
-                                        transform(rxpk, x -> named_struct( 'AppEUI', x.AppEUI, 
+                                        transform(rxpk, x -> named_struct('AppEUI', x.AppEUI, 
                                                                         'AppNonce', x.AppNonce, 
                                                                         'DLSettings', x.DLSettings,
                                                                         'CFList', x.CFList,  
@@ -40,7 +40,6 @@ class RxpkPreProcessing(DataPreProcessing):
                                                                         'PHYPayload', x.PHYPayload,
                                                                         'MIC', x.MIC,
                                                                         'MHDR', x.MHDR,
-                                                                        'NetID', x.NetID, 
                                                                         'RxDelay', x.RxDelay, 
                                                                         'chan', x.chan,
                                                                         'codr', x.codr,

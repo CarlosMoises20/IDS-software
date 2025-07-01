@@ -9,14 +9,10 @@ from pyspark.sql.functions import row_number
 class KNNAnomalyDetector:
 
     def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.99):
-        self.__k = max(10, min(30, int(0.01 * df_train.count())))
+        self.__k = max(5, min(round(df_train.count() * 0.01), 15))
         print("k:", self.__k)
-        self.__df_train = df_train.withColumn("id", monotonically_increasing_id()).select(
-            "id", featuresCol, labelCol, predictionCol
-        )
-        self.__df_test = df_test.withColumn("id", monotonically_increasing_id() + df_train.count()).select(
-            "id", featuresCol, labelCol, predictionCol
-        )
+        self.__df_train = df_train
+        self.__df_test = df_test
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
         self.__predictionCol = predictionCol
@@ -63,6 +59,10 @@ class KNNAnomalyDetector:
 
     def train(self):
 
+        self.__df_train = self.__df_train.withColumn("id", monotonically_increasing_id()).select(
+            "id", self.__featuresCol, self.__labelCol, self.__predictionCol
+        )
+
         model = self.__model_class.fit(self.__df_train)
         
         # Calculate average distances
@@ -78,6 +78,10 @@ class KNNAnomalyDetector:
 
         if model is None:
             raise Exception("Model must be created first!")
+        
+        self.__df_test = self.__df_test.withColumn("id", monotonically_increasing_id() + self.__df_train.count()).select(
+            "id", self.__featuresCol, self.__labelCol, self.__predictionCol
+        )
 
         avg_dists = self.__compute_avg_distances(model, self.__df_test, self.__df_train)
 
@@ -107,6 +111,7 @@ class KNNAnomalyDetector:
     def test(self, model):
 
         if self.__df_test is None:
+            print("Test dataset is empty. Skipping generation")
             return None, None, None
         
         predictions = self.predict(model)
