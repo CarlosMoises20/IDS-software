@@ -11,8 +11,8 @@ from pyspark.sql import DataFrame
 class IsolationForest:
 
     def __init__(self, df_train, df_test, featuresCol, labelCol, seed=42):
-        self.__df_train = df_train.select(featuresCol, labelCol)
-        self.__df_test = df_test.select(featuresCol, labelCol) if df_test is not None else None
+        self.__df_train = df_train
+        self.__df_test = df_test
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
         self.__numTrees = self.__set_num_trees(df_train.count())
@@ -32,7 +32,8 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(5000 + int(num_training_samples * 2), 45000)
+        #return min(5000 + int(num_training_samples * 2), 45000)
+        return min(1500 + num_training_samples, 4000)
 
     """
     Fits the Isolation Forest model using training data.
@@ -108,7 +109,7 @@ class IsolationForestLinkedIn:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(1500 + num_training_samples, 2500)
+        return min(1500 + num_training_samples, 3000)
 
     """
     Fits the Isolation Forest model using training data.
@@ -128,7 +129,7 @@ class IsolationForestLinkedIn:
         
         self.__df_test = df.drop(self.__predictionCol, self.__scoreCol)._jdf
         
-        java_df = model.transform(df)
+        java_df = model.transform(self.__df_test)
         return DataFrame(java_df, self.__spark_session)
     
 

@@ -140,7 +140,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
 
         # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
         # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round(0.1 * df_model_test.count()), 12))
+        num_intrusions = max(1, min(round(0.2 * df_model_test.count()), 12))
 
         df_model_test = modify_device_dataset(df_train=df_model_train,
                                                 df_test=df_model_test,

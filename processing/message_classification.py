@@ -153,20 +153,18 @@ class MessageClassification:
                                 predictionCol="prediction")
         
         model = knn.train()
-        
-        if df_model_test is not None:
-            accuracy, matrix, report = knn.test(model)"""
+        accuracy, matrix, report = knn.test(model)"""
 
-        # HBOS (Histogram-Based Outlier Score)
+        """# HBOS (Histogram-Based Outlier Score)
         hbos = HBOS(df_train=df_model_train, 
                     df_test=df_model_test,
                     featuresCol='features',
                     labelCol='intrusion')
         
         model = hbos.train()
-        accuracy, matrix, report = hbos.test(model)
+        accuracy, matrix, report = hbos.test(model)"""
        
-        """### ISOLATION FOREST (sklearn)
+        ### ISOLATION FOREST (sklearn)
         
         if_class = IsolationForest(df_train=df_model_train, 
                                     df_test=df_model_test, 
@@ -174,7 +172,7 @@ class MessageClassification:
                                     labelCol="intrusion")
         
         model = if_class.train()
-        accuracy, matrix, report = if_class.test(model)"""
+        accuracy, matrix, report = if_class.test(model)
         
         """### ISOLATION FOREST (linkedin)
         
@@ -203,55 +201,6 @@ class MessageClassification:
 
         if df_model_test is not None:
             accuracy, evaluation, df_model_test = ocsvm.test(model)"""
-
-        """## OCSVM: testing various NUs 
-        
-        accuracy_list = []
-        class_1_recall_list = []
-        class_0_recall_list = []
-        models = []
-        evaluation_list = []
-        nu_list = [0.01, 0.02, 0.05, 0.1, 0.13, 0.15]
-
-        # test models with different contamination levels of the training dataset, to return the model with the best results
-        for nu in nu_list:
-            model = ocsvm.train(nu=nu)
-            accuracy, evaluation, _ = ocsvm.test(model)
-            accuracy_list.append(accuracy)
-            class_1_recall_list.append(evaluation["Recall (anomaly)"])
-            class_0_recall_list.append(evaluation["Recall (normal)"])
-            models.append(model)
-            evaluation_list.append(evaluation)
-
-            # NOTE: uncomment these lines to print the results for each contamination-case model
-            print(f'F1-Score (class 1) for nu={nu}: {round(evaluation["F1-Score (anomaly)"] * 100, 2)}%')
-            print(f'Recall (class 1) for nu={nu}: {round(evaluation["Recall (anomaly)"] * 100, 2)}%')
-            print(f'Recall (class 0) for nu={nu}: {round(evaluation["Recall (normal)"] * 100, 2)}%')
-            print(f"Accuracy for nu={nu}: {round(accuracy * 100, 2)}%\n")
-            print(f"Evaluation for nu={nu}:\n{json.dumps(evaluation, indent=4)}\n\n\n")
-
-        # return the highest recall for class 1 (to ensure that the model detects as much anomalies as possible)
-        max_class_1_recall = max(class_1_recall_list)
-        indices_max_recall_1  = [i for i, r in enumerate(class_1_recall_list) if r == max_class_1_recall]
-        best_index = indices_max_recall_1[0]
-        min_recall_0 = class_0_recall_list[best_index]
-
-        # if two models or more have the same highest recall for class 1, choose the model with the lowest recall for class 0
-        # to ensure that we detect as much anomalies as possible. It's better to have some false positives than false negatives
-        # We want to minimize false negatives (anomalies detected as normal packets) as much as possible
-        # If the recall for class 0 is still the same between those models, choosing one model or another is the same thing,
-        # since the accuracy is the same because the test dataset is the same
-        for i in indices_max_recall_1[1:]:
-            if class_0_recall_list[i] < min_recall_0:
-                best_index = i
-                min_recall_0 = class_0_recall_list[i]
-
-        #recall_class_1 = class_1_recall_list[best_index]
-        #recall_class_0 = class_0_recall_list[best_index]
-        print(f"Chosen nu: {nu_list[best_index] * 100}%")
-        accuracy = accuracy_list[best_index]
-        model = models[best_index]
-        evaluation = evaluation_list[best_index]"""
 
         """if evaluation is not None:
             print("Evaluation Report:\n")

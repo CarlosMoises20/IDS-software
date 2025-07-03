@@ -23,20 +23,19 @@ class OneClassSVM:
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
         
         N = self.__df_train.count()
-        M = 45
-        min_nu = 0.01
-        max_nu = 0.15
 
         # ensure nu is always between min_nu and max_nu, and is higher in smaller datasets
-        # the higher the N, the larger the dataset and the lower the contamination is expected to be
-        # M controls the scale: higher M means contamination starts higher for small N and decreases more slowly as N grows
-        nu = max(min_nu, min(max_nu, M / N))
+        # the higher the N, the larger the dataset and the lower the 'nu' is expected to be
+        # M controls the scale: higher M means that 'nu' starts higher for small N and decreases more slowly as N increases
+        nu = max(0.0005, min(0.1, 15 / N)) if N > 20 else max(0.1, min(0.5, 12.5 / N))
 
         print("nu:", nu)
 
         # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
-        self.__model = OCSVM(tol=0.00001, nu=nu)
+        # NOTE it works better with large datasets, for smaller datasets, a too large NU loses too much anomalies and a
+        # too small NU gives too much false positives
+        self.__model = OCSVM(tol=1e-6, nu=nu)
 
         return self.__model.fit(features)
 
