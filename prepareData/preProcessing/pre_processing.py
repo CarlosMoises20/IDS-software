@@ -40,8 +40,8 @@ class DataPreProcessing(ABC):
         if df_test is not None:
             df_test = assembler.transform(df_test)
 
-        """# Normalize all assembled features inside a scale (TODO test for the other algorithms like kNN)
-        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled")
+        """# Normalize all assembled features inside a scale
+        scaler = MinMaxScaler(inputCol="feat", outputCol="scaled", max=100000)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
@@ -51,7 +51,7 @@ class DataPreProcessing(ABC):
 
         # Normalize all assembled features using standards
         # TODO test, for all algorithms, with mean, with std, without mean, without std
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled")
+        scaler = StandardScaler(inputCol="feat", outputCol="features")
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
@@ -59,7 +59,8 @@ class DataPreProcessing(ABC):
         if df_test is not None:
             df_test = scaler_model.transform(df_test)
         
-
+        """# PCA (Principal Component Analysis)
+        
         if df_train.count() > 1:
             
             # Fit PCA using the train dataset    
@@ -87,7 +88,7 @@ class DataPreProcessing(ABC):
             df_train = df_train.withColumnRenamed("scaled", "features")
             
             if df_test is not None:
-                df_test = df_test.withColumnRenamed("scaled", "features")
+                df_test = df_test.withColumnRenamed("scaled", "features")"""
 
         """# SVD: Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
@@ -123,9 +124,9 @@ class DataPreProcessing(ABC):
             df_test = df_test.withColumn("features", project_udf("scaled"))"""
 
         if df_test is not None:
-            return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
+            return df_train.drop("feat"), df_test.drop("feat")
         
-        return df_train.drop("feat", "scaled"), None
+        return df_train.drop("feat"), None
        
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())

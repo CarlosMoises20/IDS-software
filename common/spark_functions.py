@@ -119,9 +119,9 @@ def train_test_split(df_model, seed=42):
     # Count the total number of samples to be used by the model
     total_count = df_model.count()
 
-    # If there is only one sample for the device, use that sample for training, 
+    # If there is 10 samples or less, use those samples for training, 
     # and don't apply testing for that model
-    if total_count <= 15:
+    if total_count <= 10:
         df_model_train, df_model_test = df_model, None
 
     # If there are 16 or more samples, split the samples for training and testing by 80-20

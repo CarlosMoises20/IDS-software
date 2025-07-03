@@ -133,7 +133,7 @@ class MessageClassification:
 
         start_time = time.time()
 
-        """# LOF (Local Outlier Factor) NOT FOR UNDER 5-10 TRAINING SAMPLES BECAUSE OF K
+        """# LOF (Local Outlier Factor)
 
         lof = LOF(df_train=df_model_train,
                   df_test=df_model_test,
@@ -144,7 +144,7 @@ class MessageClassification:
 
         accuracy, matrix, report = lof.test(model)"""
         
-        """#kNN (k-Nearest Neighbors) NOT FOR UNDER 5-10 TRAINING SAMPLES BECAUSE OF K
+        """# kNN (k-Nearest Neighbors)
         
         knn = KNNAnomalyDetector(df_train=df_model_train,
                                 df_test=df_model_test,
@@ -164,7 +164,7 @@ class MessageClassification:
         model = hbos.train()
         accuracy, matrix, report = hbos.test(model)"""
        
-        ### ISOLATION FOREST (sklearn)
+        """### ISOLATION FOREST (sklearn)
         
         if_class = IsolationForest(df_train=df_model_train, 
                                     df_test=df_model_test, 
@@ -172,7 +172,7 @@ class MessageClassification:
                                     labelCol="intrusion")
         
         model = if_class.train()
-        accuracy, matrix, report = if_class.test(model)
+        accuracy, matrix, report = if_class.test(model)"""
         
         """### ISOLATION FOREST (linkedin)
         
@@ -187,7 +187,7 @@ class MessageClassification:
         model = if_class.train()
         accuracy, matrix, recall_class_1 = if_class.test(model)"""
         
-        """### One-Class SVM
+        ### One-Class SVM
 
         ocsvm = OneClassSVM(spark_session=self.__spark_session,
                             df_train=df_model_train,
@@ -197,15 +197,12 @@ class MessageClassification:
                             labelCol="intrusion")
         
         model = ocsvm.train()
-        accuracy, evaluation = None, None
+        accuracy, evaluation, df_model_test = ocsvm.test(model)
 
-        if df_model_test is not None:
-            accuracy, evaluation, df_model_test = ocsvm.test(model)"""
-
-        """if evaluation is not None:
+        if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")"""
+                print(f"{key}: {value}")
         
         if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((accuracy * 100), 2)}%')
@@ -213,12 +210,12 @@ class MessageClassification:
         """if recall_class_1 is not None:
             print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round((recall_class_1 * 100), 2)}%')"""
 
-        if matrix is not None:
+        """if matrix is not None:
             print("Confusion matrix:\n", matrix)
         
         if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report)
+            #print("Report:\n", report)"""
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!
