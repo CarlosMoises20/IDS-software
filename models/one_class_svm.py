@@ -57,11 +57,12 @@ class OneClassSVM:
         # NU is the upper bound of the contamination rate in the dataset, that normally is smaller in higher datasets
         # NU is also the lower bound of the fraction of support vectors
         # ensure nu is always between min_nu and max_nu, and is higher in smaller datasets
-        # the higher the N, the larger the dataset and the lower the 'nu' is expected to be
+        # the higher the N, the larger the dataset and the lower the 'nu' is expected to be 
         # M controls the scale: higher M means that 'nu' starts higher for small N and decreases more slowly as N increases
-        nu = max(0.0005, min(0.1, 15 / N)) if N >= 20 else max(0.1, min(0.5, 4 / N))
+        nu = min(0.1, 7 / N) if N >= 20 else max(0.1, min(0.5, 4 / N))
 
-        print("nu:", nu)
+        # NOTE uncomment to print the value of the parameter 'nu' 
+        #print("nu:", nu)
 
         # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
@@ -82,15 +83,15 @@ class OneClassSVM:
         # If the testing model does not exist (for not having sufficient samples for testing), testing will be skipped
         if self.__df_test is None:
             print("Test dataset is empty. Skipping testing.")
-            return None, None, None
+            return None, None
         
         # Use the model to predict the labels for the samples in the test dataset
         df_preds = self.predict(model)
 
         # Compute the evaluation metrics to determine the efficacy of the model during testing
-        accuracy, evaluation = self.evaluate(df_preds)
+        evaluation = self.evaluate(df_preds)
 
-        return accuracy, evaluation, df_preds
+        return evaluation, df_preds
 
     """
     This method is used for the model to predict the labels of the testing samples,
@@ -172,11 +173,11 @@ class OneClassSVM:
 
         # Dictionary with relevant evaluation metrics to analyse the efficacy of the model in testing
         report = {
-            "Accuracy": accuracy,
-            "Precision (class 1 -> anomaly)": precision_class_1,
-            "Recall (class 1 -> anomaly)": recall_class_1,
-            "Recall (class 0 -> normal)": recall_class_0,
-            "F1-Score (class 1 -> anomaly)": f1_score_class_1
+            "Accuracy": f'{round(accuracy * 100, 2)}%',
+            "Recall (class 1 -> anomaly)": f'{round(recall_class_1 * 100, 2)}%',
+            "Precision (class 1 -> anomaly)": f'{round(precision_class_1 * 100, 2)}%',
+            "F1-Score (class 1 -> anomaly)": f'{round(f1_score_class_1 * 100, 2)}%',
+            "Recall (class 0 -> normal)": f'{round(recall_class_0 * 100, 2)}%'
         }
 
-        return accuracy, {**confusion, **report}
+        return {**confusion, **report}

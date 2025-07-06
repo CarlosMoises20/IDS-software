@@ -32,8 +32,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        #return min(5000 + int(num_training_samples * 2), 45000)
-        return min(1500 + num_training_samples, 4000)
+        return min(100 + int(num_training_samples // 5), 7000)
 
     """
     Fits the Isolation Forest model using training data.
@@ -54,7 +53,6 @@ class IsolationForest:
         y_pred = model.predict(features)
         return np.array([0 if pred == 1 else 1 for pred in y_pred])
     
-
     def evaluate(self, y_pred):
         y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
@@ -158,15 +156,29 @@ class IsolationForestLinkedIn:
 
         confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
 
-        recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        # Metrics
+        precision_class_1 = tp / (tp + fp) if (tp + fp) > 0 else 0.0        # Precision (class 1 -> anomaly)
+        recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0           # Recall (class 1 -> anomaly)
+        recall_class_0 = tn / (tn + fp) if (tn + fp) > 0 else 0.0           # Precision (class 0 -> normal)
+        f1_score_class_1 = (2 * precision_class_1 * recall_class_1) / (precision_class_1 + recall_class_1) \
+                                if (precision_class_1 + recall_class_1) > 0 else 0.0         # F1-Score (class 1 -> anomaly)
 
-        return accuracy, confusion_matrix, recall_class_1
+        # Dictionary with relevant evaluation metrics to analyse the efficacy of the model in testing
+        report = {
+            "Accuracy": f'{round(accuracy * 100, 2)}%',
+            "Recall (class 1 -> anomaly)": f'{round(recall_class_1 * 100, 2)}%',
+            "Precision (class 1 -> anomaly)": f'{round(precision_class_1 * 100, 2)}%',
+            "F1-Score (class 1 -> anomaly)": f'{round(f1_score_class_1 * 100, 2)}%',
+            "Recall (class 0 -> normal)": f'{round(recall_class_0 * 100, 2)}%'
+        }
+
+        return {**confusion_matrix, **report}, df_with_preds
   
     def test(self, model):
 
         if self.__df_test is None:
             print("Test dataset is empty. Skipping testing.")
-            return None, None, None
+            return None, None
 
         df_predictions = self.predict(model, self.__df_test)
 

@@ -92,9 +92,9 @@ python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by de
 ```
 
 
-### Create models based on specific devices (train and test) whose DevAddr must be specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory)
+### Create models based on specific devices (train and test) whose DevAddr can specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory); if DevAddr's are not specified, all devices' address will be used as default
 ```python3
-python .\create_selected_devices_model.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} --dataset_format ("json" or "parquet"; by default is "json") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
+python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by default, all devices' DevAddr) --dataset_format ("json" or "parquet"; by default is "json") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ``` 
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
