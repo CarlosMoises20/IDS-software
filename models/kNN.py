@@ -108,12 +108,6 @@ class KNNAnomalyDetector:
 
         return accuracy, matrix, report
 
-    def test(self, model):
-
-        if self.__df_test is None:
-            print("Test dataset is empty. Skipping generation")
-            return None, None, None
-        
+    def test(self, model):        
         predictions = self.predict(model)
-
         return self.evaluate(predictions)

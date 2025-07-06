@@ -39,9 +39,6 @@ class LOF:
         return model.fit(features)
 
     def test(self, model):
-        if self.__df_test is None:
-            print("Test dataset is empty. Skipping testing.")
-            return None, None, None
         y_pred = self.predict(model)
         return self.evaluate(y_pred)
 

@@ -141,7 +141,6 @@ class MessageClassification:
                   labelCol="intrusion")
         
         model = lof.train()
-
         accuracy, matrix, report = lof.test(model)"""
         
         """# kNN (k-Nearest Neighbors)
@@ -164,7 +163,7 @@ class MessageClassification:
         model = hbos.train()
         accuracy, matrix, report = hbos.test(model)"""
        
-        ### ISOLATION FOREST (sklearn)
+        """### ISOLATION FOREST (sklearn)
         
         if_class = IsolationForest(df_train=df_model_train, 
                                     df_test=df_model_test, 
@@ -173,9 +172,9 @@ class MessageClassification:
         
         model = if_class.train()
         accuracy, matrix, report = if_class.test(model)
-        recall_class_1 = report['1']['recall'] if report is not None else None
+        recall_class_1 = report['1']['recall'] if report is not None else None"""
         
-        """### ISOLATION FOREST (linkedin)
+        ### ISOLATION FOREST (linkedin)
         
         if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
                                     df_train=df_model_train, 
@@ -186,7 +185,7 @@ class MessageClassification:
                                     labelCol="intrusion")
                                     
         model = if_class.train()
-        evaluation, df_model_test = if_class.test(model)"""
+        evaluation, df_model_test = if_class.test(model)
         
         """### One-Class SVM
 
@@ -198,21 +197,21 @@ class MessageClassification:
                             labelCol="intrusion")
         
         model = ocsvm.train()
-        evaluation, df_model_test = ocsvm.test(model)
+        evaluation, df_model_test = ocsvm.test(model)"""
 
         if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")"""
+                print(f"{key}: {value}")
         
-        if accuracy is not None:
+        """if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
         
         if recall_class_1 is not None:
             print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(recall_class_1 * 100, 2)}%')
 
         if matrix is not None:
-            print("Confusion matrix:\n", matrix)
+            print("Confusion matrix:\n", matrix)"""
         
         """if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods

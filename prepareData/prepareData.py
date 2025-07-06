@@ -96,12 +96,16 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
         f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.json'
     ).filter(col("DevAddr") == dev_addr)
 
-    df_model = df_model.cache()
+    df_model = df_model.cache()     # Applies cache operations to speed up the processing
 
-    # If there are no samples for the device, it's not possible to create a model since there is
+    # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
+    # to split for training and testing and get a effective model
+    n_limit = 15
+
+    # If there are not enough samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model
-    if df_model.count() == 0:
-        print(f'There are no samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. No model will be created.\n\n\n')
+    if df_model.count() < n_limit:
+        print(f'There are no enough samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. Must be at least {n_limit}. No model will be created.\n\n\n')
         return None, None
 
     # Remove columns where all values are null
@@ -130,30 +134,26 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
-    # Applies division in training and testing based in dataset size rules
-    df_model_train, df_model_test = train_test_split(df_model)
+    # Applies division of samples into training and testing after processing dataframe 'df_model'
+    df_model_train, df_model_test = train_test_split(df_model, seed=42)
 
     # NOTE: uncomment this line to print the number of training samples for the device
     print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
 
-    if df_model_test is not None:
+    # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
+    # and the number of intrusions is higher in larger datasets
+    num_intrusions = min(round(0.2 * df_model_test.count()), 12)
 
-        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
-        # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round(0.2 * df_model_test.count()), 12))
+    df_model_test = modify_device_dataset(df_train=df_model_train,
+                                          df_test=df_model_test,
+                                          params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
+                                          target_values=[SF_LIST, BW_LIST, 
+                                                        DATA_LEN_LIST_ABNORMAL, 
+                                                        DATA_LEN_LIST_ABNORMAL],
+                                          num_intrusions=num_intrusions)
 
-        df_model_test = modify_device_dataset(df_train=df_model_train,
-                                                df_test=df_model_test,
-                                                params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
-                                                target_values=[SF_LIST, BW_LIST, 
-                                                            DATA_LEN_LIST_ABNORMAL, 
-                                                            DATA_LEN_LIST_ABNORMAL],
-                                                num_intrusions=num_intrusions)
+    # NOTE: uncomment this line to print the number of testing samples for the device
+    print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-        # NOTE: uncomment this line to print the number of testing samples for the device
-        print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
-
-    df_model_train, df_model_test = DataPreProcessing.features_assembler(df_model_train, df_model_test)
-
-    return df_model_train, df_model_test
+    return DataPreProcessing.features_assembler(df_model_train, df_model_test)
 

@@ -79,11 +79,6 @@ class OneClassSVM:
     
     """
     def test(self, model):
-
-        # If the testing model does not exist (for not having sufficient samples for testing), testing will be skipped
-        if self.__df_test is None:
-            print("Test dataset is empty. Skipping testing.")
-            return None, None
         
         # Use the model to predict the labels for the samples in the test dataset
         df_preds = self.predict(model)

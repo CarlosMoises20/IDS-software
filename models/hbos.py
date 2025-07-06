@@ -41,6 +41,8 @@ class HBOS:
         # the higher the N, the larger the dataset and the lower the contamination is expected to be
         # M controls the scale: higher M means contamination starts higher for small N and decreases more slowly as N grows
         contamination = max(min_contamination, min(max_contamination, M / N))
+        
+        # NOTE: uncomment this line to print the expected outlier rate on the training dataset
         print("contamination:", contamination)
 
         model = HBOSModel(contamination=contamination, n_bins=10)
@@ -56,10 +58,6 @@ class HBOS:
     
     """
     def test(self, model):
-        if self.__df_test is None:
-            print("Test dataset is empty. Skipping testing")
-            return None, None, None
-        
         Y_pred = self.predict(model)
         accuracy, matrix, report = self.evaluate(Y_pred)
         return accuracy, matrix, report

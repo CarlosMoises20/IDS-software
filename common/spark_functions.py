@@ -110,25 +110,11 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
 
 """
 This function ensures that there are always sufficient samples for both training and testing
-considering the total number of examples in the dataframe corresponding to the device, if
-the total number of samples is larger than 1
+considering the total number of examples in the dataframe corresponding to the device
 
 """
-def train_test_split(df_model, seed=42):
-
-    # Count the total number of samples to be used by the model
-    total_count = df_model.count()
-
-    # If there is 10 samples or less, use those samples for training, 
-    # and don't apply testing for that model
-    if total_count <= 10:
-        df_model_train, df_model_test = df_model, None
-
-    # If there are 16 or more samples, split the samples for training and testing by 80-20
-    else:
-        df_model_train, df_model_test = df_model.randomSplit([0.8, 0.2], seed)
-
-    return df_model_train, df_model_test
+def train_test_split(df_model, seed):
+    return df_model.randomSplit([0.8, 0.2], seed)
 
 
 
