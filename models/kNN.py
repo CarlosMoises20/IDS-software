@@ -32,14 +32,16 @@ class KNNAnomalyDetector:
 
         threshold_percentile (default=0.99): threshold percentile that will be used to compute the adequate threshold for anomaly detection
 
-        threshold (default=NOne): threshold that will be calculated based on the percentile 'threshold_percentile'"
+        threshold (default=NOne): threshold that will be calculated based on the percentile 'threshold_percentile'
+
+        model_class: variable with the Spark class corresponding to the model used for training
     
     """
-    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.99):
-        self.__k = max(5, min(round(df_train.count() * 0.01), 15))
+    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.9):
+        self.__k = max(5, min(round(df_train.count() * 0.1), 15))
         
         # NOTE uncomment if you want to print the value of 'k' 
-        #print("k:", self.__k)
+        print("k:", self.__k)
         
         self.__df_train = df_train
         self.__df_test = df_test
@@ -47,11 +49,16 @@ class KNNAnomalyDetector:
         self.__labelCol = labelCol
         self.__predictionCol = predictionCol
         self.__threshold_percentile = threshold_percentile
+
+        # bucketLength: the length of each interval in the random projections; it defines the granularity of the division
+        # of the vetorial space
+        # numHashTables: number of independent hash tables to be used; more hash tables increase the probability to find
+        # more near neighbors, since two points will more likely be in the same bucket in at least one of the projections
         self.__model_class = BucketedRandomProjectionLSH(
                                 inputCol=featuresCol,
                                 outputCol="hashes",
-                                bucketLength=1.5,  # it can be changed
-                                numHashTables=3
+                                bucketLength=1.0,
+                                numHashTables=5  
                             )
 
         self.__threshold = None        
@@ -99,6 +106,7 @@ class KNNAnomalyDetector:
     """
     def train(self):
 
+        # Add "id" column on the dataset do uniquely identify each sample
         self.__df_train = self.__df_train.withColumn("id", monotonically_increasing_id()).select(
             "id", self.__featuresCol, self.__labelCol, self.__predictionCol
         )
@@ -109,8 +117,11 @@ class KNNAnomalyDetector:
         avg_dists = self.__compute_avg_distances(model, self.__df_train, self.__df_train, is_train=True)
 
         # Compute threshold based on percentile
-        dist_percentiles = avg_dists.approxQuantile("avg_dist", [self.__threshold_percentile], 0.01)
-        self.__threshold = dist_percentiles[0]
+        dist_percentiles = avg_dists.approxQuantile("avg_dist", [self.__threshold_percentile], 0.001)
+        self.__threshold = dist_percentiles[0] if dist_percentiles else 0.0
+        
+        # NOTE: uncomment this line to print the computed threshold
+        print("threshold:", self.__threshold)
 
         return model
 
@@ -120,13 +131,16 @@ class KNNAnomalyDetector:
     """
     def predict(self, model):
 
+        # If a model is not passed, an exception is thrown
         if model is None:
             raise Exception("Model must be created first!")
         
+        # Add "id" column on the dataset do uniquely identify each sample
         self.__df_test = self.__df_test.withColumn("id", monotonically_increasing_id() + self.__df_train.count()).select(
             "id", self.__featuresCol, self.__labelCol, self.__predictionCol
         )
 
+        # Calculate the distances between each point in the test dataset and the k nearest neighbors in training dataset
         avg_dists = self.__compute_avg_distances(model, self.__df_test, self.__df_train)
 
         # Classify based on threshold
@@ -149,12 +163,17 @@ class KNNAnomalyDetector:
         # Join with true labels
         labeled = self.__df_test.select("id", self.__labelCol).join(df_preds, on="id", how="inner")
 
-        y_true = [row[self.__labelCol] for row in labeled.collect()]
-        y_pred = [row[self.__predictionCol] for row in labeled.collect()]
-
+        y_true = [row[self.__labelCol] for row in labeled.collect()]        # Real / Expected labels
+        y_pred = [row[self.__predictionCol] for row in labeled.collect()]   # Predicted labels
+        
+        # Report, with relevant evaluation metrics such as F1-Score, Recall and Precision
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+
+        # Confusion matrix
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
         matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
+
+        # Accuracy, to determine the level of convergence between the predicted labels and the expected labels
         accuracy = accuracy_score(y_true, y_pred)
 
         return accuracy, matrix, report

@@ -42,6 +42,10 @@ class IsolationForest:
         #print("numTrees:", self.__numTrees)
 
         # Build Java IsolationForest Estimator
+        # n_neighbors is the number of neighbors used to calculate the distance from the current point to those neighbors
+        # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
+        # speeds up the process
+        # random_state is the seed
         self.__model = IF(n_estimators=self.__numTrees, 
                           n_jobs=-1,
                           random_state=seed)
@@ -95,8 +99,7 @@ class IsolationForest:
         return accuracy, conf_matrix, report
   
     """
-    This method corresponds to the test of the model. If the test dataset is empty (which might happen when the device contains very few
-    samples and all those samples are used for training only), this phase will be skipped. Otherwise, this method will call the predict method
+    This method corresponds to the test of the model. This method will call the predict method
     to calculate the predictions using the trained model, and then it will call the evaluate method to compute and return the evaluation metrics
 
     """
@@ -141,6 +144,7 @@ class IsolationForestLinkedIn:
         maxSamples: the fraction of samples used to train each tree if between 0.0 and 1.0; otherwise, is the number of samples
 
         maxFeatures (default=1.0): the fraction of features used to train each tree if between 0.0 and 1.0; otherwise, is the number of samples
+                                it's set to 1.0 to indicate that all features are used
 
         seed (default=42): a arbitrary number used for pseudo-randomness of the selection of the feature and split values
                              for each branching step and each tree in the forest, in the model training
@@ -174,6 +178,7 @@ class IsolationForestLinkedIn:
         print("numTrees:", self.__numTrees)
 
         # Build Java IsolationForest Estimator
+        # bootstrap set to False indicates that the sampling is not made with replacement, i.e., does not contain replied samples 
         self.__model = spark_session._jvm.com.linkedin.relevance.isolationforest.IsolationForest() \
                 .setNumEstimators(self.__numTrees) \
                 .setMaxSamples(self.__maxSamples) \
@@ -213,7 +218,7 @@ class IsolationForestLinkedIn:
         self.__df_test = df.drop(self.__predictionCol, self.__scoreCol)._jdf
         
         java_df = model.transform(self.__df_test)
-        return DataFrame(java_df, self.__spark_session)
+        return DataFrame(java_df, self.__spark_session)     # convert to a Spark dataframe, since this is an Java object
 
     """
     This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
@@ -245,6 +250,7 @@ class IsolationForestLinkedIn:
         fn = matrix.get((1, 0), 0)
         tp = matrix.get((1, 1), 0)
 
+        # Confusion matrix
         confusion_matrix = {"TP": tp, "TN": tn, "FP": fp, "FN": fn}
 
         # Metrics

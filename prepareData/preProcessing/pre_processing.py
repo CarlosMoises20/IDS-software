@@ -31,24 +31,26 @@ class DataPreProcessing(ABC):
     def features_assembler(df_train, df_test, explained_variance_threshold=0.99):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
-        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
+        column_names = list(set(get_all_attributes_names(df_train.schema)) - 
+                            set(["DevAddr", "intrusion", "prediction", "score"]))
+        
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
-        """# Normalize all assembled features inside a scale
-        scaler = MinMaxScaler(inputCol="feat", outputCol="features", max=100000)
-        scaler_model = scaler.fit(df_train)
-        df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)"""
-
-        """# Normalize all assembled features using standards
-        # TODO test, for all algorithms, with mean, with std, without mean, without std
+        """ Normalize all assembled features using standards; with mean 0 and standard deviation 1;
+        this allows all attributes' values to be centered on the mean 0 and have unit variance; this is
+        important because several ML algorithms are sensitive to the scale of the numeric values and also to their variance
+        and this scaling ensures that a attribute isn't considered more important or more anomalous just because the variance or the scale
+        of its value is higher or lower; instead, all features contribute equally to distance-based computations and model training;
+        which is particularly important for algorithms like kNN or LOF; but also for other algorithms like IF and One-Class SVM
+        
+        """
         scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)"""
+        df_test = scaler_model.transform(df_test)
         
         """### PCA (Principal Component Analysis)
             
@@ -71,20 +73,21 @@ class DataPreProcessing(ABC):
         # Prints the chosen value for k
         print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
 
-        """### SVD: Converts for appropriate format for RowMatrix
+        """### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
         mat = RowMatrix(rdd_vectors)
 
         # Applies SVD (maximum k = número de colunas)
         k_max = len(column_names)
-        svd = mat.computeSVD(k_max, computeU=False)
+        svd = mat.computeSVD(k_max)
 
         # Calculates cumulated explained variance (according to the singular values)
         sigma = svd.s.toArray()
         total_variance = (sigma ** 2).sum()
         explained_variance = (sigma ** 2).cumsum() / total_variance
 
-        # Determines the ideal k
+        # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
+        # 'explained_variance_threshold'*100 % of the variance of the dataset
         k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
         print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")

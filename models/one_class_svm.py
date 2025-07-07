@@ -64,7 +64,7 @@ class OneClassSVM:
         # NOTE uncomment to print the value of the parameter 'nu' 
         #print("nu:", nu)
 
-        # 'rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
+        # kernel='rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
         # NOTE it works better with large datasets, for smaller datasets, a too large NU loses too much anomalies and a
         # too small NU gives too much false positives

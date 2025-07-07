@@ -6,12 +6,10 @@ from prepareData.prepareData import prepare_df_for_device
 from common.auxiliary_functions import format_time
 from pyspark.sql.functions import count
 from mlflow.tracking import MlflowClient
-import numpy as np
-from sklearn.cluster import DBSCAN
 from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
 from models.lof import LOF
-from models.kNN import *
+from models.kNN import KNNAnomalyDetector
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest import *
 
@@ -133,7 +131,7 @@ class MessageClassification:
 
         start_time = time.time()
 
-        """# LOF (Local Outlier Factor)
+        """### LOF (Local Outlier Factor)
 
         lof = LOF(df_train=df_model_train,
                   df_test=df_model_test,
@@ -141,9 +139,10 @@ class MessageClassification:
                   labelCol="intrusion")
         
         model = lof.train()
-        accuracy, matrix, report = lof.test(model)"""
+        accuracy, matrix, report = lof.test(model)
+        recall_class_1 = report['1']['recall']"""
         
-        """# kNN (k-Nearest Neighbors)
+        """### kNN (k-Nearest Neighbors)
         
         knn = KNNAnomalyDetector(df_train=df_model_train,
                                 df_test=df_model_test,
@@ -152,18 +151,20 @@ class MessageClassification:
                                 predictionCol="prediction")
         
         model = knn.train()
-        accuracy, matrix, report = knn.test(model)"""
+        accuracy, matrix, report = knn.test(model)
+        recall_class_1 = report['1']['recall']"""
 
-        """# HBOS (Histogram-Based Outlier Score)
+        ### HBOS (Histogram-Based Outlier Score)
         hbos = HBOS(df_train=df_model_train, 
                     df_test=df_model_test,
                     featuresCol='features',
                     labelCol='intrusion')
         
         model = hbos.train()
-        accuracy, matrix, report = hbos.test(model)"""
+        accuracy, matrix, report = hbos.test(model)
+        recall_class_1 = report['1']['recall']
        
-        """### ISOLATION FOREST (sklearn)
+        """### Isolation Forest (sklearn)
         
         if_class = IsolationForest(df_train=df_model_train, 
                                     df_test=df_model_test, 
@@ -172,9 +173,9 @@ class MessageClassification:
         
         model = if_class.train()
         accuracy, matrix, report = if_class.test(model)
-        recall_class_1 = report['1']['recall'] if report is not None else None"""
+        recall_class_1 = report['1']['recall']"""
         
-        ### ISOLATION FOREST (linkedin)
+        """### Isolation Forest (JAR from GitHub implementation)
         
         if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
                                     df_train=df_model_train, 
@@ -185,7 +186,7 @@ class MessageClassification:
                                     labelCol="intrusion")
                                     
         model = if_class.train()
-        evaluation, df_model_test = if_class.test(model)
+        evaluation, df_model_test = if_class.test(model)"""
         
         """### One-Class SVM
 
@@ -199,23 +200,23 @@ class MessageClassification:
         model = ocsvm.train()
         evaluation, df_model_test = ocsvm.test(model)"""
 
-        if evaluation is not None:
+        """if evaluation is not None:
             print("Evaluation Report:\n")
             for key, value in evaluation.items():
-                print(f"{key}: {value}")
+                print(f"{key}: {value}")"""
         
-        """if accuracy is not None:
+        if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
         
         if recall_class_1 is not None:
             print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(recall_class_1 * 100, 2)}%')
 
         if matrix is not None:
-            print("Confusion matrix:\n", matrix)"""
+            print("Confusion matrix:\n", matrix)
         
-        """if report is not None:
+        if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report)"""
+            #print("Report:\n", report)
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!
@@ -303,11 +304,18 @@ class MessageClassification:
 
         # TODO: review step 0
         # Read stream from a socket (e.g., port 9999)
-        """socket_stream_df = self.__spark_session.readStream \
+        socket_stream_df = self.__spark_session.readStream \
                                 .format("socket") \
                                 .option("host", "localhost") \
-                                .option("port", 9999) \
-                                .load()"""
+                                .option("port", 5200) \
+                                .load()
+
+        query = socket_stream_df.writeStream \
+                .outputMode("append") \
+                .format("console") \
+                .start()
+
+        query.awaitTermination()
 
         # TODO
             # 0 - uses spark session (self.__spark_session) to open a socket where new messages are listened
