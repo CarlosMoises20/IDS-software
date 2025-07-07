@@ -5,12 +5,42 @@ from sklearn.metrics import classification_report, confusion_matrix, accuracy_sc
 from pyspark.sql.window import Window
 from pyspark.sql.functions import row_number
 
+"""
+This class represents a kNN anomaly-based implementation based on PySpark library BucketedRandomProjectionLSH, a class for
+Euclidean distance metrics. It calculates the distances from one point to the k nearest points to determine if the point
+corresponds to an anomaly or not. This implementation is only feasible for relatively small datasets, since it calculates the distance
+of each sample to its nearest neighbors, which is extremely inefficient for large datasets.
 
+"""
 class KNNAnomalyDetector:
 
+    """
+    This class is initialized with the following parameters:
+
+        df_train: the Spark dataframe corresponding to the train dataset
+        
+        df_test: the Spark dataframe corresponding to the test dataset
+        
+        featuresCol: the name of the column in the Spark dataframes of train and test datasets that contains all the features of each
+                    example of the dataset that are used by the model for training and testing
+
+        labelCol: the name of the column in train and test datasets that corresponds to the label of the dataset. Since this is an
+                    unsupervised algorithm, this "label" is only used in testing to compute the evaluation metrics that measure the efficacy
+                    of the model during testing 
+
+        predictionCol: the name of the column in train and test datasets that will contain the predictions of the model during testing
+
+        threshold_percentile (default=0.99): threshold percentile that will be used to compute the adequate threshold for anomaly detection
+
+        threshold (default=NOne): threshold that will be calculated based on the percentile 'threshold_percentile'"
+    
+    """
     def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.99):
         self.__k = max(5, min(round(df_train.count() * 0.01), 15))
-        print("k:", self.__k)
+        
+        # NOTE uncomment if you want to print the value of 'k' 
+        #print("k:", self.__k)
+        
         self.__df_train = df_train
         self.__df_test = df_test
         self.__featuresCol = featuresCol
@@ -26,6 +56,12 @@ class KNNAnomalyDetector:
 
         self.__threshold = None        
 
+    """
+    This method computes the average distances using the model on the parameter, a dataframe used for query
+    and a dataframe used for reference; the distances are calculated between the points of 'df_query' and the
+    points of 'df_reference'
+    
+    """
     def __compute_avg_distances(self, model, df_query, df_reference, is_train=False):
 
         # Approximated join between query and reference
@@ -57,6 +93,10 @@ class KNNAnomalyDetector:
 
         return avg_dists
 
+    """"
+    Fits the kNN model using training data.
+    
+    """
     def train(self):
 
         self.__df_train = self.__df_train.withColumn("id", monotonically_increasing_id()).select(
@@ -74,6 +114,10 @@ class KNNAnomalyDetector:
 
         return model
 
+    """
+    Apply the fitted model to a new dataset (e.g., test set).
+    
+    """
     def predict(self, model):
 
         if model is None:
@@ -93,6 +137,13 @@ class KNNAnomalyDetector:
 
         return predictions
     
+    """
+    This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
+    As an argument, the method receives 'df_preds', which corresponds to a Spark dataframe that contains the model's calculated predictions
+    It returns the accuracy, a dictionary that contains the confusion matrix, i.e., true negatives (tn), true positives (tp), false positives (fp) and false negatives (fn),
+    and the report that contains the most relevant evaluation metrics
+
+    """
     def evaluate(self, df_preds):
 
         # Join with true labels
@@ -108,6 +159,11 @@ class KNNAnomalyDetector:
 
         return accuracy, matrix, report
 
+    """
+    This method corresponds to the test of the model. This method will call the predict method
+    to calculate the predictions using the trained model, and then it will call the evaluate method to compute and return the evaluation metrics
+
+    """
     def test(self, model):        
         predictions = self.predict(model)
         return self.evaluate(predictions)

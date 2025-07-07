@@ -32,7 +32,7 @@ class DataPreProcessing(ABC):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion", "prediction", "score"]))
-        assembler = VectorAssembler(inputCols=column_names, outputCol="scaled")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
@@ -71,7 +71,7 @@ class DataPreProcessing(ABC):
         # Prints the chosen value for k
         print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
 
-        ### SVD: Converts for appropriate format for RowMatrix
+        """### SVD: Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
         mat = RowMatrix(rdd_vectors)
 
@@ -100,7 +100,7 @@ class DataPreProcessing(ABC):
 
         project_udf = F.udf(project_features, returnType=VectorUDT())
         df_train = df_train.withColumn("features", project_udf("scaled"))
-        df_test = df_test.withColumn("features", project_udf("scaled"))
+        df_test = df_test.withColumn("features", project_udf("scaled"))"""
 
         return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
        

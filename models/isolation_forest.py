@@ -101,22 +101,63 @@ class IsolationForest:
 
     """
     def test(self, model):
-
-        if self.__df_test is None:
-            print("Test dataset is empty. Skipping testing.")
-            return None, None, None
-
         y_pred = self.predict(model)
         return self.evaluate(y_pred)
 
 
-## TODO this seems to have better results, but verify it later
+
+"""
+This class is an implementation of the Isolation Forest algorithm from a JAR file resulted from building a GitHub project which
+includes an implementation of Isolation Forest based on Spark computations. To create the models, we use, as inputs,
+vectors that are the features from spark datasets, that are properly converted to an adequate format before being used
+by the models
+
+Source: https://github.com/linkedin/isolation-forest (see README for all the instructions to build the JAR file before being used)
+
+"""
 class IsolationForestLinkedIn:
 
+    """
+    The class is initialized with the following parameters:
+    
+        spark_session: the Spark session used to load the JAR file that contains the used IF model
+        
+        df_train: the Spark dataframe used for model training
+        
+        df_test: the Spark dataframe used for model testing
+        
+        featuresCol: the name of the column in the Spark dataframes of train and test datasets that contains all the features of each
+                    example of the dataset that are used by the model for training and testing
+
+        labelCol: the name of the column in train and test datasets that corresponds to the label of the dataset. Since this is an
+                    unsupervised algorithm, this "label" is only used in testing to compute the evaluation metrics that measure the efficacy
+                    of the model during testing 
+
+        scoreCol: the name of the column in train and test datasets that will contain the outlier probability score calculated by the model
+                during testing
+
+        predictionCol: the name of the column in train and test datasets that will contain the predictions of the model during testing
+
+        maxSamples: the fraction of samples used to train each tree if between 0.0 and 1.0; otherwise, is the number of samples
+
+        maxFeatures (default=1.0): the fraction of features used to train each tree if between 0.0 and 1.0; otherwise, is the number of samples
+
+        seed (default=42): a arbitrary number used for pseudo-randomness of the selection of the feature and split values
+                             for each branching step and each tree in the forest, in the model training
+
+        contamination (default=0.25): the expected fraction of outliers in the train dataset
+
+        contaminationErrorRate (default=0.9): value that will be multiplied by contamination to determine an adequate value for contaminationError
+                                            according to the size of the training dataset 
+
+        numTrees: the number of trees used for training; it varies according to the dataset size
+
+        N: the number of training samples
+    
+    """
     def __init__(self, spark_session, df_train, df_test, featuresCol,
-                 scoreCol, predictionCol, labelCol,
-                 maxSamples=0.3, maxFeatures=1.0, seed=42, contamination=0.25,
-                 contaminationErrorRate=0.9):
+                 scoreCol, predictionCol, labelCol, maxFeatures=1.0, seed=42, 
+                 contamination=0.25, contaminationErrorRate=0.9):
         
         self.__spark_session = spark_session
         self.__df_train = df_train
@@ -125,7 +166,9 @@ class IsolationForestLinkedIn:
         self.__featuresCol = featuresCol
         self.__scoreCol = scoreCol
         self.__labelCol = labelCol
-        self.__numTrees = self.__set_num_trees(df_train.count())
+        self.__N = df_train.count()
+        self.__maxSamples = 0.3 if self.__N >= 50 else 1.0    # if N is between 15 and 49 samples, 1.0; otherwise, it's 0.3
+        self.__numTrees = self.__set_num_trees(self.__N)
         
         # NOTE: uncomment this line to print the number of trees used for model training 
         print("numTrees:", self.__numTrees)
@@ -133,7 +176,7 @@ class IsolationForestLinkedIn:
         # Build Java IsolationForest Estimator
         self.__model = spark_session._jvm.com.linkedin.relevance.isolationforest.IsolationForest() \
                 .setNumEstimators(self.__numTrees) \
-                .setMaxSamples(maxSamples) \
+                .setMaxSamples(self.__maxSamples) \
                 .setBootstrap(False) \
                 .setMaxFeatures(float(maxFeatures)) \
                 .setFeaturesCol(featuresCol) \
@@ -171,8 +214,14 @@ class IsolationForestLinkedIn:
         
         java_df = model.transform(self.__df_test)
         return DataFrame(java_df, self.__spark_session)
-    
 
+    """
+    This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
+    As an argument, the method receives 'df_with_preds', which corresponds to a Spark dataframe that contains the model's calculated predictions
+    It returns a dictionary that contains the confusion matrix, i.e., true negatives (TN), true positives (TP), false positives (FP) and false negatives (FN),
+    and the report that contains the most relevant evaluation metrics
+
+    """
     def evaluate(self, df_with_preds):
 
         evaluator = MulticlassClassificationEvaluator(
@@ -216,6 +265,11 @@ class IsolationForestLinkedIn:
 
         return {**confusion_matrix, **report}, df_with_preds
   
+    """
+    This method corresponds to the test of the model. This method will call the predict method
+    to calculate the predictions using the trained model, and then it will call the evaluate method to compute and return the evaluation metrics
+
+    """
     def test(self, model):
         df_predictions = self.predict(model, self.__df_test)
         return self.evaluate(df_predictions)
