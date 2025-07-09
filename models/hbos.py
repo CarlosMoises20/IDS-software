@@ -1,5 +1,6 @@
 
 import numpy as np
+import math
 from pyod.models.hbos import HBOS as HBOSModel
 from sklearn.metrics import confusion_matrix, accuracy_score, classification_report
 
@@ -35,16 +36,16 @@ class HBOS:
 
         N = self.__df_train.count()         # the size of the training dataset
         
-        # contamination is essentially higher in smaller datasets, and vice-versa
-        contamination = min(0.15, 300 / N) if N >= 20 else max(0.15, min(0.5, 4 / N))
-        
-        # NOTE: uncomment this line to print the expected outlier rate on the training dataset
-        print("contamination:", contamination)
+        # follow a often used rule, that is setting the number of bins to the square root of the number of training instances N
+        num_bins = round(math.sqrt(N))
 
-        # n_bins (default=10) is the number of used bins for each feature, alpha is a regularizer that prevents overflow
+        # NOTE: uncomment this line to print the computed number of bins for the algorithm
+        print("number of bins:", num_bins)
+
+        # num_bins is the number of used bins for each feature, alpha is a regularizer that prevents overflow
         # and tol is a parameter which decides he flexibility while dealing the samples falling outside the bins
-        # contamination is the expected outlier rate in training dataset
-        model = HBOSModel(contamination=contamination)
+        # contamination (by default 0.1) is the expected outlier rate in training dataset
+        model = HBOSModel(n_bins=num_bins)
         
         df_train = self.__df_train.select(self.__featuresCol).toPandas()
         

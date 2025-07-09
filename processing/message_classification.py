@@ -216,7 +216,7 @@ class MessageClassification:
         
         if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report)
+            #print("Report:\n", report
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!

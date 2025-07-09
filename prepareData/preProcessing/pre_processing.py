@@ -46,7 +46,7 @@ class DataPreProcessing(ABC):
         which is particularly important for algorithms like kNN or LOF; but also for other algorithms like IF and One-Class SVM
         
         """
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        scaler = StandardScaler(inputCol="feat", outputCol="features", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)

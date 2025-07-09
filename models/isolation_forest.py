@@ -175,7 +175,7 @@ class IsolationForestLinkedIn:
         self.__numTrees = self.__set_num_trees(self.__N)
         
         # NOTE: uncomment this line to print the number of trees used for model training 
-        print("numTrees:", self.__numTrees)
+        #print("numTrees:", self.__numTrees)
 
         # Build Java IsolationForest Estimator
         # bootstrap set to False indicates that the sampling is not made with replacement, i.e., does not contain replied samples 
