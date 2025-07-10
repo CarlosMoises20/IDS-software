@@ -40,7 +40,7 @@ class HBOS:
         num_bins = round(math.sqrt(N))
 
         # NOTE: uncomment this line to print the computed number of bins for the algorithm
-        print("number of bins:", num_bins)
+        #print("number of bins:", num_bins)
 
         # num_bins is the number of used bins for each feature, alpha is a regularizer that prevents overflow
         # and tol is a parameter which decides he flexibility while dealing the samples falling outside the bins

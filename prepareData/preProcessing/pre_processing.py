@@ -46,13 +46,13 @@ class DataPreProcessing(ABC):
         which is particularly important for algorithms like kNN or LOF; but also for other algorithms like IF and One-Class SVM
         
         """
-        scaler = StandardScaler(inputCol="feat", outputCol="features", withMean=True, withStd=True)
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
         
-        """### PCA (Principal Component Analysis)
+        ### PCA (Principal Component Analysis)
             
         # Fit PCA using the train dataset    
         pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
@@ -71,7 +71,7 @@ class DataPreProcessing(ABC):
         df_test = pca_final_model.transform(df_test)
 
         # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
         """### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
         rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))

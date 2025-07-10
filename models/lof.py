@@ -40,7 +40,7 @@ class LOF:
     def train(self):
         
         # NOTE uncomment this line to print 'k', the number of the nearest neighbors
-        print("k:", self.__k)
+        #print("k:", self.__k)
 
         # n_neighbors is the number of neighbors used to calculate the distance from the current point to those neighbors
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which

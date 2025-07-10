@@ -41,7 +41,7 @@ class KNNAnomalyDetector:
         self.__k = max(5, min(round(df_train.count() * 0.1), 15))
         
         # NOTE uncomment if you want to print the value of 'k' 
-        print("k:", self.__k)
+        #print("k:", self.__k)
         
         self.__df_train = df_train
         self.__df_test = df_test
@@ -121,7 +121,7 @@ class KNNAnomalyDetector:
         self.__threshold = dist_percentiles[0] if dist_percentiles else 0.0
         
         # NOTE: uncomment this line to print the computed threshold
-        print("threshold:", self.__threshold)
+        #print("threshold:", self.__threshold)
 
         return model
 

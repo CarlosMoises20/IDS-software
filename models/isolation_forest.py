@@ -46,9 +46,7 @@ class IsolationForest:
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
         # speeds up the process
         # random_state is the seed
-        self.__model = IF(n_estimators=self.__numTrees, 
-                          n_jobs=-1,
-                          random_state=seed)
+        self.__model = IF(n_estimators=self.__numTrees, n_jobs=-1, random_state=seed)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
@@ -165,7 +163,7 @@ class IsolationForestLinkedIn:
         
         self.__spark_session = spark_session
         self.__df_train = df_train
-        self.__df_test = df_test if df_test is not None else None
+        self.__df_test = df_test
         self.__predictionCol = predictionCol
         self.__featuresCol = featuresCol
         self.__scoreCol = scoreCol
@@ -269,7 +267,7 @@ class IsolationForestLinkedIn:
             "Recall (class 0 -> normal)": f'{round(recall_class_0 * 100, 2)}%'
         }
 
-        return {**confusion_matrix, **report}, df_with_preds
+        return confusion_matrix, report, df_with_preds
   
     """
     This method corresponds to the test of the model. This method will call the predict method

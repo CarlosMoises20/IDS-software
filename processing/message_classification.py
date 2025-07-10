@@ -34,7 +34,6 @@ class MessageClassification:
         runs = self.__mlflowclient.search_runs(
             experiment_ids=["0"],
             filter_string=f"tags.DevAddr = '{dev_addr}' and tags.MessageType = '{dataset_type}'",
-            order_by=["metrics.accuracy DESC"],  # or another criteria
             max_results=1
         )
         
@@ -44,7 +43,7 @@ class MessageClassification:
         run_id = runs[0].info.run_id
         
         try:
-            # TODO review this for the case of sklearn, pyod and pytorch models!
+            # TODO fix this for the case of sklearn, pyod and pytorch models!
             #model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
             model = mlflow.sklearn.load_model(f"./mlruns/0/{run_id}/artifacts/model")
         except:
@@ -59,7 +58,8 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, df_model_train, model, accuracy, dataset_type):
+    def __store_model(self, dev_addr, df_model_train, model, dataset_type, 
+                      accuracy, matrix, recall_anomalies, report):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
@@ -100,24 +100,20 @@ class MessageClassification:
             # for every algorithms except kNN, store the model as artifact
             if model is not None:
 
-                ## FOR ISOLATION FOREST
+                ## FOR ISOLATION FOREST (linkedin version)
                 ## ??
 
-                ## FOR THE OTHER MODELS
-                mlflow.sklearn.log_model(model, "model") 
-                #mlflow.spark.log_model(model, "model") 
-
-                #print(model)
-
-                #mlflow.pytorch.log_model(model, "model") 
+                ## FOR sklearn MODELS
+                mlflow.sklearn.log_model(model, "model")
 
             # store the training dataframe as a parquet file
-            dataset_model_path = f'./df_tmp/model_{dev_addr}_{dataset_type.value["name"]}.parquet'
+            dataset_model_path = f'model_{dev_addr}_{dataset_type.value["name"]}.parquet'
             df_model_train.write.mode("overwrite").parquet(dataset_model_path)
             mlflow.log_artifact(dataset_model_path, artifact_path="training_dataset")
-            
-            if accuracy is not None:
-                mlflow.log_metric("accuracy", accuracy)
+            mlflow.log_metric("accuracy", accuracy)
+            mlflow.log_dict(matrix, "confusion_matrix.json")
+            mlflow.log_metric("recall_class_1", recall_anomalies)
+            mlflow.log_dict(report, "report.json")
 
 
     """
@@ -154,7 +150,7 @@ class MessageClassification:
         accuracy, matrix, report = knn.test(model)
         recall_class_1 = report['1']['recall']"""
 
-        ### HBOS (Histogram-Based Outlier Score)
+        """### HBOS (Histogram-Based Outlier Score)
         hbos = HBOS(df_train=df_model_train, 
                     df_test=df_model_test,
                     featuresCol='features',
@@ -162,9 +158,9 @@ class MessageClassification:
         
         model = hbos.train()
         accuracy, matrix, report = hbos.test(model)
-        recall_class_1 = report['1']['recall']
+        recall_class_1 = report['1']['recall']"""
        
-        """### Isolation Forest (sklearn)
+        ### Isolation Forest (sklearn)
         
         if_class = IsolationForest(df_train=df_model_train, 
                                     df_test=df_model_test, 
@@ -173,7 +169,7 @@ class MessageClassification:
         
         model = if_class.train()
         accuracy, matrix, report = if_class.test(model)
-        recall_class_1 = report['1']['recall']"""
+        recall_class_1 = report['1']['recall']
         
         """### Isolation Forest (JAR from GitHub implementation)
         
@@ -186,7 +182,9 @@ class MessageClassification:
                                     labelCol="intrusion")
                                     
         model = if_class.train()
-        evaluation, df_model_test = if_class.test(model)"""
+        matrix, report, df_model_test = if_class.test(model)
+        accuracy = report["Accuracy"]
+        recall_class_1 = report["Recall (class 1 -> anomaly)"]"""
         
         """### One-Class SVM
 
@@ -198,12 +196,9 @@ class MessageClassification:
                             labelCol="intrusion")
         
         model = ocsvm.train()
-        evaluation, df_model_test = ocsvm.test(model)"""
-
-        """if evaluation is not None:
-            print("Evaluation Report:\n")
-            for key, value in evaluation.items():
-                print(f"{key}: {value}")"""
+        matrix, report = ocsvm.test(model)
+        accuracy = report["Accuracy"]
+        recall_class_1 = report["Recall (class 1 -> anomaly)"]"""
         
         if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
@@ -216,11 +211,12 @@ class MessageClassification:
         
         if report is not None:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report
+            #print("Report:\n", report)
 
         # TODO uncomment after finishing all results' tables and after
         # fixing model replacement on sklearn, pyod and pytorch models!
-        #self.__store_model(dev_addr, df_model_train, model, accuracy, dataset_type)
+        self.__store_model(dev_addr, df_model_train, model, dataset_type,
+                           accuracy, matrix, recall_class_1, report)
 
         """# NOTE uncomment to store the training and testing datasets
         
