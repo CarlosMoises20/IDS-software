@@ -21,7 +21,6 @@ class MessageClassification:
         self.__spark_session = spark_session
         self.__mlflowclient = MlflowClient()
 
-
     """
     This function returns the MLFlow model based on the associated DevAddr, received in the
     parameter
@@ -84,7 +83,9 @@ class MessageClassification:
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
         _, old_run_id, old_model_id = self.__get_model_by_devaddr_and_dataset_type(
-            dev_addr=dev_addr, dataset_type=dataset_type.value["name"].lower(), model_type=model_type.value["type"]
+            dev_addr=dev_addr, 
+            dataset_type=dataset_type.value["name"].lower(), 
+            model_type=model_type.value["type"]
         )
 
         # If a model associated to the device already exists, delete it to replace it with
@@ -345,6 +346,8 @@ class MessageClassification:
 
             dev_addr_list = list(set(rxpk_devaddr_list + txpk_devaddr_list))
 
+        model_type = ModelType.IF_SKLEARN
+
         # create each model in sequence
         for dev_addr in dev_addr_list:
 
@@ -352,13 +355,11 @@ class MessageClassification:
 
                 # Pre-Processing phase
                 df_model_train, df_model_test = prepare_df_for_device(
-                    self.__spark_session, dataset_type, dev_addr
+                    self.__spark_session, dataset_type, dev_addr, model_type
                 )
 
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test) != (None, None):
-
-                    model_type = ModelType.KNN
                     
                     # Processing phase
                     self.__create_model(df_model_train, df_model_test, dev_addr, 

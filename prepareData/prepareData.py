@@ -88,7 +88,7 @@ Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device
 
 """
-def prepare_df_for_device(spark_session, dataset_type, dev_addr):
+def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type):
 
     start_time = time.time()
 
@@ -155,5 +155,5 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr):
     # NOTE: uncomment this line to print the number of testing samples for the device
     print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
 
-    return DataPreProcessing.features_assembler(df_model_train, df_model_test)
+    return DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
 

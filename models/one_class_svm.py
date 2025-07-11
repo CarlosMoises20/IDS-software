@@ -137,12 +137,7 @@ class OneClassSVM:
         tp = matrix.get((1, 1), 0)      # True positives: anomalies correctly detected as anomalies
 
         # Confusion matrix in dictionary format
-        confusion = {
-            "TP (anomaly detected)": tp,
-            "TN (normal detected)": tn,
-            "FP (normal as anomaly)": fp,
-            "FN (missed anomaly)": fn
-        }
+        confusion = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
 
         # Metrics
         precision_class_1 = tp / (tp + fp) if (tp + fp) > 0 else 0.0        # Precision (class 1 -> anomaly)

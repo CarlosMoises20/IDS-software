@@ -9,6 +9,7 @@ from pyspark.sql import functions as F
 from common.spark_functions import get_all_attributes_names
 from pyspark.ml.feature import MinMaxScaler, StandardScaler, VectorAssembler, PCA
 from pyspark.ml.linalg import DenseVector as MLDenseVector
+from common.model_type import ModelType
 
 
 class DataPreProcessing(ABC):
@@ -28,7 +29,7 @@ class DataPreProcessing(ABC):
 
     """
     @staticmethod
-    def features_assembler(df_train, df_test, explained_variance_threshold=0.99):
+    def features_assembler(df_train, df_test, model_type, explained_variance_threshold=0.99):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df_train.schema)) - 
@@ -38,12 +39,11 @@ class DataPreProcessing(ABC):
         df_train = assembler.transform(df_train)
         df_test = assembler.transform(df_test)
 
-        """ Normalize all assembled features using standards; with mean 0 and standard deviation 1;
+        """Normalize all assembled features using standards; with mean 0 and standard deviation 1;
         this allows all attributes' values to be centered on the mean 0 and have unit variance; this is
         important because several ML algorithms are sensitive to the scale of the numeric values and also to their variance
-        and this scaling ensures that a attribute isn't considered more important or more anomalous just because the variance or the scale
-        of its value is higher or lower; instead, all features contribute equally to distance-based computations and model training;
-        which is particularly important for algorithms like kNN or LOF; but also for other algorithms like IF and One-Class SVM
+        and this scaling ensures that an attribute isn't considered by the model more important just because its variance or scale
+        is higher or lower; instead, all features contribute equally to distance-based computations and model training;
         
         """
         scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
@@ -51,59 +51,65 @@ class DataPreProcessing(ABC):
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
+
+        models_pca = [ModelType.IF_CUSTOM, ModelType.IF_SKLEARN, ModelType.KNN, ModelType.LOF]
         
-        ### PCA (Principal Component Analysis)
-            
-        # Fit PCA using the train dataset    
-        pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
-        pca_model = pca.fit(df_train)
-        explained_variance = pca_model.explainedVariance.cumsum()
+        if model_type in models_pca:
 
-        # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
-        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+            ### PCA (Principal Component Analysis)
+                
+            # Fit PCA using the train dataset    
+            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+            pca_model = pca.fit(df_train)
+            explained_variance = pca_model.explainedVariance.cumsum()
 
-        # Do the same thing but with the determined optimal k (k_optimal)
-        pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
-        pca_final_model = pca.fit(df_train)
+            # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        # Applies trained PCA model to train and test dataset
-        df_train = pca_final_model.transform(df_train)
-        df_test = pca_final_model.transform(df_test)
+            # Do the same thing but with the determined optimal k (k_optimal)
+            pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+            pca_final_model = pca.fit(df_train)
 
-        # Prints the chosen value for k
-        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+            # Applies trained PCA model to train and test dataset
+            df_train = pca_final_model.transform(df_train)
+            df_test = pca_final_model.transform(df_test)
 
-        """### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
-        rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
-        mat = RowMatrix(rdd_vectors)
+            # Prints the chosen value for k
+            print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        # Applies SVD (maximum k = número de colunas)
-        k_max = len(column_names)
-        svd = mat.computeSVD(k_max)
+        else:
 
-        # Calculates cumulated explained variance (according to the singular values)
-        sigma = svd.s.toArray()
-        total_variance = (sigma ** 2).sum()
-        explained_variance = (sigma ** 2).cumsum() / total_variance
+            ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
+            rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+            mat = RowMatrix(rdd_vectors)
 
-        # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
-        # 'explained_variance_threshold'*100 % of the variance of the dataset
-        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+            # Applies SVD (maximum k = número de colunas)
+            k_max = len(column_names)
+            svd = mat.computeSVD(k_max)
 
-        print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+            # Calculates cumulated explained variance (according to the singular values)
+            sigma = svd.s.toArray()
+            total_variance = (sigma ** 2).sum()
+            explained_variance = (sigma ** 2).cumsum() / total_variance
 
-        # Projects data for the k principal components through manual multiplying (using only top-k V)
-        V = svd.V.toArray()[:, :k_optimal]
+            # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
+            # 'explained_variance_threshold'*100 % of the variance of the dataset
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        # Manually applies the transformation feat * V to obtain the new reduced vectors
-        def project_features(feat):
-            # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
-            projected_array = feat.dot(V)
-            return MLDenseVector(projected_array)
+            print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        project_udf = F.udf(project_features, returnType=VectorUDT())
-        df_train = df_train.withColumn("features", project_udf("scaled"))
-        df_test = df_test.withColumn("features", project_udf("scaled"))"""
+            # Projects data for the k principal components through manual multiplying (using only top-k V)
+            V = svd.V.toArray()[:, :k_optimal]
+
+            # Manually applies the transformation feat * V to obtain the new reduced vectors
+            def project_features(feat):
+                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+                projected_array = feat.dot(V)
+                return MLDenseVector(projected_array)
+
+            project_udf = F.udf(project_features, returnType=VectorUDT())
+            df_train = df_train.withColumn("features", project_udf("scaled"))
+            df_test = df_test.withColumn("features", project_udf("scaled"))
 
         return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
        
