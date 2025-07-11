@@ -38,18 +38,26 @@ class MessageClassification:
         )
         
         if not runs:
-            return None, None
+            return None, None, None
 
+        # for all
         run_id = runs[0].info.run_id
         
+        # for sklearn
+        path = f"./mlruns/0/{run_id}/outputs"
+        model_id = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)) and name.startswith("m-")]
+        model_id = model_id[0] if model_id else None
+
         try:
-            # TODO fix this for the case of sklearn, pyod and pytorch models!
+            model = mlflow.sklearn.load_model(f"./mlruns/0/models/{model_id}/artifacts")
+
+            # for spark models (kNN)
             #model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
-            model = mlflow.sklearn.load_model(f"./mlruns/0/{run_id}/artifacts/model")
+            
         except:
             model = None
 
-        return model, run_id
+        return model, run_id, model_id
 
 
     """
@@ -58,12 +66,12 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, df_model_train, model, dataset_type, 
-                      accuracy, matrix, recall_anomalies, report):
+    def __store_model(self, dev_addr, dataset_train_path, dataset_test_path, model,
+                      dataset_type, accuracy, matrix, recall_anomalies, report):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        _, old_run_id = self.__get_model_by_devaddr_and_dataset_type(
+        _, old_run_id, old_model_id = self.__get_model_by_devaddr_and_dataset_type(
             dev_addr, dataset_type.value["name"].lower()
         )
 
@@ -72,8 +80,9 @@ class MessageClassification:
         # be constantly learning new network traffic patterns
         # TODO fix this to also replace the model in case of sklearn, pyod and pytorch models!
         if old_run_id is not None:
-            self.__mlflowclient.delete_run(old_run_id)
             print(f"Old model from device {dev_addr} deleted.")
+            
+            self.__mlflowclient.delete_run(old_run_id)
 
             # Get experiment ID of run
             run_info = mlflow.get_run(old_run_id).info
@@ -90,6 +99,23 @@ class MessageClassification:
             else:
                 print(f"Artefact directory not found: {run_path}")
 
+        if old_model_id is not None:
+            self.__mlflowclient.delete_logged_model(old_model_id)
+            
+            model_path = f"./mlruns/0/models/{old_model_id}"
+            
+            # If the path exists (which happens in normal cases), delete it
+            if os.path.exists(model_path):
+                shutil.rmtree(model_path)
+                print(f"Model directory deleted: {model_path}")
+
+            else:
+                print(f"Model directory not found: {model_path}")
+
+            print("Model deleted")
+
+            
+
         # Create model based on DevAddr and store it as an artifact using MLFlow
         # TODO consider a generated ID to represent the run id for the logic specially 
         # for the case of sklearn, pyod and pytorch models!
@@ -100,16 +126,24 @@ class MessageClassification:
             # for every algorithms except kNN, store the model as artifact
             if model is not None:
 
-                ## FOR ISOLATION FOREST (linkedin version)
-                ## ??
-
                 ## FOR sklearn MODELS
                 mlflow.sklearn.log_model(model, "model")
 
-            # store the training dataframe as a parquet file
-            dataset_model_path = f'model_{dev_addr}_{dataset_type.value["name"]}.parquet'
-            df_model_train.write.mode("overwrite").parquet(dataset_model_path)
-            mlflow.log_artifact(dataset_model_path, artifact_path="training_dataset")
+                ## FOR the remaining models
+                ## ??
+
+            if os.path.exists(dataset_train_path):
+                mlflow.log_artifact(dataset_train_path, artifact_path="training_dataset")  # Add dataset from original path to the MLFlow path
+                shutil.rmtree(dataset_train_path)                                          # Remove dataset from original path
+            else:
+                print("Train dataset not found on original path")
+            
+            if os.path.exists(dataset_test_path):
+                mlflow.log_artifact(dataset_test_path, artifact_path="testing_dataset")   # Add dataset from original path to the MLFlow path
+                shutil.rmtree(dataset_test_path)                                          # Remove dataset from original path
+            else:
+                print("Test dataset not found on original path")
+            
             mlflow.log_metric("accuracy", accuracy)
             mlflow.log_dict(matrix, "confusion_matrix.json")
             mlflow.log_metric("recall_class_1", recall_anomalies)
@@ -213,12 +247,8 @@ class MessageClassification:
             print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
             #print("Report:\n", report)
 
-        # TODO uncomment after finishing all results' tables and after
-        # fixing model replacement on sklearn, pyod and pytorch models!
-        self.__store_model(dev_addr, df_model_train, model, dataset_type,
-                           accuracy, matrix, recall_class_1, report)
-
-        """# NOTE uncomment to store the training and testing datasets
+        # NOTE uncomment the commented lines to store the test dataset
+        # store the device datasets (training dataset will be used to be stored in MLFlow to be later retrieved for re-training)
         
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
@@ -226,10 +256,14 @@ class MessageClassification:
         # Save final dataframe in JSON or PARQUET format (OPTIONAL)
         if datasets_format == "json":
             df_model_train.coalesce(1).write.mode("overwrite").json(dataset_train_path)
-            df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
+            #df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
         else:
             df_model_train.coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
-            df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)"""
+            #df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)
+
+        # store the model on MLFlow
+        self.__store_model(dev_addr, dataset_train_path, dataset_test_path, model, 
+                           dataset_type, accuracy, matrix, recall_class_1, report)
 
         end_time = time.time()
 
@@ -256,8 +290,13 @@ class MessageClassification:
 
         if dev_addr_list is None:
 
-            df_rxpk = self.__spark_session.read.json(f'./generatedDatasets/rxpk/lorawan_dataset.json')
-            df_txpk = self.__spark_session.read.json(f'./generatedDatasets/txpk/lorawan_dataset.json')
+            if datasets_format == "json":
+                df_rxpk = self.__spark_session.read.json(f'./generatedDatasets/rxpk/lorawan_dataset.json')
+                df_txpk = self.__spark_session.read.json(f'./generatedDatasets/txpk/lorawan_dataset.json')
+
+            else:
+                df_rxpk = self.__spark_session.read.parquet(f'./generatedDatasets/rxpk/lorawan_dataset.parquet')
+                df_txpk = self.__spark_session.read.parquet(f'./generatedDatasets/txpk/lorawan_dataset.parquet')
 
             rxpk_counts = df_rxpk.groupBy("DevAddr").agg(count("*")).orderBy("DevAddr").collect()
             txpk_counts = df_txpk.groupBy("DevAddr").agg(count("*")).orderBy("DevAddr").collect()
