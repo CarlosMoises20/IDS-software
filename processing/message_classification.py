@@ -1,5 +1,5 @@
 
-import time, mlflow, shutil, os, json
+import time, mlflow, shutil, os, json, cloudpickle
 import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
@@ -8,10 +8,12 @@ from pyspark.sql.functions import count
 from mlflow.tracking import MlflowClient
 from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
+from common.model_type import ModelType
 from models.lof import LOF
 from models.kNN import KNNAnomalyDetector
 from pyspark.sql.streaming import DataStreamReader
-from models.isolation_forest import *
+from models.isolation_forest_custom import IsolationForest as CustomIF
+from models.isolation_forest_sklearn import IsolationForest as SkLearnIF
 
 class MessageClassification:
 
@@ -28,7 +30,7 @@ class MessageClassification:
     run in MLFlow
     
     """
-    def __get_model_by_devaddr_and_dataset_type(self, dev_addr, dataset_type):
+    def __get_model_by_devaddr_and_dataset_type(self, dev_addr, dataset_type, model_type):
         
         # Search the model according to DevAddr and MessageType
         runs = self.__mlflowclient.search_runs(
@@ -42,20 +44,30 @@ class MessageClassification:
 
         # for all
         run_id = runs[0].info.run_id
+        model_id = None
         
-        # for sklearn
-        path = f"./mlruns/0/{run_id}/outputs"
-        model_id = [name for name in os.listdir(path) if os.path.isdir(os.path.join(path, name)) and name.startswith("m-")]
-        model_id = model_id[0] if model_id else None
-
         try:
-            model = mlflow.sklearn.load_model(f"./mlruns/0/models/{model_id}/artifacts")
+            # for sklearn models
+            if model_type == "sklearn":
+                path = f"./mlruns/0/{run_id}/outputs"
+                model_id = [name for name in os.listdir(path) 
+                        if os.path.isdir(os.path.join(path, name)) and name.startswith("m-")]
+                model_id = model_id[0] if model_id else None
 
-            # for spark models (kNN)
-            #model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
+                model = mlflow.pyfunc.load_model(f"./mlruns/0/models/{model_id}/artifacts")
+            
+             # for spark models (kNN)
+            elif model_type == "spark":
+                model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
+
+            elif model_type == "pyod":
+                model_uri = f'./mlruns/0/{run_id}/artifacts/model/model_{dev_addr}_{dataset_type}'
+                with open(model_uri, "rb") as f:
+                    model = cloudpickle.load(f)
+                    print("model:", model)
             
         except:
-            model = None
+            model, model_id = None, None
 
         return model, run_id, model_id
 
@@ -66,19 +78,18 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, dataset_train_path, dataset_test_path, model,
+    def __store_model(self, dev_addr, dataset_train_path, dataset_test_path, model, model_type,
                       dataset_type, accuracy, matrix, recall_anomalies, report):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
         _, old_run_id, old_model_id = self.__get_model_by_devaddr_and_dataset_type(
-            dev_addr, dataset_type.value["name"].lower()
+            dev_addr=dev_addr, dataset_type=dataset_type.value["name"].lower(), model_type=model_type.value["type"]
         )
 
         # If a model associated to the device already exists, delete it to replace it with
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
-        # TODO fix this to also replace the model in case of sklearn, pyod and pytorch models!
         if old_run_id is not None:
             print(f"Old model from device {dev_addr} deleted.")
             
@@ -111,36 +122,56 @@ class MessageClassification:
 
             else:
                 print(f"Model directory not found: {model_path}")
-
-            print("Model deleted")
-
-            
-
+        
         # Create model based on DevAddr and store it as an artifact using MLFlow
-        # TODO consider a generated ID to represent the run id for the logic specially 
-        # for the case of sklearn, pyod and pytorch models!
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dataset_type.value["name"].lower()}'):
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dataset_type.value["name"].lower())
             
-            # for every algorithms except kNN, store the model as artifact
-            if model is not None:
+            ### Store the model as an artifact
 
-                ## FOR sklearn MODELS
-                mlflow.sklearn.log_model(model, "model")
+            ## FOR sklearn MODELS (OCSVM, HBOS, LOF, sklearn-based IF)
+            if model_type.value["type"] == "sklearn":
+                mlflow.sklearn.log_model(sk_model=model, name="model")
 
-                ## FOR the remaining models
-                ## ??
+            ## FOR spark models (kNN)
+            elif model_type.value["type"] == "spark":
+                mlflow.spark.log_model(spark_model=model, artifact_path="model")
+
+            ## FOR pyod models (HBOS)
+            elif model_type.value["type"] == "pyod":
+                
+                os.makedirs("./temp_models", exist_ok=True)    # Create the directory if it does not exist
+                model_path = f'./temp_models/model_{dev_addr}_{dataset_type.value["name"].lower()}.pkl'
+
+                # Save pkl model on original path
+                with open(model_path, "wb") as f:
+                    cloudpickle.dump(model, f)
+
+                # Copy model artifact from original path to MLFlow
+                mlflow.log_artifact(local_path=model_path, artifact_path="model")
+
+                # Remove from original path
+                os.remove(model_path)
+
+            else:
+                raise Exception("Model type must be sklearn, pyod or spark!")      
 
             if os.path.exists(dataset_train_path):
-                mlflow.log_artifact(dataset_train_path, artifact_path="training_dataset")  # Add dataset from original path to the MLFlow path
-                shutil.rmtree(dataset_train_path)                                          # Remove dataset from original path
+                # Add dataset from original path to the MLFlow path
+                mlflow.log_artifact(dataset_train_path, artifact_path="training_dataset")  
+
+                # Remove dataset from original path
+                shutil.rmtree(dataset_train_path)                                          
             else:
                 print("Train dataset not found on original path")
             
             if os.path.exists(dataset_test_path):
-                mlflow.log_artifact(dataset_test_path, artifact_path="testing_dataset")   # Add dataset from original path to the MLFlow path
-                shutil.rmtree(dataset_test_path)                                          # Remove dataset from original path
+                # Add dataset from original path to the MLFlow path
+                mlflow.log_artifact(dataset_test_path, artifact_path="testing_dataset") 
+
+                # Remove dataset from original path  
+                shutil.rmtree(dataset_test_path)                                          
             else:
                 print("Test dataset not found on original path")
             
@@ -157,82 +188,91 @@ class MessageClassification:
     of the message doesn't exist yet
 
     """
-    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, datasets_format):
+    def __create_model(self, df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, model_type):
 
         start_time = time.time()
 
-        """### LOF (Local Outlier Factor)
-
-        lof = LOF(df_train=df_model_train,
+        ### LOF (Local Outlier Factor)
+        if model_type.value["name"] == "Local Outlier Factor":      
+            lof = LOF(df_train=df_model_train,
                   df_test=df_model_test,
                   featuresCol="features",
                   labelCol="intrusion")
         
-        model = lof.train()
-        accuracy, matrix, report = lof.test(model)
-        recall_class_1 = report['1']['recall']"""
-        
-        """### kNN (k-Nearest Neighbors)
-        
-        knn = KNNAnomalyDetector(df_train=df_model_train,
-                                df_test=df_model_test,
-                                featuresCol="features",
-                                labelCol="intrusion",
-                                predictionCol="prediction")
-        
-        model = knn.train()
-        accuracy, matrix, report = knn.test(model)
-        recall_class_1 = report['1']['recall']"""
+            model = lof.train()
+            accuracy, matrix, report = lof.test(model)
+            recall_class_1 = report['1']['recall']
 
-        """### HBOS (Histogram-Based Outlier Score)
-        hbos = HBOS(df_train=df_model_train, 
+        ### kNN (k-Nearest Neighbors)
+        elif model_type.value["name"] == "k-Nearest Neighbors":     
+        
+            knn = KNNAnomalyDetector(df_train=df_model_train,
+                                    df_test=df_model_test,
+                                    featuresCol="features",
+                                    labelCol="intrusion",
+                                    predictionCol="prediction")
+            
+            model = knn.train()
+            accuracy, matrix, report = knn.test(model)
+            recall_class_1 = report['1']['recall']
+
+        ### HBOS (Histogram-Based Outlier Score)
+        elif model_type.value["name"] == "Histogram-Based Outlier Score":
+            hbos = HBOS(df_train=df_model_train, 
                     df_test=df_model_test,
                     featuresCol='features',
                     labelCol='intrusion')
         
-        model = hbos.train()
-        accuracy, matrix, report = hbos.test(model)
-        recall_class_1 = report['1']['recall']"""
-       
-        ### Isolation Forest (sklearn)
-        
-        if_class = IsolationForest(df_train=df_model_train, 
-                                    df_test=df_model_test, 
-                                    featuresCol="features",
-                                    labelCol="intrusion")
-        
-        model = if_class.train()
-        accuracy, matrix, report = if_class.test(model)
-        recall_class_1 = report['1']['recall']
-        
-        """### Isolation Forest (JAR from GitHub implementation)
-        
-        if_class = IsolationForestLinkedIn(spark_session=self.__spark_session,
-                                    df_train=df_model_train, 
-                                    df_test=df_model_test, 
-                                    featuresCol="features",
-                                    scoreCol="score",
-                                    predictionCol="predictionCol",
-                                    labelCol="intrusion")
-                                    
-        model = if_class.train()
-        matrix, report, df_model_test = if_class.test(model)
-        accuracy = report["Accuracy"]
-        recall_class_1 = report["Recall (class 1 -> anomaly)"]"""
-        
-        """### One-Class SVM
+            model = hbos.train()
+            accuracy, matrix, report = hbos.test(model)
+            recall_class_1 = report['1']['recall']
 
-        ocsvm = OneClassSVM(spark_session=self.__spark_session,
-                            df_train=df_model_train,
-                            df_test=df_model_test,
-                            featuresCol="features",
-                            predictionCol="prediction",
-                            labelCol="intrusion")
+        ### Isolation Forest (sklearn)
+        elif model_type.value["name"] == "Isolation Forest (Sklearn)":
+
+            if_class = SkLearnIF(df_train=df_model_train, 
+                                df_test=df_model_test, 
+                                featuresCol="features",
+                                labelCol="intrusion")
+            
+            model = if_class.train()
+            accuracy, matrix, report = if_class.test(model)
+            recall_class_1 = report['1']['recall']
+
+        ### Isolation Forest (JAR from GitHub implementation)
+        # NOTE: can't be saved on MLFlow
+        elif model_type.value["name"] == "Isolation Forest (Custom)":
         
-        model = ocsvm.train()
-        matrix, report = ocsvm.test(model)
-        accuracy = report["Accuracy"]
-        recall_class_1 = report["Recall (class 1 -> anomaly)"]"""
+            if_class = CustomIF(spark_session=self.__spark_session,
+                                df_train=df_model_train, 
+                                df_test=df_model_test, 
+                                featuresCol="features",
+                                scoreCol="score",
+                                predictionCol="predictionCol",
+                                labelCol="intrusion")
+                                        
+            model = if_class.train()
+            matrix, report = if_class.test(model)
+            accuracy = report["Accuracy"]
+            recall_class_1 = report["Recall (class 1 -> anomaly)"]
+
+        ### One-Class SVM
+        elif model_type.value["name"] == "One-Class Support Vector Machine":
+
+            ocsvm = OneClassSVM(spark_session=self.__spark_session,
+                                df_train=df_model_train,
+                                df_test=df_model_test,
+                                featuresCol="features",
+                                predictionCol="prediction",
+                                labelCol="intrusion")
+            
+            model = ocsvm.train()
+            matrix, report = ocsvm.test(model)
+            accuracy = report["Accuracy"]
+            recall_class_1 = report["Recall (class 1 -> anomaly)"]
+
+        else:
+            raise Exception("Model must correspond one of the algorithms used on the IDS!")
         
         if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
@@ -244,8 +284,7 @@ class MessageClassification:
             print("Confusion matrix:\n", matrix)
         
         if report is not None:
-            print("Report:\n", json.dumps(report, indent=4)) # for sklearn methods
-            #print("Report:\n", report)
+            print("Report:\n", json.dumps(report, indent=4))
 
         # NOTE uncomment the commented lines to store the test dataset
         # store the device datasets (training dataset will be used to be stored in MLFlow to be later retrieved for re-training)
@@ -253,7 +292,7 @@ class MessageClassification:
         dataset_train_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
         dataset_test_path = f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_test.{datasets_format}'
 
-        # Save final dataframe in JSON or PARQUET format (OPTIONAL)
+        # Save final dataframe in JSON or PARQUET format
         if datasets_format == "json":
             df_model_train.coalesce(1).write.mode("overwrite").json(dataset_train_path)
             #df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
@@ -262,7 +301,7 @@ class MessageClassification:
             #df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)
 
         # store the model on MLFlow
-        self.__store_model(dev_addr, dataset_train_path, dataset_test_path, model, 
+        self.__store_model(dev_addr, dataset_train_path, dataset_test_path, model, model_type, 
                            dataset_type, accuracy, matrix, recall_class_1, report)
 
         end_time = time.time()
@@ -318,9 +357,12 @@ class MessageClassification:
 
                 # If there are samples for the device, the model will be created
                 if (df_model_train, df_model_test) != (None, None):
+
+                    model_type = ModelType.KNN
                     
                     # Processing phase
-                    self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, datasets_format)         
+                    self.__create_model(df_model_train, df_model_test, dev_addr, 
+                                        dataset_type, datasets_format, model_type)         
         
         end_time = time.time()
 

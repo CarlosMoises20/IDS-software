@@ -4,6 +4,7 @@ output*/*
 generatedDatasets/*
 df_tmp/*
 *metadata
+temp_models/*
 
 # Artifacts
 artifacts/*

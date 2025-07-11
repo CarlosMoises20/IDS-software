@@ -153,11 +153,11 @@ class OneClassSVM:
 
         # Dictionary with relevant evaluation metrics to analyse the efficacy of the model in testing
         report = {
-            "Accuracy": f'{round(accuracy * 100, 2)}%',
-            "Recall (class 1 -> anomaly)": f'{round(recall_class_1 * 100, 2)}%',
-            "Precision (class 1 -> anomaly)": f'{round(precision_class_1 * 100, 2)}%',
-            "F1-Score (class 1 -> anomaly)": f'{round(f1_score_class_1 * 100, 2)}%',
-            "Recall (class 0 -> normal)": f'{round(recall_class_0 * 100, 2)}%'
+            "Accuracy": accuracy,
+            "Recall (class 1 -> anomaly)": recall_class_1,
+            "Precision (class 1 -> anomaly)": precision_class_1,
+            "F1-Score (class 1 -> anomaly)": f1_score_class_1,
+            "Recall (class 0 -> normal)": recall_class_0
         }
 
         return confusion, report
