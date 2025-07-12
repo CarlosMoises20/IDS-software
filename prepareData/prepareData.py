@@ -106,7 +106,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type):
         print(f'There are no enough samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. Must be at least {n_limit}. No model will be created.\n\n\n')
         return None, None
 
-    # Remove columns where all values are null
+    # Remove columns of device dataset where all values are null
     non_null_columns = [
         c for c in df_model.columns
         if (
@@ -117,7 +117,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type):
 
     df_model = df_model.select(non_null_columns)
 
-    # Remove columns that are not used for model learning
+    # Remove columns from the string list that are not used for machine learning
     non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
