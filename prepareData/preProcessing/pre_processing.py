@@ -32,8 +32,7 @@ class DataPreProcessing(ABC):
     def features_assembler(df_train, df_test, model_type, explained_variance_threshold=0.99):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df_train.schema)) - 
-                            set(["DevAddr", "intrusion", "prediction", "score"]))
+        column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion"]))
         
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df_train = assembler.transform(df_train)
@@ -182,7 +181,7 @@ class DataPreProcessing(ABC):
             try:
                 res = int(hex_str, 16)
                 
-                # When the size is higher than expected, indicate an anomaly through another negative number
+                # When the size is higher than expected, indicate an anomaly through -1
                 if len(str(res)) > 38:
                     return Decimal(-1)
 

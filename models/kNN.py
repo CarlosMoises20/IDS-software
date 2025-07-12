@@ -32,7 +32,7 @@ class KNNAnomalyDetector:
 
         threshold_percentile (default=0.99): threshold percentile that will be used to compute the adequate threshold for anomaly detection
 
-        threshold (default=NOne): threshold that will be calculated based on the percentile 'threshold_percentile'
+        threshold (default=None): threshold that will be calculated based on the percentile 'threshold_percentile'
 
         model_class: variable with the Spark class corresponding to the model used for training
     
@@ -106,10 +106,11 @@ class KNNAnomalyDetector:
     """
     def train(self):
 
-        # Add "id" column on the dataset do uniquely identify each sample
-        self.__df_train = self.__df_train.withColumn("id", monotonically_increasing_id()).select(
-            "id", self.__featuresCol, self.__labelCol, self.__predictionCol
-        )
+        # Add id column on the dataset do uniquely identify each sample
+        id_column = "id"
+        self.__df_train = self.__df_train \
+                    .withColumn(id_column, monotonically_increasing_id()) \
+                    .select(id_column, self.__featuresCol)
 
         model = self.__model_class.fit(self.__df_train)
         
@@ -137,7 +138,7 @@ class KNNAnomalyDetector:
         
         # Add "id" column on the dataset do uniquely identify each sample
         self.__df_test = self.__df_test.withColumn("id", monotonically_increasing_id() + self.__df_train.count()).select(
-            "id", self.__featuresCol, self.__labelCol, self.__predictionCol
+            "id", self.__featuresCol, self.__labelCol
         )
 
         # Calculate the distances between each point in the test dataset and the k nearest neighbors in training dataset

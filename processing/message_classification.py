@@ -43,7 +43,7 @@ class MessageClassification:
 
         # for all
         run_id = runs[0].info.run_id
-        model_id = None
+        model, model_id = None, None
         
         try:
             # for sklearn models
@@ -53,23 +53,23 @@ class MessageClassification:
                         if os.path.isdir(os.path.join(path, name)) and name.startswith("m-")]
                 model_id = model_id[0] if model_id else None
 
-                model = mlflow.pyfunc.load_model(f"./mlruns/0/models/{model_id}/artifacts")
+                model = mlflow.sklearn.load_model(f"./mlruns/0/models/{model_id}/artifacts")
             
              # for spark models (kNN)
             elif model_type == "spark":
                 model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
 
             elif model_type == "pyod":
-                model_uri = f'./mlruns/0/{run_id}/artifacts/model/model_{dev_addr}_{dataset_type}'
+                model_uri = f'./mlruns/0/{run_id}/artifacts/model/model_{dev_addr}_{dataset_type}.pkl'
                 with open(model_uri, "rb") as f:
                     model = cloudpickle.load(f)
-                    print("model:", model)
             
         except:
             model, model_id = None, None
 
+        print("model:", model)
+        
         return model, run_id, model_id
-
 
     """
     Auxiliary function that stores on MLFlow the model based on DevAddr, replacing the old model if it exists
@@ -156,7 +156,8 @@ class MessageClassification:
                 os.remove(model_path)
 
             else:
-                raise Exception("Model type must be sklearn, pyod or spark!")      
+                print("Model type must be sklearn, pyod or spark to be saved on MLFlow!")
+                return      
 
             if os.path.exists(dataset_train_path):
                 # Add dataset from original path to the MLFlow path
@@ -180,7 +181,6 @@ class MessageClassification:
             mlflow.log_dict(matrix, "confusion_matrix.json")
             mlflow.log_metric("recall_class_1", recall_anomalies)
             mlflow.log_dict(report, "report.json")
-
 
     """
     This function trains or re-trains a ML model based on a given DevAddr, and stores it on MLFlow
@@ -248,7 +248,6 @@ class MessageClassification:
                                 df_train=df_model_train, 
                                 df_test=df_model_test, 
                                 featuresCol="features",
-                                scoreCol="score",
                                 predictionCol="predictionCol",
                                 labelCol="intrusion")
                                         
@@ -296,10 +295,10 @@ class MessageClassification:
         # Save final dataframe in JSON or PARQUET format
         if datasets_format == "json":
             df_model_train.coalesce(1).write.mode("overwrite").json(dataset_train_path)
-            #df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
+            df_model_test.coalesce(1).write.mode("overwrite").json(dataset_test_path)
         else:
             df_model_train.coalesce(1).write.mode("overwrite").parquet(dataset_train_path)
-            #df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)
+            df_model_test.coalesce(1).write.mode("overwrite").parquet(dataset_test_path)
 
         # store the model on MLFlow
         self.__store_model(dev_addr, dataset_train_path, dataset_test_path, model, model_type, 
@@ -308,7 +307,6 @@ class MessageClassification:
         end_time = time.time()
 
         print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}\n\n\n')
-
 
     """
     Function to create models for some of all devices
@@ -346,7 +344,7 @@ class MessageClassification:
 
             dev_addr_list = list(set(rxpk_devaddr_list + txpk_devaddr_list))
 
-        model_type = ModelType.IF_SKLEARN
+        model_type = ModelType.OCSVM
 
         # create each model in sequence
         for dev_addr in dev_addr_list:
@@ -369,7 +367,6 @@ class MessageClassification:
 
         # Print the total time; the time is in seconds, minutes or hours
         print("Total time of pre-processing + processing:", format_time(end_time - start_time), "\n\n")
-
 
     """
     Auxiliary function that classifies messages in real time, using the model that corresponds

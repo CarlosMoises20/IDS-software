@@ -36,12 +36,12 @@ def pre_process_type(df, dataset_type):
     df = df.withColumn("CFList", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
                                     .otherwise(expr("substring(CFList, 1, length(CFList) - 2)")))
     
-    # Create 'dataLen' and 'PHYPayload_Len' attributes that correspond to the length of 'data' and 'PHYPayload', 
+    # Create 'dataLen' and 'PHYPayloadLen' attributes that correspond to the length of 'data' and 'PHYPayload', 
     # that represents the content of the LoRaWAN message; we only need their lengths to detect anomalies in the data size
     # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
     # which is not supposed
     df = df.withColumn("dataLen", length(col("data"))) \
-            .withColumn("PHYPayload_Len", length(col("PHYPayload")))
+            .withColumn("PHYPayloadLen", length(col("PHYPayload")))
     
     # remove 'data' and 'PHYPayload' after computing their lengths
     df = df.drop("data", "PHYPayload")
@@ -77,10 +77,8 @@ def pre_process_type(df, dataset_type):
 
     df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
-    # add the label and prediction columns with the value 0 (that will be later updated)
-    return df.withColumn("intrusion", lit(0)) \
-            .withColumn("prediction", lit(0)) \
-            .withColumn("score", lit(0))
+    # add the label column with the value 0 (that will be later updated when adding intrusions on some testing samples)
+    return df.withColumn("intrusion", lit(0))
 
 
 """
@@ -120,7 +118,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type):
     df_model = df_model.select(non_null_columns)
 
     # Remove columns that are not used for model learning
-    non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion", "prediction", "score"]))
+    non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
@@ -146,7 +144,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type):
 
     df_model_test = modify_device_dataset(df_train=df_model_train,
                                           df_test=df_model_test,
-                                          params=["SF", "BW", "dataLen", "PHYPayload_Len"], 
+                                          params=["SF", "BW", "dataLen", "PHYPayloadLen"], 
                                           target_values=[SF_LIST, BW_LIST, 
                                                         DATA_LEN_LIST_ABNORMAL, 
                                                         DATA_LEN_LIST_ABNORMAL],

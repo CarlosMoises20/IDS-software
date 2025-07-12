@@ -33,9 +33,6 @@ class IsolationForest:
                     unsupervised algorithm, this "label" is only used in testing to compute the evaluation metrics that measure the efficacy
                     of the model during testing 
 
-        scoreCol: the name of the column in train and test datasets that will contain the outlier probability score calculated by the model
-                during testing
-
         predictionCol: the name of the column in train and test datasets that will contain the predictions of the model during testing
 
         maxSamples: the fraction of samples used to train each tree if between 0.0 and 1.0; otherwise, is the number of samples
@@ -57,7 +54,7 @@ class IsolationForest:
     
     """
     def __init__(self, spark_session, df_train, df_test, featuresCol,
-                 scoreCol, predictionCol, labelCol, maxFeatures=1.0, seed=42, 
+                 predictionCol, labelCol, maxFeatures=1.0, seed=42, 
                  contamination=0.25, contaminationErrorRate=0.9):
         
         self.__spark_session = spark_session
@@ -65,7 +62,6 @@ class IsolationForest:
         self.__df_test = df_test
         self.__predictionCol = predictionCol
         self.__featuresCol = featuresCol
-        self.__scoreCol = scoreCol
         self.__labelCol = labelCol
         self.__N = df_train.count()
         self.__maxSamples = 0.3 if self.__N >= 50 else 1.0    # if N is between 15 and 49 samples, 1.0; otherwise, it's 0.3
@@ -83,7 +79,6 @@ class IsolationForest:
                 .setMaxFeatures(float(maxFeatures)) \
                 .setFeaturesCol(featuresCol) \
                 .setPredictionCol(predictionCol) \
-                .setScoreCol(scoreCol) \
                 .setRandomSeed(seed) \
                 .setContamination(contamination) \
                 .setContaminationError(contamination * contaminationErrorRate)
@@ -101,8 +96,7 @@ class IsolationForest:
     
     """
     def train(self):
-        self.__df_train = self.__df_train.drop(self.__predictionCol, self.__scoreCol)
-        return self.__model.fit(self.__df_train.select(self.__featuresCol, self.__labelCol)._jdf)
+        return self.__model.fit(self.__df_train.select(self.__featuresCol)._jdf)
 
     """
     Apply the fitted model to a new dataset (e.g., test set).
@@ -112,7 +106,7 @@ class IsolationForest:
         if model is None:
             raise RuntimeError("Model does not exist!")
         
-        self.__df_test = df.drop(self.__predictionCol, self.__scoreCol)._jdf
+        self.__df_test = df.drop(self.__predictionCol)._jdf
         
         java_df = model.transform(self.__df_test)
         return DataFrame(java_df, self.__spark_session)     # convert to a Spark dataframe, since this is an Java object
@@ -135,8 +129,7 @@ class IsolationForest:
         accuracy = evaluator.evaluate(df_with_preds)
 
         self.__df_test = df_with_preds \
-            .withColumn(self.__predictionCol, col(self.__predictionCol).cast(IntegerType())) \
-            .withColumn(self.__scoreCol, col(self.__scoreCol).cast(DoubleType()))
+            .withColumn(self.__predictionCol, col(self.__predictionCol).cast(IntegerType()))
 
         # Confusion Matrix
         cm = self.__df_test.groupBy(self.__labelCol, self.__predictionCol).count().collect()
