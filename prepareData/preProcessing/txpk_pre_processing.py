@@ -3,7 +3,6 @@ from prepareData.preProcessing.pre_processing import DataPreProcessing
 
 class TxpkPreProcessing(DataPreProcessing):
 
-
     """
     This function applies pre-processing on data from the dataframe 'df_txpk', for the 'txpk' dataset
 
@@ -20,7 +19,7 @@ class TxpkPreProcessing(DataPreProcessing):
 
     """
     @staticmethod
-    def pre_process_data(df):
+    def pre_process_data(df, stream_processing=False):
 
         # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
         # of attributes inside the 'txpk' struct attribute
@@ -34,7 +33,7 @@ class TxpkPreProcessing(DataPreProcessing):
         df = df.select(*selected_columns)
 
         # Remove irrelevant attributes that used to be inside 'txpk' struct attribute before exploding 'txpk'
-        df = df.drop("ipol", "modu", "imme", "ncrc")
+        df = df.drop("ipol", "modu", "imme", "ncrc", "data")
 
         return df
 

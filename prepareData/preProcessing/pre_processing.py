@@ -2,12 +2,12 @@
 from pyspark.sql.types import IntegerType, DecimalType
 from abc import ABC, abstractmethod
 from pyspark.mllib.linalg.distributed import RowMatrix
-from pyspark.ml.linalg import Vectors, VectorUDT
+from pyspark.ml.linalg import VectorUDT
 from pyspark.mllib.linalg import Vectors as MLLibVectors
 from decimal import Decimal
 from pyspark.sql import functions as F
 from common.spark_functions import get_all_attributes_names
-from pyspark.ml.feature import MinMaxScaler, StandardScaler, VectorAssembler, PCA
+from pyspark.ml.feature import StandardScaler, VectorAssembler, PCA
 from pyspark.ml.linalg import DenseVector as MLDenseVector
 from common.model_type import ModelType
 
@@ -132,6 +132,78 @@ class DataPreProcessing(ABC):
         return df
     
     """
+    Method to reverse hexadecimal octets in string format
+    
+        hex_str: hexadecimal value
+    
+    """
+    @staticmethod
+    def reverse_hex_octets(hex_str):
+
+        # If hex_str is None or an empty string, return -1
+        if (hex_str is None) or (hex_str == ""):
+            return None
+        
+        # Divides hex_str into octets
+        octets = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
+        reversed_octets = "".join(reversed(octets))
+        
+        return reversed_octets
+
+    @staticmethod
+    def parse_phypayload(phypayload_hex):
+        
+        if not phypayload_hex or len(phypayload_hex) < 24:
+            return {
+                "MHDR": "", "DevAddr": "", "FCtrl": "", "FCnt": "",
+                "FOpts": "", "FPort": "", "MIC": ""
+            }
+
+
+        # Remove spaces, if any
+        phypayload_hex = phypayload_hex.replace(" ", "").upper()
+
+        # MIC (last 4 bytes)
+        mic = phypayload_hex[-8:]
+        mic_offset = len(phypayload_hex) - 8
+
+        # MHDR (first byte)
+        mhdr = phypayload_hex[0:2]
+
+        # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
+        devaddr = phypayload_hex[2:10]
+        fctrl = phypayload_hex[10:12]
+        fcnt = phypayload_hex[12:16]
+
+        # Size of FOpts depends of FCtrl
+        if fctrl:
+            fctrl_byte = int(fctrl, 16)
+            fopts_len = fctrl_byte & 0x0F
+            fopts = phypayload_hex[16:16 + fopts_len * 2]
+
+            # Next field: FPort (0 or 1 byte, if exists)
+            fport_index = 16 + len(fopts)
+            if fport_index >= mic_offset:
+                fport = ""
+
+            fport = phypayload_hex[fport_index:fport_index + 2]
+        
+        else:
+            fctrl = ""
+            fopts = ""
+            fport = ""
+
+        return {
+                    "MHDR": mhdr,
+                    "DevAddr": DataPreProcessing.reverse_hex_octets(devaddr),
+                    "FCtrl": fctrl,
+                    "FCnt": DataPreProcessing.reverse_hex_octets(fcnt),
+                    "FOpts": DataPreProcessing.reverse_hex_octets(fopts) if fopts else "",
+                    "FPort": fport,
+                    "MIC": mic
+                }
+    
+    """
     Convert "datr" attribute from string to float
     
         Example = "4/5" -> 0.8
@@ -162,6 +234,8 @@ class DataPreProcessing(ABC):
     """
     Method to convert hexadecimal attributes to decimal attributes in numeric format (DecimalType(38, 0)),
     in order to avoid loss of precision and accuracy in very big values, supporting a scale of up to 38 digits
+    The limit of the length of hexadecimal attributes is 31 characters, which is 15 bytes; because thats the limit to result in
+    a decimal number that does not exceed the length of 38 digits that Spark supports
     
         df: spark dataframe that represents the dataset
         attributes: a list of strings with the names of attributes to be converted

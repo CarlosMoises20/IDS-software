@@ -10,7 +10,6 @@ This class represents the pre-processing phase on LoRaWAN messages from the 'rxp
 """
 class RxpkPreProcessing(DataPreProcessing):
 
-
     """
     This method applies pre-processing on data from the dataframe 'df', for the 'rxpk' dataset
 
@@ -19,7 +18,11 @@ class RxpkPreProcessing(DataPreProcessing):
 
     """
     @staticmethod
-    def pre_process_data(df):
+    def pre_process_data(df, stream_processing=False):
+
+        # TODO: add case of stream processing = True (decode "data" from base64, convert to hexadecimal and
+        # to correspond to PHYPayload, and extract all relevant attributes from PHYPayload, including PHYPayloadLen, 
+        # DevAddr, MHDR, FCnt, etc)
 
         ## Feature Selection: remove irrelevant, redundant and correlated attributes
         # apply filter to let pass only relevant attributes inside 'rxpk' and 'rsig' arrays
@@ -43,7 +46,6 @@ class RxpkPreProcessing(DataPreProcessing):
                                                                         'RxDelay', x.RxDelay, 
                                                                         'chan', x.chan,
                                                                         'codr', x.codr,
-                                                                        'data', x.data,
                                                                         'datr', x.datr, 
                                                                         'freq', x.freq, 
                                                                         'lsnr', x.lsnr, 

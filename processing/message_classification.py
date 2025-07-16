@@ -353,7 +353,7 @@ class MessageClassification:
 
                 # Pre-Processing phase
                 df_model_train, df_model_test = prepare_df_for_device(
-                    self.__spark_session, dataset_type, dev_addr, model_type
+                    self.__spark_session, dataset_type, dev_addr, model_type, datasets_format
                 )
 
                 # If there are samples for the device, the model will be created
