@@ -35,27 +35,27 @@ def pre_process_type(df, dataset_type):
     df = df.withColumn("parsed", parse_phy_payload(col("PHYPayload")))
 
     # the following fields are derived from PHYPayload, if they are NULL, try to compute them directly from PHYPayload
-    df = df.withColumn("MHDR", when((col("MHDR").isNull()) | (col("MHDR") == ""), col("parsed.MHDR")).otherwise(col("MHDR"))) \
-            .withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == ""), col("parsed.DevAddr")).otherwise(col("DevAddr")))  \
-            .withColumn("FCtrl", when((col("FCtrl").isNull()) | (col("FCtrl") == ""), col("parsed.FCtrl")).otherwise(col("FCtrl")))  \
-            .withColumn("FCnt", when((col("FCnt").isNull()) | (col("FCnt") == ""), col("parsed.FCnt")).otherwise(col("FCnt")))  \
-            .withColumn("FOpts", when((col("FOpts").isNull()) | (col("FOpts") == ""), col("parsed.FOpts")).otherwise(col("FOpts")))  \
-            .withColumn("FPort", when((col("FPort").isNull()) | (col("FPort") == ""), col("parsed.FPort")).otherwise(col("FPort")))  \
-            .withColumn("MIC", when((col("MIC").isNull()) | (col("MIC") == ""), col("parsed.MIC")).otherwise(col("MIC")))
+    df = df.withColumn("MHDR", when(((col("MHDR").isNull()) | (col("MHDR") == "")), col("parsed.MHDR")).otherwise(col("MHDR"))) \
+            .withColumn("DevAddr", when(((col("DevAddr").isNull()) | (col("DevAddr") == "")), col("parsed.DevAddr")).otherwise(col("DevAddr")))  \
+            .withColumn("FCtrl", when(((col("FCtrl").isNull()) | (col("FCtrl") == "")), col("parsed.FCtrl")).otherwise(col("FCtrl")))  \
+            .withColumn("FCnt", when(((col("FCnt").isNull()) | (col("FCnt") == "")), col("parsed.FCnt")).otherwise(col("FCnt")))  \
+            .withColumn("FOpts", when(((col("FOpts").isNull()) | (col("FOpts") == "")), col("parsed.FOpts")).otherwise(col("FOpts")))  \
+            .withColumn("FPort", when(((col("FPort").isNull()) | (col("FPort") == "")), col("parsed.FPort")).otherwise(col("FPort")))  \
+            .withColumn("MIC", when(((col("MIC").isNull()) | (col("MIC") == "")), col("parsed.MIC")).otherwise(col("MIC")))
 
     df = df.drop("parsed")
 
     # Replace NULL values of DevAddr with "Unknown"
     # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
     # targeted by some sort of attack in the LoRaWAN physical layer
-    df = df.withColumn("DevAddr", when((col("DevAddr").isNull()) | (col("DevAddr") == ""), "Unknown").otherwise(col("DevAddr")))
+    df = df.withColumn("DevAddr", when(((col("DevAddr").isNull()) | (col("DevAddr") == "")), "Unknown").otherwise(col("DevAddr")))
     
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
     # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
-    df = df.withColumn("CFListType", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
+    df = df.withColumn("CFListType", when(((col("CFList").isNull()) | (col("CFList") == lit(""))), None)
                                     .otherwise(expr("substring(CFList, -2, 2)")))
 
-    df = df.withColumn("CFList", when((col("CFList").isNull()) | (col("CFList") == lit("")), None)
+    df = df.withColumn("CFList", when(((col("CFList").isNull()) | (col("CFList") == lit(""))), None)
                                     .otherwise(expr("substring(CFList, 1, length(CFList) - 2)")))
     
     # Create 'PHYPayloadLen' attributes that correspond to the length of 'PHYPayload', 

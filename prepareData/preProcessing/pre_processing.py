@@ -50,10 +50,8 @@ class DataPreProcessing(ABC):
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
-
-        models_pca = [ModelType.IF_CUSTOM, ModelType.IF_SKLEARN, ModelType.KNN, ModelType.LOF]
         
-        if model_type in models_pca:
+        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
             ### PCA (Principal Component Analysis)
                 
@@ -76,7 +74,7 @@ class DataPreProcessing(ABC):
             # Prints the chosen value for k
             print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        else:
+        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
 
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
@@ -109,6 +107,10 @@ class DataPreProcessing(ABC):
             project_udf = F.udf(project_features, returnType=VectorUDT())
             df_train = df_train.withColumn("features", project_udf("scaled"))
             df_test = df_test.withColumn("features", project_udf("scaled"))
+
+        else:
+            df_train = df_train.withColumnRenamed("scaled", "features")
+            df_test = df_test.withColumnRenamed("scaled", "features")
 
         return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
        
@@ -253,7 +255,7 @@ class DataPreProcessing(ABC):
                 return None
             
             try:
-                res = int(hex_str, 16)
+                res = int(hex_str, 16)      # Hexadecimal converted to decimal
                 
                 # When the size is higher than expected, indicate an anomaly through -1
                 if len(str(res)) > 38:

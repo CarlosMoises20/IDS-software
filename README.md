@@ -143,3 +143,6 @@ docker ps -a
 ```
 docker ps
 ```
+
+
+NOTE: to store in MLFLow the artifacts of all models, around 10GB - 12GB of free space will be needed in your machine

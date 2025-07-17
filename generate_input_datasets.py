@@ -59,7 +59,7 @@ if __name__ == '__main__':
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Generate input datasets')
-    parser.add_argument('--datasets_format', type=str, choices=['json', 'parquet'], default='json',
+    parser.add_argument('--datasets_format', type=str, choices=['json', 'parquet'], default='parquet',
                         help='Format of datasets to use (json or parquet)')
     args = parser.parse_args()
     datasets_format = args.datasets_format.lower()

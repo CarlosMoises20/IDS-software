@@ -375,12 +375,14 @@ class MessageClassification:
     TODO: add more parameters to the function if necessary
     
     """
-    def classify_new_incoming_messages(self):
+    def classify_new_incoming_messages(self): 
+
+        # TODO open sockets to listen LoRaWAN messages (RXPK and STATS)
 
         # TODO: review step 0
-        # Read stream from a socket (e.g., port 9999)
+        # Read stream from kafka (e.g., port 9999)
         socket_stream_df = self.__spark_session.readStream \
-                                .format("socket") \
+                                .format("kafka") \
                                 .option("host", "localhost") \
                                 .option("port", 5200) \
                                 .load()
