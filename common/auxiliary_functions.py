@@ -1,4 +1,7 @@
 
+import socket
+from kafka import KafkaProducer
+
 """
 Auxiliary function to print processing time on an adequate format, in hours, minutes and seconds,
 or milisseconds if "seconds" is a decimal lower than 1
@@ -44,3 +47,35 @@ def format_time(seconds):
         
     return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
 
+
+def udp_to_kafka_forwarder():
+
+    UDP_IP = "0.0.0.0"
+    UDP_PORT = 5200
+    
+    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    udp_sock.bind((UDP_IP, UDP_PORT))
+    print(f"[*] A escutar UDP em {UDP_PORT}")
+
+    # TODO see if it's possible to run a shell script (.sh file) that automatically runs those two commands
+    # that initialize Zookeeper and Kafka
+
+    # Kafka setup
+    producer = KafkaProducer(
+        bootstrap_servers='localhost:9092',
+        value_serializer=lambda v: v.encode('utf-8')  # converte para bytes
+    )
+
+    while True:
+        data, _ = udp_sock.recvfrom(4096)
+
+        dec_data = data.decode(errors='ignore').strip()
+
+        dict_index = dec_data.find('{"')
+
+        json_message = dec_data[dict_index:]
+
+        print(f"[UDP RECEBIDO] {json_message}")
+
+        # Enviar para o tópico Kafka
+        producer.send('lorawan-messages', json_message)

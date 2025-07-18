@@ -20,7 +20,11 @@ SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"
 SPARK_SQL_ANSI_ENABLED = "false"
 
 SPARK_JARS = [
-    os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar")
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-sql-kafka-0-10_2.12-3.3.2.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "kafka-clients-2.8.0.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-token-provider-kafka-0-10_2.12-3.3.2.jar"),
+    os.path.join(os.environ.get("SPARK_HOME"), "jars", "commons-pool2-2.12.1.jar")
 ]
 
 

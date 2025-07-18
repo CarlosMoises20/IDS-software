@@ -22,33 +22,10 @@ def pre_process_type(df, dataset_type):
     # specific to each type of LoRaWAN message
     df = dataset_type.value["pre_processing_class"].pre_process_data(df)
 
-    parse_phy_payload = udf(DataPreProcessing.parse_phypayload, StructType([
-        StructField("MHDR", StringType(), True),
-        StructField("DevAddr", StringType(), True),
-        StructField("FCtrl", StringType(), True),
-        StructField("FCnt", StringType(), True),
-        StructField("FOpts", StringType(), True),
-        StructField("FPort", StringType(), True),
-        StructField("MIC", StringType(), True)
-    ]))
-
-    df = df.withColumn("parsed", parse_phy_payload(col("PHYPayload")))
-
-    # the following fields are derived from PHYPayload, if they are NULL, try to compute them directly from PHYPayload
-    df = df.withColumn("MHDR", when(((col("MHDR").isNull()) | (col("MHDR") == "")), col("parsed.MHDR")).otherwise(col("MHDR"))) \
-            .withColumn("DevAddr", when(((col("DevAddr").isNull()) | (col("DevAddr") == "")), col("parsed.DevAddr")).otherwise(col("DevAddr")))  \
-            .withColumn("FCtrl", when(((col("FCtrl").isNull()) | (col("FCtrl") == "")), col("parsed.FCtrl")).otherwise(col("FCtrl")))  \
-            .withColumn("FCnt", when(((col("FCnt").isNull()) | (col("FCnt") == "")), col("parsed.FCnt")).otherwise(col("FCnt")))  \
-            .withColumn("FOpts", when(((col("FOpts").isNull()) | (col("FOpts") == "")), col("parsed.FOpts")).otherwise(col("FOpts")))  \
-            .withColumn("FPort", when(((col("FPort").isNull()) | (col("FPort") == "")), col("parsed.FPort")).otherwise(col("FPort")))  \
-            .withColumn("MIC", when(((col("MIC").isNull()) | (col("MIC") == "")), col("parsed.MIC")).otherwise(col("MIC")))
-
-    df = df.drop("parsed")
-
-    # Replace NULL values of DevAddr with "Unknown"
-    # this opens possibilities to detect attacks of devices that didn't join the network probably because they were
-    # targeted by some sort of attack in the LoRaWAN physical layer
-    df = df.withColumn("DevAddr", when(((col("DevAddr").isNull()) | (col("DevAddr") == "")), "Unknown").otherwise(col("DevAddr")))
+    # Remove samples that do not contain a DevAddr, since these samples are messages from devices that didn't join
+    # the network, and having a model to learn traffic from several devices without DevAddr attributed by the network
+    # does not make sense, because we want a model for each device to learn the traffic behaviour from that device only
+    df = df.filter((col("DevAddr").isNotNull()) & (col("DevAddr") != ""))
     
     # create a new attribute called "CFListType", coming from the last octet of "CFList" according to the LoRaWAN specification
     # source: https://lora-alliance.org/resource_hub/lorawan-specification-v1-1/ (or specification of any other LoRaWAN version than v1.1)
@@ -126,7 +103,7 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type, dat
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
-    n_limit = 15
+    n_limit = 30
 
     # If there are not enough samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model

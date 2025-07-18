@@ -155,6 +155,16 @@ class DataPreProcessing(ABC):
     @staticmethod
     def parse_phypayload(phypayload_hex):
         
+        # the minimum size of a valid PHYPayload is 24 characters, because it contains:
+        #   MHDR: 1 byte (2 characters)
+        #   DevAddr: 4 bytes (8 characters)
+        #   FCtrl: 1 byte (2 characters)
+        #   FCnt: 2 bytes (4 characters)
+        #   FOpts: 0..15 bytes (0..30 characters)
+        #   FPort: 0..1 byte (0..2 characters)
+        #   FRMPayload: 0..N bytes (0..N*2 characters)
+        #   MIC: 4 bytes (8 characters)
+        #  2 + 8 + 2 + 4 + 8 = 24 characters
         if not phypayload_hex or len(phypayload_hex) < 24:
             return {
                 "MHDR": "", "DevAddr": "", "FCtrl": "", "FCnt": "",

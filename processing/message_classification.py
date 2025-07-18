@@ -1,9 +1,9 @@
 
-import time, mlflow, shutil, os, json, cloudpickle
+import time, mlflow, shutil, os, json, cloudpickle, threading
 import mlflow.sklearn
 from common.dataset_type import DatasetType
 from prepareData.prepareData import prepare_df_for_device
-from common.auxiliary_functions import format_time
+from common.auxiliary_functions import format_time, udp_to_kafka_forwarder
 from pyspark.sql.functions import count
 from mlflow.tracking import MlflowClient
 from models.one_class_svm import OneClassSVM
@@ -14,6 +14,7 @@ from models.kNN import KNNAnomalyDetector
 from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest_custom import IsolationForest as CustomIF
 from models.isolation_forest_sklearn import IsolationForest as SkLearnIF
+from kafka import KafkaProducer
 
 class MessageClassification:
 
@@ -344,7 +345,7 @@ class MessageClassification:
 
             dev_addr_list = list(set(rxpk_devaddr_list + txpk_devaddr_list))
 
-        model_type = ModelType.OCSVM
+        model_type = ModelType.IF_SKLEARN
 
         # create each model in sequence
         for dev_addr in dev_addr_list:
@@ -377,25 +378,28 @@ class MessageClassification:
     """
     def classify_new_incoming_messages(self): 
 
-        # TODO open sockets to listen LoRaWAN messages (RXPK and STATS)
+        threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
 
-        # TODO: review step 0
-        # Read stream from kafka (e.g., port 9999)
+        # Read stream from Kafka server that listens messages from UDP server
         socket_stream_df = self.__spark_session.readStream \
                                 .format("kafka") \
-                                .option("host", "localhost") \
-                                .option("port", 5200) \
+                                .option("kafka.bootstrap.servers", "localhost:9092") \
+                                .option("subscribe", "lorawan-messages") \
                                 .load()
 
-        query = socket_stream_df.writeStream \
-                .outputMode("append") \
-                .format("console") \
-                .start()
+        # Converter o valor de bytes para string
+        decoded_df = socket_stream_df.selectExpr("CAST(value AS STRING) as message")
 
+        # Mostrar no terminal
+        query = decoded_df.writeStream \
+            .format("console") \
+            .start()
+        
         query.awaitTermination()
 
+
         # TODO
-            # 0 - uses spark session (self.__spark_session) to open a socket where new messages are listened
+            # 0 - uses spark session (self.__spark_session) to open a TCP socket where new messages are listened
             # 1 - reads the message (see how to do it later)
             # 2 - converts the message to a dataframe row
             # 3 - apply pre-processing on the received message calling the function "prepare_dataframe(df)"
