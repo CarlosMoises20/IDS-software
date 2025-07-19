@@ -21,8 +21,7 @@ class RxpkPreProcessing(DataPreProcessing):
     def pre_process_data(df, stream_processing=False):
 
         # TODO: add case of stream processing = True (decode "data" from base64, convert to hexadecimal and
-        # to correspond to PHYPayload, and extract all relevant attributes from PHYPayload, including PHYPayloadLen, 
-        # DevAddr, MHDR, FCnt, etc)
+        # to correspond to PHYPayload, and extract all relevant attributes from PHYPayload, depending of the message type
 
         ## Feature Selection: remove irrelevant, redundant and correlated attributes
         # apply filter to let pass only relevant attributes inside 'rxpk' and 'rsig' arrays

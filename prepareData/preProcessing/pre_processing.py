@@ -10,6 +10,7 @@ from common.spark_functions import get_all_attributes_names
 from pyspark.ml.feature import StandardScaler, VectorAssembler, PCA
 from pyspark.ml.linalg import DenseVector as MLDenseVector
 from common.model_type import ModelType
+import base64
 
 
 class DataPreProcessing(ABC):
@@ -152,65 +153,92 @@ class DataPreProcessing(ABC):
         
         return reversed_octets
 
+    """
+    Method used to extract parameters from data during stream processing
+    
+    """
     @staticmethod
-    def parse_phypayload(phypayload_hex):
+    def parse_data(data):
         
-        # the minimum size of a valid PHYPayload is 24 characters, because it contains:
-        #   MHDR: 1 byte (2 characters)
-        #   DevAddr: 4 bytes (8 characters)
-        #   FCtrl: 1 byte (2 characters)
-        #   FCnt: 2 bytes (4 characters)
-        #   FOpts: 0..15 bytes (0..30 characters)
-        #   FPort: 0..1 byte (0..2 characters)
-        #   FRMPayload: 0..N bytes (0..N*2 characters)
-        #   MIC: 4 bytes (8 characters)
-        #  2 + 8 + 2 + 4 + 8 = 24 characters
-        if not phypayload_hex or len(phypayload_hex) < 24:
-            return {
-                "MHDR": "", "DevAddr": "", "FCtrl": "", "FCnt": "",
-                "FOpts": "", "FPort": "", "MIC": ""
-            }
+        if not data:
+            return -1
+        
+        # Decode to base64, convert to hexadecimal, remove spaces if any, and put letters in uppercase
+        phypayload_hex = base64.b64decode(data).hex().replace(" ", "").upper()
 
-
-        # Remove spaces, if any
-        phypayload_hex = phypayload_hex.replace(" ", "").upper()
+        if phypayload_hex < 24:  # TODO review this
+            return -1
 
         # MIC (last 4 bytes)
         mic = phypayload_hex[-8:]
         mic_offset = len(phypayload_hex) - 8
 
         # MHDR (first byte)
-        mhdr = phypayload_hex[0:2]
+        mhdr = phypayload_hex[:2]
 
-        # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
-        devaddr = phypayload_hex[2:10]
-        fctrl = phypayload_hex[10:12]
-        fcnt = phypayload_hex[12:16]
+        # MAC Payload (the rest of PHYPayload, what's between MHDR and MIC)
+        mac_payload = phypayload_hex[2:-8]
 
-        # Size of FOpts depends of FCtrl
-        if fctrl:
-            fctrl_byte = int(fctrl, 16)
-            fopts_len = fctrl_byte & 0x0F
-            fopts = phypayload_hex[16:16 + fopts_len * 2]
+        # Convert MHDR to binary and extract the first 3 bits that correspond to the message type
+        mhdr_binary = format(int(mhdr, 16), 'b')
+        m_type = mhdr_binary[:3] 
 
-            # Next field: FPort (0 or 1 byte, if exists)
-            fport_index = 16 + len(fopts)
-            if fport_index >= mic_offset:
+        if m_type == '000':   # MType = '000' -> Join Request
+            
+            app_eui = DataPreProcessing.reverse_hex_octets(phypayload_hex[2:18])
+            dev_eui = phypayload_hex[18:36]
+            dev_nonce = phypayload_hex[36:40]
+
+        elif m_type == '001':   # MType = '001' -> Join Accept
+            
+            # Join Request has between 17 and 33 bytes (34 to 66 characters)
+            if phypayload_hex < 34 or phypayload_hex > 66:     
+                return -1
+            
+            app_nonce = phypayload_hex[2:8]
+            net_id = phypayload_hex[8:14]
+            dev_addr = phypayload_hex[14:22]
+            dl_settings = phypayload_hex[22:24]
+            rx_delay = phypayload_hex[24:26]
+            cf_list = phypayload_hex[26:mic_offset]
+
+        else:                   # if Message is different from Join Request and Join Accept
+
+            # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
+            devaddr = DataPreProcessing.reverse_hex_octets(phypayload_hex[2:10])
+            fctrl = phypayload_hex[10:12]
+            fcnt = DataPreProcessing.reverse_hex_octets(phypayload_hex[12:16])
+
+            # Size of FOpts depends of FCtrl
+            if fctrl:
+                fctrl_byte = int(fctrl, 16)
+                fopts_len = fctrl_byte & 0x0F
+                fopts = DataPreProcessing.reverse_hex_octets(phypayload_hex[16:16 + fopts_len * 2])
+
+                # Next field: FPort (0 or 1 byte, if exists)
+                fport_index = 16 + len(fopts)
+                if fport_index >= mic_offset:
+                    fport = ""
+
+                fport = phypayload_hex[fport_index:fport_index + 2]
+            
+            else:
+                fctrl = ""
+                fopts = ""
                 fport = ""
 
-            fport = phypayload_hex[fport_index:fport_index + 2]
-        
-        else:
-            fctrl = ""
-            fopts = ""
-            fport = ""
-
         return {
+                    "AppEUI": app_eui,
+                    "AppNonce": app_nonce,
+                    "DLSettings": dl_settings,
+                    "CFList": cf_list,
+                    "DevAddr": devaddr,
+                    "DevEUI": DataPreProcessing.reverse_hex_octets(dev_eui),
+                    "DevNonce": DataPreProcessing.reverse_hex_octets(dev_nonce),
                     "MHDR": mhdr,
-                    "DevAddr": DataPreProcessing.reverse_hex_octets(devaddr),
                     "FCtrl": fctrl,
-                    "FCnt": DataPreProcessing.reverse_hex_octets(fcnt),
-                    "FOpts": DataPreProcessing.reverse_hex_octets(fopts) if fopts else "",
+                    "FCnt": fcnt,
+                    "FOpts": fopts,
                     "FPort": fport,
                     "MIC": mic
                 }

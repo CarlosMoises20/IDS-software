@@ -127,6 +127,14 @@ Before running the file, you must start the Zookeeper and Kafka server by runnin
 ./bin/kafka-server-start.sh ./config/server.properties
 ```
 
+It's important to check if there is another process running in the same address. You can do it and stop the running process executing the following commands
+
+```
+ps aux | grep zookeeper
+sudo lsof -i :2181
+kill -9 <PID>
+```
+
 If you want to stop the application, just force it (Ctrl + C in Windows)
 
 This will start the Kafka server and the Zookeeper server. To stop Zookeeper and Kafka on local installation directory, just do Ctrl + Z on the terminals on which Zookeeper and Kafka are running, or run the following commands on new terminals:

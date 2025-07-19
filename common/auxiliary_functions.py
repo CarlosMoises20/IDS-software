@@ -55,10 +55,7 @@ def udp_to_kafka_forwarder():
     
     udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     udp_sock.bind((UDP_IP, UDP_PORT))
-    print(f"[*] A escutar UDP em {UDP_PORT}")
-
-    # TODO see if it's possible to run a shell script (.sh file) that automatically runs those two commands
-    # that initialize Zookeeper and Kafka
+    print(f"[*] Listening on UDP Port {UDP_PORT}")
 
     # Kafka setup
     producer = KafkaProducer(
@@ -71,11 +68,7 @@ def udp_to_kafka_forwarder():
 
         dec_data = data.decode(errors='ignore').strip()
 
-        dict_index = dec_data.find('{"')
-
-        json_message = dec_data[dict_index:]
-
-        print(f"[UDP RECEBIDO] {json_message}")
+        print(f"[UDP MESSAGE RECEIVED] {dec_data}")
 
         # Enviar para o tópico Kafka
-        producer.send('lorawan-messages', json_message)
+        producer.send('lorawan-messages', dec_data)

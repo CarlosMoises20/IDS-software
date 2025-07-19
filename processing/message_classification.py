@@ -2,9 +2,9 @@
 import time, mlflow, shutil, os, json, cloudpickle, threading
 import mlflow.sklearn
 from common.dataset_type import DatasetType
-from prepareData.prepareData import prepare_df_for_device
+from prepareData.prepareData import *
 from common.auxiliary_functions import format_time, udp_to_kafka_forwarder
-from pyspark.sql.functions import count
+from pyspark.sql.functions import count, regexp_extract
 from mlflow.tracking import MlflowClient
 from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
@@ -380,6 +380,28 @@ class MessageClassification:
 
         threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
 
+        def process_batch(df, batch_id):
+
+            print(f"\n=== Batch with ID {batch_id} ===")
+
+            df.show(truncate=False)
+
+            # RXPK messages
+            df_rxpk = df.filter(df.message.startswith('{"rxpk"'))
+            if not df_rxpk.isEmpty():
+                
+                print("RXPK Processing")
+
+                df_rxpk = pre_process_type(df_rxpk, DatasetType.RXPK, streamProcessing=True)
+
+                df_rxpk.show(truncate=False)
+            
+            else:
+                print("Batch with no RXPK messages.")
+                return
+
+            
+
         # Read stream from Kafka server that listens messages from UDP server
         socket_stream_df = self.__spark_session.readStream \
                                 .format("kafka") \
@@ -387,12 +409,21 @@ class MessageClassification:
                                 .option("subscribe", "lorawan-messages") \
                                 .load()
 
-        # Converter o valor de bytes para string
+         # Convert bytes value to string
         decoded_df = socket_stream_df.selectExpr("CAST(value AS STRING) as message")
 
-        # Mostrar no terminal
-        query = decoded_df.writeStream \
-            .format("console") \
+        cleaned_df = decoded_df.withColumn(
+            "message",
+            regexp_extract("message", r'(\{"(?:rxpk|stat|txpk)".*)', 1)
+        )
+
+        # forEachBatch allows micro-batch processing, taking advantage of Spark operations to ensure data consistency
+        # on each group of data, making it easier to capture fails on a group of data; it provides higher performance
+        # for batch calls; and treats each entry as a Spark dataframe; batch processing is the best approach
+        # to handle processing of large quantities of static data and creating heavy ML models
+        query = cleaned_df.writeStream \
+            .foreachBatch(process_batch) \
+            .outputMode("append") \
             .start()
         
         query.awaitTermination()

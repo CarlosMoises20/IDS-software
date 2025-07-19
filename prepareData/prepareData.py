@@ -16,11 +16,11 @@ Binds the results and prepares the whole dataframe with pre-processing steps com
 "rxpk" and "txpk" samples of the entire dataframe
 
 """
-def pre_process_type(df, dataset_type):
+def pre_process_type(df, dataset_type, streamProcessing=False):
 
     # separate 'rxpk' samples or 'txpk' samples to apply pre-processing steps that are
     # specific to each type of LoRaWAN message
-    df = dataset_type.value["pre_processing_class"].pre_process_data(df)
+    df = dataset_type.value["pre_processing_class"].pre_process_data(df, streamProcessing)
 
     # Remove samples that do not contain a DevAddr, since these samples are messages from devices that didn't join
     # the network, and having a model to learn traffic from several devices without DevAddr attributed by the network
