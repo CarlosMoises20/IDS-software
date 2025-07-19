@@ -141,7 +141,7 @@ class DataPreProcessing(ABC):
     
     """
     @staticmethod
-    def reverse_hex_octets(hex_str):
+    def reverse_hex_bytes(hex_str):
 
         # If hex_str is None or an empty string, return -1
         if (hex_str is None) or (hex_str == ""):
@@ -160,24 +160,50 @@ class DataPreProcessing(ABC):
     @staticmethod
     def parse_data(data):
         
+        result = {
+                    "AppEUI": None,
+                    "AppNonce": None,
+                    "DLSettings": None,
+                    "CFList": None,
+                    "CFListType": None,
+                    "DevAddr": None,
+                    "DevEUI": None,
+                    "DevNonce": None,
+                    "FCnt": None,
+                    "FCtrl": None,
+                    "FOpts": None,
+                    "FPort": None,
+                    "PHYPayloadLen": None,
+                    "MIC": None,
+                    "MHDR": None,
+                    "RxDelay": None
+                }
+
         if not data:
-            return -1
+            return result
         
         # Decode to base64, convert to hexadecimal, remove spaces if any, and put letters in uppercase
         phypayload_hex = base64.b64decode(data).hex().replace(" ", "").upper()
 
-        if phypayload_hex < 24:  # TODO review this
-            return -1
+        print("data:", data)
+        print("PHYPayload:", phypayload_hex)
+
+        # 12 characters (6 bytes) is the absolute minimum size of PHYPayload
+        # MHDR: 1 byte
+        # MIC: 4 bytes
+        # MACPayload: 1...M bytes
+        if len(phypayload_hex) < 12:
+            return result
+        
+        result['PHYPayloadLen'] = len(phypayload_hex)
 
         # MIC (last 4 bytes)
-        mic = phypayload_hex[-8:]
+        result['MIC'] = phypayload_hex[-8:]
         mic_offset = len(phypayload_hex) - 8
 
         # MHDR (first byte)
         mhdr = phypayload_hex[:2]
-
-        # MAC Payload (the rest of PHYPayload, what's between MHDR and MIC)
-        mac_payload = phypayload_hex[2:-8]
+        result['MHDR'] = mhdr
 
         # Convert MHDR to binary and extract the first 3 bits that correspond to the message type
         mhdr_binary = format(int(mhdr, 16), 'b')
@@ -185,63 +211,58 @@ class DataPreProcessing(ABC):
 
         if m_type == '000':   # MType = '000' -> Join Request
             
-            app_eui = DataPreProcessing.reverse_hex_octets(phypayload_hex[2:18])
-            dev_eui = phypayload_hex[18:36]
-            dev_nonce = phypayload_hex[36:40]
+            result['AppEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:18])
+            result['DevEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[18:36])
+            result['DevNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[36:40])
 
         elif m_type == '001':   # MType = '001' -> Join Accept
             
-            # Join Request has between 17 and 33 bytes (34 to 66 characters)
-            if phypayload_hex < 34 or phypayload_hex > 66:     
-                return -1
-            
-            app_nonce = phypayload_hex[2:8]
-            net_id = phypayload_hex[8:14]
-            dev_addr = phypayload_hex[14:22]
-            dl_settings = phypayload_hex[22:24]
-            rx_delay = phypayload_hex[24:26]
+            result['AppNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:8])
+            result['DevAddr'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[14:22])
+            result['DLSettings'] = phypayload_hex[22:24]
+            result['RxDelay'] = phypayload_hex[24:26]
             cf_list = phypayload_hex[26:mic_offset]
 
-        else:                   # if Message is different from Join Request and Join Accept
+            # separate CFList on two, CFList maximum 15 bytes and CFListType maximum 1 byte, 
+            # because of the limit of the size of values supported by Spark 
+            # (38 digits of integer from 30 digit (15 bytes) hexadecimal)
+            result['CFListType'] = cf_list[-2:]     # CFListType is the last byte of CFList
+            result['CFList'] = cf_list[:-2]         # part of CFList that excludes CFListType
+
+        # if Message is different from Join Request and Join Accept
+        else:                   
 
             # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
-            devaddr = DataPreProcessing.reverse_hex_octets(phypayload_hex[2:10])
+            result['DevAddr'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:10])
             fctrl = phypayload_hex[10:12]
-            fcnt = DataPreProcessing.reverse_hex_octets(phypayload_hex[12:16])
+            result['FCnt'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[12:16])
 
-            # Size of FOpts depends of FCtrl
+            # Size of FOpts depends of the second byte of FCtrl
             if fctrl:
                 fctrl_byte = int(fctrl, 16)
-                fopts_len = fctrl_byte & 0x0F
-                fopts = DataPreProcessing.reverse_hex_octets(phypayload_hex[16:16 + fopts_len * 2])
+
+                # Apply AND operator to determine value of FOptsLen
+                # For example: '110100' & '0100' = '0100'; this takes into consideration the value of the last 4 bits of FOpts as FOptsLen
+                # FOptsLen is the size of FOpts in bytes (not in characters)
+                fopts_len = fctrl_byte & 0x0F                   
+
+                fopts = phypayload_hex[16:16 + fopts_len * 2]   # FOpts
 
                 # Next field: FPort (0 or 1 byte, if exists)
                 fport_index = 16 + len(fopts)
                 if fport_index >= mic_offset:
-                    fport = ""
+                    result['FPort'] = ""
 
-                fport = phypayload_hex[fport_index:fport_index + 2]
+                result['FPort'] = phypayload_hex[fport_index:fport_index + 2]
+                result['FOpts'] = DataPreProcessing.reverse_hex_bytes(fopts)
+                result['FCtrl'] = fctrl
             
             else:
-                fctrl = ""
-                fopts = ""
-                fport = ""
+                result['FCtrl'] = ""
+                result['FOpts'] = ""
+                result['FPort'] = ""
 
-        return {
-                    "AppEUI": app_eui,
-                    "AppNonce": app_nonce,
-                    "DLSettings": dl_settings,
-                    "CFList": cf_list,
-                    "DevAddr": devaddr,
-                    "DevEUI": DataPreProcessing.reverse_hex_octets(dev_eui),
-                    "DevNonce": DataPreProcessing.reverse_hex_octets(dev_nonce),
-                    "MHDR": mhdr,
-                    "FCtrl": fctrl,
-                    "FCnt": fcnt,
-                    "FOpts": fopts,
-                    "FPort": fport,
-                    "MIC": mic
-                }
+        return result
     
     """
     Convert "datr" attribute from string to float

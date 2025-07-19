@@ -18,9 +18,65 @@ Binds the results and prepares the whole dataframe with pre-processing steps com
 """
 def pre_process_type(df, dataset_type, streamProcessing=False):
 
-    # separate 'rxpk' samples or 'txpk' samples to apply pre-processing steps that are
+    # separate 'rxpk' or 'txpk' samples to apply pre-processing steps that are
     # specific to each type of LoRaWAN message
     df = dataset_type.value["pre_processing_class"].pre_process_data(df, streamProcessing)
+
+    if streamProcessing:
+
+        parse_phy_payload = udf(DataPreProcessing.parse_data, StructType([
+            StructField("AppEUI", StringType(), True),
+            StructField("AppNonce", StringType(), True),
+            StructField("DLSettings", StringType(), True),
+            StructField("CFList", StringType(), True),
+            StructField("CFListType", StringType(), True),
+            StructField("DevAddr", StringType(), True),
+            StructField("DevEUI", StringType(), True),
+            StructField("DevNonce", StringType(), True),
+            StructField("FCnt", StringType(), True),
+            StructField("FCtrl", StringType(), True),
+            StructField("FOpts", StringType(), True),
+            StructField("FPort", StringType(), True),
+            StructField("PHYPayloadLen", IntegerType(), True),
+            StructField("MIC", StringType(), True),
+            StructField("MHDR", StringType(), True),
+            StructField("RxDelay", StringType(), True),
+        ]))
+
+        df = df.withColumn("parsed", parse_phy_payload(col("data")))
+
+        # the following fields are derived from PHYPayload, if they are NULL, try to compute them directly from PHYPayload
+        df = df.withColumn("AppEUI", col("parsed.AppEUI")) \
+               .withColumn("AppNonce", col("parsed.AppNonce")) \
+               .withColumn("DLSettings", col("parsed.DLSettings")) \
+               .withColumn("CFList", col("parsed.CFList")) \
+               .withColumn("CFListType", col("parsed.CFListType")) \
+               .withColumn("DevAddr", col("parsed.DevAddr")) \
+               .withColumn("DevEUI", col("parsed.DevEUI")) \
+               .withColumn("DevNonce", col("parsed.DevNonce")) \
+               .withColumn("FCnt", col("parsed.FCnt")) \
+               .withColumn("FCtrl", col("parsed.FCtrl")) \
+               .withColumn("FOpts", col("parsed.FOpts")) \
+               .withColumn("FPort", col("parsed.FPort")) \
+               .withColumn("PHYPayloadLen", col("parsed.PHYPayloadLen")) \
+               .withColumn("MIC", col("parsed.MIC")) \
+               .withColumn("MHDR", col("parsed.MHDR")) \
+               .withColumn("RxDelay", col("parsed.RxDelay"))
+
+        df = df.drop("parsed", "data")
+
+        df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "DevEUI", "DevNonce"])
+
+    else:
+            # Create 'PHYPayloadLen' attributes that correspond to the length of 'PHYPayload', 
+            # that represents the full content of the LoRaWAN message physical payload; we only need the length to detect anomalies
+            # because we already have as attributes the results from the division of this attribute, which is too large to be processed by spark
+            # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
+            # which is not supposed
+            df = df.withColumn("PHYPayloadLen", length(col("PHYPayload")))
+
+            # remove 'PHYPayload' after computing its length
+            df = df.drop("PHYPayload")
 
     # Remove samples that do not contain a DevAddr, since these samples are messages from devices that didn't join
     # the network, and having a model to learn traffic from several devices without DevAddr attributed by the network
@@ -34,16 +90,7 @@ def pre_process_type(df, dataset_type, streamProcessing=False):
 
     df = df.withColumn("CFList", when(((col("CFList").isNull()) | (col("CFList") == lit(""))), None)
                                     .otherwise(expr("substring(CFList, 1, length(CFList) - 2)")))
-    
-    # Create 'PHYPayloadLen' attributes that correspond to the length of 'PHYPayload', 
-    # that represents the full content of the LoRaWAN message physical payload; we only need the length to detect anomalies
-    # because we already have as attributes the results from the division of this attribute, which is too large to be processed by spark
-    # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
-    # which is not supposed
-    df = df.withColumn("PHYPayloadLen", length(col("PHYPayload")))
 
-    # remove 'PHYPayload' after computing its length
-    df = df.drop("PHYPayload")
     
     # Convert "codr" from string to float
     str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())

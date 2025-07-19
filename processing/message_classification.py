@@ -394,7 +394,7 @@ class MessageClassification:
 
                 df_rxpk = pre_process_type(df_rxpk, DatasetType.RXPK, streamProcessing=True)
 
-                df_rxpk.show(truncate=False)
+                # TODO get DevAddr to use it to get the model from MLFlow
             
             else:
                 print("Batch with no RXPK messages.")

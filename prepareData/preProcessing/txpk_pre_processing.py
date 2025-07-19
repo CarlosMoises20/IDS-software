@@ -1,9 +1,11 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
+from pyspark.sql.functions import explode, col, from_json
+from pyspark.sql.types import StructType, BooleanType, StringType, StructField, FloatType, IntegerType
 
 class TxpkPreProcessing(DataPreProcessing):
 
-    """
+    """ NOTE: for stream processing this was not tested, because the LoRa gateway only sends RXPK and STATS
     This function applies pre-processing on data from the dataframe 'df_txpk', for the 'txpk' dataset
 
         - Applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
@@ -21,19 +23,25 @@ class TxpkPreProcessing(DataPreProcessing):
     @staticmethod
     def pre_process_data(df, stream_processing=False):
 
-        # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
-        # of attributes inside the 'txpk' struct attribute
-        selected_columns = [
-            "AppNonce", "CFList", "DLSettings", "DevAddr", "FCtrl",
-            "FCnt", "FOpts", "FPort", "PHYPayload", "MIC", "MHDR",
-            "RxDelay", "txpk.*"
-        ]
+        if stream_processing:
 
-        # Select only the specified columns, removing irrelevant, redundant or correlated attributes
-        df = df.select(*selected_columns)
+            pass
 
-        # Remove irrelevant attributes that used to be inside 'txpk' struct attribute before exploding 'txpk'
-        df = df.drop("ipol", "modu", "imme", "ncrc", "data")
+        else:
+
+            # Specify only the attributes to keep, and explode 'txpk' struct attribute to simplify processing
+            # of attributes inside the 'txpk' struct attribute
+            selected_columns = [
+                "AppNonce", "CFList", "DLSettings", "DevAddr", "FCtrl",
+                "FCnt", "FOpts", "FPort", "PHYPayload", "MIC", "MHDR",
+                "RxDelay", "txpk.*"
+            ]
+
+            # Select only the specified columns, removing irrelevant, redundant or correlated attributes
+            df = df.select(*selected_columns)
+
+            # Remove irrelevant attributes that used to be inside 'txpk' struct attribute before exploding 'txpk'
+            df = df.drop("ipol", "modu", "imme", "ncrc", "data")
 
         return df
 
