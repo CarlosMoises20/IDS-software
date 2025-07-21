@@ -1,6 +1,7 @@
 
 import time, mlflow, shutil, os, json, cloudpickle, threading
 import mlflow.sklearn
+import numpy as np
 from common.dataset_type import DatasetType
 from prepareData.prepareData import *
 from common.auxiliary_functions import format_time, udp_to_kafka_forwarder
@@ -11,10 +12,8 @@ from models.hbos import HBOS
 from common.model_type import ModelType
 from models.lof import LOF
 from models.kNN import KNNAnomalyDetector
-from pyspark.sql.streaming import DataStreamReader
 from models.isolation_forest_custom import IsolationForest as CustomIF
 from models.isolation_forest_sklearn import IsolationForest as SkLearnIF
-from kafka import KafkaProducer
 
 class MessageClassification:
 
@@ -30,7 +29,7 @@ class MessageClassification:
     run in MLFlow
     
     """
-    def __get_model_by_devaddr_and_dataset_type(self, dev_addr, dataset_type, model_type):
+    def __get_model_from_mlflow(self, dev_addr, dataset_type, model_type):
         
         # Search the model according to DevAddr and MessageType
         runs = self.__mlflowclient.search_runs(
@@ -56,10 +55,11 @@ class MessageClassification:
 
                 model = mlflow.sklearn.load_model(f"./mlruns/0/models/{model_id}/artifacts")
             
-             # for spark models (kNN)
+            # for spark models (kNN)
             elif model_type == "spark":
                 model = mlflow.spark.load_model(f"./mlruns/0/{run_id}/artifacts/model")
 
+            # for pyod models (HBOS)
             elif model_type == "pyod":
                 model_uri = f'./mlruns/0/{run_id}/artifacts/model/model_{dev_addr}_{dataset_type}.pkl'
                 with open(model_uri, "rb") as f:
@@ -68,6 +68,7 @@ class MessageClassification:
         except:
             model, model_id = None, None
 
+        # NOTE you can uncomment this line if you don't want this print
         print("model:", model)
         
         return model, run_id, model_id
@@ -83,7 +84,7 @@ class MessageClassification:
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        _, old_run_id, old_model_id = self.__get_model_by_devaddr_and_dataset_type(
+        _, old_run_id, old_model_id = self.__get_model_from_mlflow(
             dev_addr=dev_addr, 
             dataset_type=dataset_type.value["name"].lower(), 
             model_type=model_type.value["type"]
@@ -309,6 +310,8 @@ class MessageClassification:
 
         print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}\n\n\n')
 
+        return model
+
     """
     Function to create models for some of all devices
 
@@ -345,29 +348,35 @@ class MessageClassification:
 
             dev_addr_list = list(set(rxpk_devaddr_list + txpk_devaddr_list))
 
-        model_type = ModelType.IF_SKLEARN
-
         # create each model in sequence
         for dev_addr in dev_addr_list:
 
             for dataset_type in DatasetType:
 
-                # Pre-Processing phase
-                df_model_train, df_model_test = prepare_df_for_device(
-                    self.__spark_session, dataset_type, dev_addr, model_type, datasets_format
-                )
-
-                # If there are samples for the device, the model will be created
-                if (df_model_train, df_model_test) != (None, None):
-                    
-                    # Processing phase
-                    self.__create_model(df_model_train, df_model_test, dev_addr, 
-                                        dataset_type, datasets_format, model_type)         
+                self.__model_creation_process(self, 
+                                              dataset_type=dataset_type,
+                                              dev_addr=dev_addr, 
+                                              model_type=ModelType.IF_SKLEARN, 
+                                              datasets_format=datasets_format)
         
         end_time = time.time()
 
         # Print the total time; the time is in seconds, minutes or hours
         print("Total time of pre-processing + processing:", format_time(end_time - start_time), "\n\n")
+
+    def __model_creation_process(self, dataset_type, dev_addr, model_type, datasets_format, stream_processing=False):
+
+        # Pre-Processing phase
+        df_model_train, df_model_test = prepare_df_for_device(
+            self.__spark_session, dataset_type, dev_addr, model_type, datasets_format
+        )
+
+        # If there are samples for the device, the model will be created
+        if (df_model_train, df_model_test) != (None, None):
+            
+            # Processing phase
+            self.__create_model(df_model_train, df_model_test, dev_addr, dataset_type, datasets_format, model_type)         
+
 
     """
     Auxiliary function that classifies messages in real time, using the model that corresponds
@@ -376,9 +385,11 @@ class MessageClassification:
     TODO: add more parameters to the function if necessary
     
     """
-    def classify_new_incoming_messages(self): 
+    def classify_new_incoming_messages(self, datasets_format): 
 
         threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
+
+        model = ModelType.IF_SKLEARN
 
         def process_batch(df, batch_id):
 
@@ -388,19 +399,47 @@ class MessageClassification:
 
             # RXPK messages
             df_rxpk = df.filter(df.message.startswith('{"rxpk"'))
+
             if not df_rxpk.isEmpty():
                 
                 print("RXPK Processing")
 
-                df_rxpk = pre_process_type(df_rxpk, DatasetType.RXPK, streamProcessing=True)
+                df_rxpk = pre_process_type(df=df_rxpk, dataset_type=DatasetType.RXPK, stream_processing=True)
 
-                # TODO get DevAddr to use it to get the model from MLFlow
+                # get DevAddr to use it to get the model from MLFlow
+                dev_addrs = [str(row['DevAddr']) for row in df_rxpk.select("DevAddr").distinct().collect()]
+
+                for dev_addr in dev_addrs:
+
+                    print(f"-------Device {dev_addr}-------\n\n")
+
+                    # Retrieve the model using DevAddr
+                    model, _, _ = self.__get_model_from_mlflow(
+                        dev_addr=dev_addr, dataset_type=DatasetType.RXPK, model_type=model
+                    )
+
+                    if not model:
+                        model = self.__model_creation_process(self, 
+                                                      dataset_type=DatasetType.RXPK,
+                                                      dev_addr=dev_addr,
+                                                      model_type=model,
+                                                      datasets_format=datasets_format,
+                                                      stream_processing=True)
+
+                    df_device = df_rxpk.filter(df.DevAddr == dev_addr)
+
+                    features = np.array(df_device.select("features").rdd.map(lambda x: x[0]).collect())
+                    y_pred = model.fit_predict(features)
+                    predictions = [np.array([0 if pred == 1 else 1 for pred in y_pred])]
+
+                    print(f"Number of anomalies detected: {predictions.count(1)}")
+                    print(f"Number of normal messages: {predictions.count(0)}")
+
+                    # TODO: after fitting model, save it again, always replacing the old model
             
             else:
                 print("Batch with no RXPK messages.")
                 return
-
-            
 
         # Read stream from Kafka server that listens messages from UDP server
         socket_stream_df = self.__spark_session.readStream \

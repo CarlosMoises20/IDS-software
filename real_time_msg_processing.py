@@ -16,13 +16,16 @@ if __name__ == '__main__':
                     help='Whether to skip model generation if it already exists')
     args = parser.parse_args()
     datasets_format = args.datasets_format.lower()
-    skipIfExists = args.skip_dataset_generation_if_exists == 'True'
+    skipIfExists = (args.skip_dataset_generation_if_exists == 'True')
 
     spark_session = create_spark_session()
+
+    # If you want to see spark errors in debug level on console during script execution
+    #spark_session.sparkContext.setLogLevel("DEBUG")
 
     generate_input_datasets(spark_session, datasets_format, skipIfExists)
 
     # Initialize class used for network intrusion detection
     mc = MessageClassification(spark_session)
 
-    mc.classify_new_incoming_messages()
+    mc.classify_new_incoming_messages(datasets_format)

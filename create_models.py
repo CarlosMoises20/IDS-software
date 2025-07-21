@@ -18,12 +18,12 @@ if __name__ == '__main__':
     args = parser.parse_args()
     dev_addr_list = args.dev_addr
     datasets_format = args.datasets_format.lower()
-    skipIfExists = args.skip_dataset_generation_if_exists == 'True'
+    skipIfExists = (args.skip_dataset_generation_if_exists == 'True')
     
     # Initialize Spark Session
     spark_session = create_spark_session()
     
-    # If you want to see spark errors in debug level on console during the script running
+    # If you want to see spark errors in debug level on console during script execution
     #spark_session.sparkContext.setLogLevel("DEBUG")
 
     generate_input_datasets(spark_session, datasets_format, skipIfExists)

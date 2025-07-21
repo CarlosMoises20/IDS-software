@@ -1,5 +1,4 @@
 
-
 from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 from sklearn.ensemble import IsolationForest as IF
 import numpy as np
@@ -36,7 +35,7 @@ class IsolationForest:
         self.__labelCol = labelCol
         self.__numTrees = self.__set_num_trees(df_train.count())
         
-        # NOTE: uncomment to print the number of trees for the model training
+        # NOTE: uncomment to print the number of trees for model training
         #print("numTrees:", self.__numTrees)
 
         # Build Java IsolationForest Estimator

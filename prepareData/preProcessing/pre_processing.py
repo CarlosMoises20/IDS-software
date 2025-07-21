@@ -51,6 +51,8 @@ class DataPreProcessing(ABC):
 
         df_train = scaler_model.transform(df_train)
         df_test = scaler_model.transform(df_test)
+
+        fr_model = None
         
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
@@ -59,6 +61,7 @@ class DataPreProcessing(ABC):
             # Fit PCA using the train dataset    
             pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
             pca_model = pca.fit(df_train)
+            fr_model = pca_model
             explained_variance = pca_model.explainedVariance.cumsum()
 
             # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance

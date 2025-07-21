@@ -16,13 +16,13 @@ Binds the results and prepares the whole dataframe with pre-processing steps com
 "rxpk" and "txpk" samples of the entire dataframe
 
 """
-def pre_process_type(df, dataset_type, streamProcessing=False):
+def pre_process_type(df, dataset_type, stream_processing=False):
 
     # separate 'rxpk' or 'txpk' samples to apply pre-processing steps that are
     # specific to each type of LoRaWAN message
-    df = dataset_type.value["pre_processing_class"].pre_process_data(df, streamProcessing)
+    df = dataset_type.value["pre_processing_class"].pre_process_data(df, stream_processing)
 
-    if streamProcessing:
+    if stream_processing:
 
         parse_phy_payload = udf(DataPreProcessing.parse_data, StructType([
             StructField("AppEUI", StringType(), True),

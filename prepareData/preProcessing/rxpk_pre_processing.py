@@ -50,8 +50,6 @@ class RxpkPreProcessing(DataPreProcessing):
             df = df.select("rxpk.*")
             df = df.drop("modu", "stat", "time")
 
-            df.show()
-
         else:
 
             ## Feature Selection: remove irrelevant, redundant and correlated attributes
