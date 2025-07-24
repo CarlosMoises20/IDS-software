@@ -37,7 +37,9 @@ class DataPreProcessing(ABC):
         
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df_train = assembler.transform(df_train)
-        df_test = assembler.transform(df_test)
+
+        if df_test is not None:
+            df_test = assembler.transform(df_test)
 
         """Normalize all assembled features using standards; with mean 0 and standard deviation 1;
         this allows all attributes' values to be centered on the mean 0 and have unit variance; this is
@@ -50,9 +52,11 @@ class DataPreProcessing(ABC):
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
-        df_test = scaler_model.transform(df_test)
+        
+        if df_test is not None:
+            df_test = scaler_model.transform(df_test)
 
-        fr_model = None
+        pca_final_model, svd_matrix = None, None
         
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
@@ -61,7 +65,6 @@ class DataPreProcessing(ABC):
             # Fit PCA using the train dataset    
             pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
             pca_model = pca.fit(df_train)
-            fr_model = pca_model
             explained_variance = pca_model.explainedVariance.cumsum()
 
             # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
@@ -73,7 +76,9 @@ class DataPreProcessing(ABC):
 
             # Applies trained PCA model to train and test dataset
             df_train = pca_final_model.transform(df_train)
-            df_test = pca_final_model.transform(df_test)
+            
+            if df_test is not None:
+                df_test = pca_final_model.transform(df_test)
 
             # Prints the chosen value for k
             print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
@@ -108,15 +113,60 @@ class DataPreProcessing(ABC):
                 projected_array = feat.dot(V)
                 return MLDenseVector(projected_array)
 
+            svd_matrix = V
+
             project_udf = F.udf(project_features, returnType=VectorUDT())
             df_train = df_train.withColumn("features", project_udf("scaled"))
-            df_test = df_test.withColumn("features", project_udf("scaled"))
+            
+            if df_test is not None:
+                df_test = df_test.withColumn("features", project_udf("scaled"))
 
         else:
             df_train = df_train.withColumnRenamed("scaled", "features")
-            df_test = df_test.withColumnRenamed("scaled", "features")
+            
+            if df_test is not None:
+                df_test = df_test.withColumnRenamed("scaled", "features")
 
-        return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled")
+        if df_test is not None:
+            return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled"), {"StdScaler": scaler_model, 
+                                                                                 "PCA": pca_final_model, 
+                                                                                 "SVD": svd_matrix}
+        
+        return df_train.drop("feat", "scaled"), None, {"StdScaler": scaler_model, 
+                                                        "PCA": pca_final_model, 
+                                                        "SVD": svd_matrix}
+    
+
+    def features_assembler_stream(df, model_type, transform_models):
+        # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
+        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion"]))
+        
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
+        df = assembler.transform(df)
+
+        scaler_model = transform_models["StdScaler"]
+        df = scaler_model.transform(df)
+
+        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+            pca_model = transform_models["PCA"]
+            df = pca_model.transform(df)
+
+        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+            V = transform_models["SVD"]
+
+            # Manually applies the transformation feat * V to obtain the new reduced vectors
+            def project_features(feat):
+                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+                projected_array = feat.dot(V)
+                return MLDenseVector(projected_array)
+            
+            project_udf = F.udf(project_features, returnType=VectorUDT())
+            df = df.withColumn("features", project_udf("scaled"))
+
+        else:
+            df = df.withColumnRenamed("scaled", "features")
+
+        return df.drop("feat", "scaled")
        
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())
@@ -187,9 +237,6 @@ class DataPreProcessing(ABC):
         
         # Decode to base64, convert to hexadecimal, remove spaces if any, and put letters in uppercase
         phypayload_hex = base64.b64decode(data).hex().replace(" ", "").upper()
-
-        print("data:", data)
-        print("PHYPayload:", phypayload_hex)
 
         # 12 characters (6 bytes) is the absolute minimum size of PHYPayload
         # MHDR: 1 byte

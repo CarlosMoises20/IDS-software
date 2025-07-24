@@ -73,7 +73,9 @@ def pre_process_type(df, dataset_type, stream_processing=False):
             # because we already have as attributes the results from the division of this attribute, which is too large to be processed by spark
             # and the ML algorithms only work with numerical features so they wouldn't read the data as values, but as categories,
             # which is not supposed
-            df = df.withColumn("PHYPayloadLen", length(col("PHYPayload")))
+            # add the label column with the value 0 (that will be later updated when adding intrusions on some testing samples)
+            df = df.withColumn("PHYPayloadLen", length(col("PHYPayload"))) \
+                    .withColumn("intrusion", lit(0))        
 
             # remove 'PHYPayload' after computing its length
             df = df.drop("PHYPayload")
@@ -118,13 +120,11 @@ def pre_process_type(df, dataset_type, stream_processing=False):
     # hexadecimal attributes to decimal common for all dataset types
     # if we want to apply machine learning algorithms, we need numerical values and if these values stayed as strings,
     # these would be treated as categorical values, which is not supposed
-    hex_attributes = ["AppNonce", "DLSettings", "FPort", "MIC", "FCtrl", "FCnt", "FOpts", "MHDR", 
+    hex_attributes = ["AppNonce", "DLSettings", "FPort", "MIC", 
+                      "FCtrl", "FCnt", "FOpts", "MHDR", 
                       "CFList", "CFListType", "RxDelay"]
 
-    df = DataPreProcessing.hex_to_decimal(df, hex_attributes)
-
-    # add the label column with the value 0 (that will be later updated when adding intrusions on some testing samples)
-    return df.withColumn("intrusion", lit(0))
+    return DataPreProcessing.hex_to_decimal(df, hex_attributes)
 
 
 """
@@ -132,31 +132,25 @@ Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device
 
 """
-def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type, datasets_format):
+def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_processing=False):
 
     start_time = time.time()
-
-    if datasets_format == "json":
-        df_model = spark_session.read.json(
-            f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
-        ).filter(col("DevAddr") == dev_addr)
-
-    else:
-        df_model = spark_session.read.parquet(
-            f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
-        ).filter(col("DevAddr") == dev_addr)
-
-    df_model = df_model.cache()     # Applies cache operations to speed up the processing
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
     n_limit = 30
 
+    n_samples = df_model.count()
+
     # If there are not enough samples for the device, it's not possible to create a model since there is
     # no data to be used to train the model
-    if df_model.count() < n_limit:
+    if n_samples < n_limit:
         print(f'There are no enough samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. Must be at least {n_limit}. No model will be created.\n\n\n')
-        return None, None
+        
+        if n_samples >= 1:
+            return df_model, None, None
+        
+        return None, None, None
 
     # Remove columns of device dataset where all values are null
     non_null_columns = [
@@ -184,24 +178,30 @@ def prepare_df_for_device(spark_session, dataset_type, dev_addr, model_type, dat
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
-    # Applies division of samples into training and testing after processing dataframe 'df_model'
-    df_model_train, df_model_test = train_test_split(df_model, seed=42)
 
-    # NOTE: uncomment this line to print the number of training samples for the device
-    print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
+    if not stream_processing:
 
-    # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
-    # and the number of intrusions is higher in larger datasets
-    num_intrusions = min(round(0.2 * df_model_test.count()), 12)
+        # Applies division of samples into training and testing after processing dataframe 'df_model'
+        df_model_train, df_model_test = train_test_split(df_model, seed=42)
 
-    df_model_test = modify_device_dataset(df_train=df_model_train,
-                                          df_test=df_model_test,
-                                          params=["SF", "BW", "PHYPayloadLen"], 
-                                          target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
-                                          num_intrusions=num_intrusions)
+        # NOTE: uncomment this line to print the number of training samples for the device
+        print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
 
-    # NOTE: uncomment this line to print the number of testing samples for the device
-    print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {df_model_test.count()}')
+        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
+        # and the number of intrusions is higher in larger datasets
+        num_intrusions = max(1, min(round(0.3 * df_model_test.count()), 12))
 
-    return DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
+        df_model_test = modify_device_dataset(df_train=df_model_train,
+                                            df_test=df_model_test,
+                                            params=["SF", "BW", "PHYPayloadLen"], 
+                                            target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
+                                            num_intrusions=num_intrusions)
+
+        # NOTE: uncomment this line to print the number of testing samples for the device
+        print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {n_samples}')
+
+        return DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
+    
+    else:
+         return DataPreProcessing.features_assembler(df_model_train, None, model_type)
 
