@@ -73,6 +73,8 @@ class LOF:
     
     """
     def predict(self, model):
+        
+        # raise exception if no model is passed as argument
         if model is None:
             raise Exception("Model must be created first!")
         

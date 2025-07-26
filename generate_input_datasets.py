@@ -15,17 +15,19 @@ This function generates input datasets, already with pre-processing applied to p
 It generates one dataset for RXPK messages and other for TXPK messages
 
 """
-def generate_input_datasets(spark_session, format, skipIfExists=False):
+def generate_input_datasets(spark_session, format, skip_if_exists=False, stream_processing=False):
 
     start_time = time.time()
 
-    for dataset_type in [key for key in DatasetType]:
+    dataset_type_list = [DatasetType.RXPK] if stream_processing else DatasetType
+
+    for dataset_type in [key for key in dataset_type_list]:
 
         dataset_name = dataset_type.value["name"].lower()
 
         dataset_path = f'./generatedDatasets/{dataset_name}/lorawan_dataset.{format}'
 
-        if os.path.exists(dataset_path) and skipIfExists:
+        if os.path.exists(dataset_path) and skip_if_exists:
             print(f'{dataset_name.upper()} dataset in {format.upper()} format already exists')
 
         else:

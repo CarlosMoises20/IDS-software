@@ -130,8 +130,8 @@ Before running the file, you must start the Zookeeper and Kafka server by runnin
 It's important to check if there is another process running in the same address. You can do it and stop the running process executing the following commands
 
 ```
-ps aux | grep zookeeper
-sudo lsof -i :2181
+ps aux | grep zookeeper / kafka
+sudo lsof -i :2181 / 9092
 kill -9 <PID>
 ```
 

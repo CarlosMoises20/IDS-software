@@ -136,7 +136,13 @@ class DataPreProcessing(ABC):
                                                         "PCA": pca_final_model, 
                                                         "SVD": svd_matrix}
     
-
+    """
+    This method applies several techniques and assembles to features
+    However, it's focused on stream processing, transforming messages coming from LoRa gateway using the models
+    from 'transform_models' dictionary, which are the models used for Scaler, PCA and SVD transformation, depending
+    of the algorithm that is being used 
+    
+    """
     def features_assembler_stream(df, model_type, transform_models):
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion"]))
@@ -379,8 +385,8 @@ class DataPreProcessing(ABC):
 
         for attr in attributes: 
 
-            # Fill missing values (None or empty strings) with -1, since -1 would never be a valid value
-            # for an hexadecimal-to-decimal attribute
+            # Fill missing values (None or empty strings) with None, and anomalies with -1, since -1
+            # would never be a valid value for an hexadecimal-to-decimal attribute
             df = df.withColumn(attr, hex_to_decimal_udf(F.col(attr)))
 
         return df

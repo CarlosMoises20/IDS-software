@@ -131,6 +131,13 @@ def pre_process_type(df, dataset_type, stream_processing=False):
 Applies pre-processing steps for all "rxpk" and "txpk" rows of the dataframe for
 a specific device
 
+    df_model: the dataframe with the messages for the device
+    dataset_type: the type of messages in the dataframe (RXPK or TXPK)
+    dev_addr: the DevAddr of the messages of the dataframe
+    model_type: the algorithm that will be used to create the "features" column that will be used by ML models for training
+    stream_processing (default=False): flag that indicates if the function is being called when receiving messages in real time (True)
+                                        or only to create the models (False)
+
 """
 def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_processing=False):
 
@@ -170,7 +177,6 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
     # the mean is the best approach to preserve the distribution and variety of the data
     imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
-
     df_model = imputer.fit(df_model).transform(df_model)
 
     end_time = time.time()
@@ -178,18 +184,18 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
-
+    # If we are only creating the models for testing, we can split the dataset into training and testing datasets
     if not stream_processing:
 
         # Applies division of samples into training and testing after processing dataframe 'df_model'
-        df_model_train, df_model_test = train_test_split(df_model, seed=42)
+        df_model_train, df_model_test = train_test_split(df_model)
 
-        # NOTE: uncomment this line to print the number of training samples for the device
-        print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {df_model_train.count()}')
+        n_train_samples = df_model_train.count()
+        n_test_samples = df_model_test.count()
 
         # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
         # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round(0.3 * df_model_test.count()), 12))
+        num_intrusions = max(1, min(round(0.3 * n_test_samples), 12))
 
         df_model_test = modify_device_dataset(df_train=df_model_train,
                                             df_test=df_model_test,
@@ -197,11 +203,13 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
                                             target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
                                             num_intrusions=num_intrusions)
 
-        # NOTE: uncomment this line to print the number of testing samples for the device
-        print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {n_samples}')
+        # NOTE: comment these lines to not print the number of training and testing samples for the device
+        print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {n_train_samples}')
+        print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {n_test_samples}')
 
         return DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
     
+    # If messages are being received in real time, use all samples for training to accelerate the training
     else:
-         return DataPreProcessing.features_assembler(df_model_train, None, model_type)
+         return DataPreProcessing.features_assembler(df_model, None, model_type)
 

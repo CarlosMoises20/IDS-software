@@ -109,11 +109,10 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
 
 
 """
-This function ensures that there are always sufficient samples for both training and testing
-considering the total number of examples in the dataframe corresponding to the device
+This function will split the dataset into training (80%) and testing (20%)
 
 """
-def train_test_split(df_model, seed):
+def train_test_split(df_model, seed=42):
     return df_model.randomSplit([0.8, 0.2], seed)
 
 

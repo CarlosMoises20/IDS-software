@@ -48,6 +48,15 @@ def format_time(seconds):
     return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
 
 
+"""
+Auxiliary function that will open a UDP socket that receives LoRaWAN messages coming from a LoRa
+gateway, using port 5200 to receive those messages. When the UDP socket receives those messages, it
+will forward them to a Kafka producer that will have a topic called lorawan-messages, where the UDP socket
+will send the received LoRaWAN messages. Those messages will, then, be available on the Kafka producer
+on that topic, on port 9092, to be consumed by Spark, which will group the messages using batches
+and process them 
+
+"""
 def udp_to_kafka_forwarder():
 
     UDP_IP = "0.0.0.0"
