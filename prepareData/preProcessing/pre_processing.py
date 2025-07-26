@@ -204,7 +204,7 @@ class DataPreProcessing(ABC):
 
         # If hex_str is None or an empty string, return -1
         if (hex_str is None) or (hex_str == ""):
-            return None
+            return hex_str
         
         # Divides hex_str into octets
         octets = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
@@ -244,14 +244,14 @@ class DataPreProcessing(ABC):
         # Decode to base64, convert to hexadecimal, remove spaces if any, and put letters in uppercase
         phypayload_hex = base64.b64decode(data).hex().replace(" ", "").upper()
 
+        result['PHYPayloadLen'] = len(phypayload_hex)
+
         # 12 characters (6 bytes) is the absolute minimum size of PHYPayload
         # MHDR: 1 byte
         # MIC: 4 bytes
         # MACPayload: 1...M bytes
         if len(phypayload_hex) < 12:
             return result
-        
-        result['PHYPayloadLen'] = len(phypayload_hex)
 
         # MIC (last 4 bytes)
         result['MIC'] = phypayload_hex[-8:]
@@ -262,17 +262,19 @@ class DataPreProcessing(ABC):
         result['MHDR'] = mhdr
 
         # Convert MHDR to binary and extract the first 3 bits that correspond to the message type
-        mhdr_binary = format(int(mhdr, 16), 'b')
+        # Fill the result with zeros to left to get exactly 8 bits on this case; and not 5 or 6;
+        # In general, zfill guarantees that the conversion from hexadecimal to binary always results on a binary 
+        # number size of 4 times the size of the hexadecimal
+        mhdr_binary_original = format(int(mhdr, 16), 'b')
+        mhdr_binary = mhdr_binary_original.zfill(len(mhdr) * 4)
         m_type = mhdr_binary[:3] 
 
         if m_type == '000':   # MType = '000' -> Join Request
-            
             result['AppEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:18])
-            result['DevEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[18:36])
-            result['DevNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[36:40])
+            result['DevEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[18:34])
+            result['DevNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[34:38])
 
-        elif m_type == '001':   # MType = '001' -> Join Accept
-            
+        elif m_type == '001':   # MType = '001' -> Join Accept         
             result['AppNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:8])
             result['DevAddr'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[14:22])
             result['DLSettings'] = phypayload_hex[22:24]
@@ -289,32 +291,34 @@ class DataPreProcessing(ABC):
         else:                   
 
             # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
-            result['DevAddr'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:10])
-            fctrl = phypayload_hex[10:12]
-            result['FCnt'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[12:16])
+            result['DevAddr'] = DataPreProcessing.reverse_hex_bytes((phypayload_hex[:mic_offset])[2:10])
+            fctrl = (phypayload_hex[:mic_offset])[10:12]
+            result['FCnt'] = DataPreProcessing.reverse_hex_bytes((phypayload_hex[:mic_offset])[12:16])
 
             # Size of FOpts depends of the second byte of FCtrl
-            if fctrl:
-                fctrl_byte = int(fctrl, 16)
+            if len(fctrl) == 2:
+                fctrl_byte_original = format(int(fctrl, 16), 'b')
+                fctrl_byte = fctrl_byte_original.zfill(len(fctrl) * 4)
 
                 # Apply AND operator to determine value of FOptsLen
                 # For example: '110100' & '0100' = '0100'; this takes into consideration the value of the last 4 bits of FOpts as FOptsLen
                 # FOptsLen is the size of FOpts in bytes (not in characters)
-                fopts_len = fctrl_byte & 0x0F                   
+                fopts_len = int(fctrl_byte, 2) & 0x0F               
 
-                fopts = phypayload_hex[16:16 + fopts_len * 2]   # FOpts
+                fopts = (phypayload_hex[:mic_offset])[16:16 + (fopts_len * 2)]   # FOpts
 
                 # Next field: FPort (0 or 1 byte, if exists)
                 fport_index = 16 + len(fopts)
                 if fport_index >= mic_offset:
-                    result['FPort'] = ""
+                     result['FPort'] = ""
+                else:
+                     result['FPort'] = (phypayload_hex[:mic_offset])[fport_index:fport_index + 2]
 
-                result['FPort'] = phypayload_hex[fport_index:fport_index + 2]
-                result['FOpts'] = DataPreProcessing.reverse_hex_bytes(fopts)
+                result['FOpts'] = fopts
                 result['FCtrl'] = fctrl
             
             else:
-                result['FCtrl'] = ""
+                result['FCtrl'] = fctrl
                 result['FOpts'] = ""
                 result['FPort'] = ""
 
