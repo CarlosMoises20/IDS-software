@@ -160,6 +160,9 @@ class DataPreProcessing(ABC):
         elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
             V = transform_models["SVD"]
 
+            print(V)
+            print(type(V))
+
             # Manually applies the transformation feat * V to obtain the new reduced vectors
             def project_features(feat):
                 # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works

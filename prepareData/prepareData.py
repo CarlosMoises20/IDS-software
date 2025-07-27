@@ -184,6 +184,9 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
+    print("Model df after pre-processing")
+    df_model.show()
+
     # If we are only creating the models for testing, we can split the dataset into training and testing datasets
     if not stream_processing:
 
