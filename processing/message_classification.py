@@ -102,27 +102,63 @@ class MessageClassification:
                 
                 model_id = model_id[0] if model_id else None
 
-                model = mlflow.sklearn.load_model(f"./mlruns/{self.__experiment_id}/models/{model_id}/artifacts")
+                model_path = f"./mlruns/{self.__experiment_id}/models/{model_id}/artifacts" if model_id else None
+
+                # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
+                # Without this if/else block, the try/catch block would stop to run
+                # on the load_model function and not loading the other models (PCA, SVD)
+                # that might exist
+                if model_path and os.path.exists(model_path):
+                    model = mlflow.sklearn.load_model(model_path)
+                else:
+                    print("Model does not exist on path", model_path)
             
             # for spark models (kNN)
             elif model_type.value["type"] == "spark":
-                model = mlflow.spark.load_model(f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/model")
+                model_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/model"
+
+                # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
+                # Without this if/else block, the try/catch block would stop to run
+                # on the load_model function and not loading the other models (PCA, SVD)
+                # that might exist
+                if os.path.exists(model_path):
+                    model = mlflow.spark.load_model(model_path)
+                else:
+                    print("Model does not exist!")
 
             # for pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
-                model_uri = f'./mlruns/{self.__experiment_id}/{run_id}/artifacts/model/model_{dev_addr}_{dtype_name}.pkl'
-                with open(model_uri, "rb") as f:
-                    model = cloudpickle.load(f)
+                model_path = f'./mlruns/{self.__experiment_id}/{run_id}/artifacts/model/model_{dev_addr}_{dtype_name}.pkl'
+                
+                # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
+                # Without this if/else block, the try/catch block would stop to run
+                # on the load_model function and not loading the other models (PCA, SVD)
+                # that might exist
+                if os.path.exists(model_path):
+                    with open(model_path, "rb") as f:
+                        model = cloudpickle.load(f)
+                else:
+                    print("Model does not exist!")
 
             pca_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/pca_model"
             
+            # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
+            # Without this if/else block, the try/catch block would stop to run
+            # on the load_model function and not loading the other models
             if os.path.exists(pca_path):
                 pca_model = mlflow.spark.load_model(pca_path)
+            else:
+                print("PCA model does not exist")
 
             svd_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/svd_model/svd_matrix.npy"
 
+            # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
+            # Without this if/else block, the try/catch block would stop to run
+            # on the load_model function and not printing the message to indicate the user that the model does not exist
             if os.path.exists(svd_path):
                 svd_matrix = np.load(svd_path, allow_pickle=True)
+            else:
+                print("SVD model does not exist")
             
         except:
             pass
@@ -130,8 +166,8 @@ class MessageClassification:
         # NOTE you can uncomment these lines if you want these prints
         print("model:", model)
         print("scaler model:", scaler_model)
-        print("PCA model:", pca_model)
-        print("SVD matrix:", svd_matrix)
+        #print("PCA model:", pca_model)
+        #print("SVD matrix:", svd_matrix)
 
         transform_models = {"StdScaler": scaler_model, "PCA": pca_model, "SVD": svd_matrix}
         transform_models = None if all(value is None for value in transform_models.values()) else transform_models
@@ -172,7 +208,7 @@ class MessageClassification:
         else:
             df = self.__spark_session.read.parquet(path)
         
-        print("Loaded train dataset")
+        print("Loaded train dataset with", df.count(), "samples")
         df.show()
         
         return df
@@ -259,24 +295,24 @@ class MessageClassification:
         # be constantly learning new network traffic patterns
         if old_model_id is not None:
             
-            # The path where the model should be saved
-            model_path = f"./mlruns/{self.__experiment_id}/models/{old_model_id}"
+            # The paths where the model should be saved
+            model_paths = [f"./mlruns/{self.__experiment_id}/models/{old_model_id}",
+                           f"./mlruns/{self.__experiment_id}/{old_run_id}/outputs/{old_model_id}"]
             
             # If the path exists (which happens in normal cases), delete it
-            if os.path.exists(model_path):
-                
-                mlflowclient = self.__mlflowclient
+            for model_path in model_paths:
+                if os.path.exists(model_path):
+                    shutil.rmtree(model_path)
+                    print(f"Model directory deleted: {model_path}")
 
-                try:
-                    mlflowclient.delete_logged_model(old_model_id)
-                except:
-                    print("Model not found on MLFlow active client")
-
-                shutil.rmtree(model_path)
-                print(f"Model directory deleted: {model_path}")
-
-            else:
-                print(f"Model directory not found: {model_path}")
+                else:
+                    print(f"Model directory not found: {model_path}")
+            
+            mlflowclient = self.__mlflowclient
+            try:
+                mlflowclient.delete_logged_model(old_model_id)
+            except:
+                print("Model not found on MLFlow active client")
         
         # Create model based on DevAddr and store it as an artifact using MLFlow
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dtype_name}', 
@@ -327,6 +363,8 @@ class MessageClassification:
             else:
                 print("Model type must be sklearn, pyod or spark to be saved on MLFlow!")
                 return
+
+            print("New model stored")
 
             ### Log evaluation metrics on the MLFlow run      
             
@@ -681,13 +719,13 @@ class MessageClassification:
 
         # Start a thread for an asynchronous call to the function that will open a UDP socket that will receive messages
         # from a LoRa gateway and forward to a Kafka producer which will also be listening messages from UDP socket to
-        # forward to Spark
+        # forward to Spark that will consume those messages
         threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
 
         # NOTE: you can comment this line if you don't want to print this
         print("Using algorithm", self.__ml_algorithm.value["name"])
 
-        # This function will be executed for each batch of messages received by Spark from Kafka
+        # This function will be executed for each batch of one or more messages received by Spark
         def process_batch(df, batch_id):
 
             # TODO date is only for testing, maybe remove for final version to avoid confusions with time in different countries
@@ -698,6 +736,7 @@ class MessageClassification:
             # RXPK messages
             df_rxpk = df.filter(df.message.startswith('{"rxpk"'))
 
+            # Only RXPK messages will be considered
             dataset_type = DatasetType.RXPK
 
             # Check if there are RXPK messages on the dataframe
@@ -720,6 +759,7 @@ class MessageClassification:
 
                     print(f"------- Device {dev_addr} -------\n\n")
 
+                    # Filter messages to only contain RXPK messages
                     df_device = df_rxpk.filter(col("DevAddr") == dev_addr)
 
                     print("Device stream df")
@@ -738,7 +778,7 @@ class MessageClassification:
                     # If there is not previous model saved on MLFlow, try to create one
                     # If there is not enough samples to create the model, it won't be created, and
                     # the result will be a tuple of None objects 
-                    if (model, transform_models) == (None, None):
+                    if model is None:
 
                         print("Still no model created for device in RXPK. Creating the first")
                         
@@ -757,14 +797,7 @@ class MessageClassification:
                             else:
                                 df_model = self.__spark_session.read.parquet(
                                     f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
-                                ).filter(col("DevAddr") == dev_addr)
-
-                        # Applies cache operations to speed up the dataframe processing
-                        df_model = df_model.cache()
-
-                        # NOTE: this prints from MLFlow or the static dataset corresponding to DevAddr. You can comment this if you want
-                        print("Loaded dataset or static dataset")
-                        df_model.show(truncate=False)     
+                                ).filter(col("DevAddr") == dev_addr)     
 
                         # try to create the model using the dataset which was loaded from MLFlow, or the dataset
                         # created using static datasets if they exist
@@ -777,16 +810,26 @@ class MessageClassification:
                                                                                 datasets_format=datasets_format,
                                                                                 stream_processing=True)
                         
-                        print("transform models generated:", transform_models)
+                        # Applies cache operations to speed up the dataframe processing
+                        df_model = df_model.cache()
+
+                        # NOTE: this prints from MLFlow or the static dataset corresponding to DevAddr. You can comment this if you want
+                        print("Loaded dataset or static dataset, with", df_model.count(), "samples")
+                        df_model.show(truncate=False)
+                        
+                        #print("transform models generated:", transform_models)
 
                     # If the model is created, use the actual sample to train the model
-                    if (model, transform_models) != (None, None):
+                    if model and transform_models:
+
+                        # Remove columns where all values from the model dataframe and the stream dataframe are NULL
+                        df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
 
                         non_null_columns = [
-                            c for c in df_model.columns
+                            c for c in df_bind.columns
                             if (
                                 # Check if NOT all values are null
-                                (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+                                (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
                             )
                         ]
 
@@ -840,14 +883,13 @@ class MessageClassification:
                         if not df_normals.isEmpty():
                             features = np.array(df_normals.select("features").rdd.map(lambda x: x[0]).collect())
                             model = model.fit(features)
-                        
+                            self.__store_model(dev_addr=dev_addr, model=model,
+                                            model_type=self.__ml_algorithm,
+                                            dataset_type=dataset_type,
+                                            accuracy=None, matrix=None, recall_anomalies=None, report=None,
+                                            transform_models=transform_models)
+                            
                         df_device = df_normals
-
-                        self.__store_model(dev_addr=dev_addr, model=model,
-                                        model_type=self.__ml_algorithm,
-                                        dataset_type=dataset_type,
-                                        accuracy=None, matrix=None, recall_anomalies=None, report=None,
-                                        transform_models=transform_models)
                         
                     # if the model is not created for not having enough samples for it, bind the actual samples with the samples
                     # from the training dataset on MLFlow, to make it to the minimum number of necessary samples to create the first model
@@ -865,7 +907,7 @@ class MessageClassification:
                         if df_model_train is not None:
                             df_device = df_device.unionByName(df_model_train, allowMissingColumns=True)
 
-                    # NOTE Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
+                    # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
                     n_samples = df_device.count()
                     if n_samples == 1:
                         print(f"Logging dataset on MLFlow with {n_samples} sample")

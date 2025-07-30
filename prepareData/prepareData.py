@@ -4,7 +4,7 @@ from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import FloatType, IntegerType, StringType, StructType, StructField
-from common.constants import SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL
+from common.constants import SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.spark_functions import modify_device_dataset
 from pyspark.ml.feature import Imputer
@@ -185,7 +185,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
     print("Model df after pre-processing")
-    df_model.show()
+    #df_model.show()
 
     # If we are only creating the models for testing, we can split the dataset into training and testing datasets
     if not stream_processing:
@@ -203,7 +203,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         df_model_test = modify_device_dataset(df_train=df_model_train,
                                             df_test=df_model_test,
                                             params=["SF", "BW", "PHYPayloadLen"], 
-                                            target_values=[SF_LIST, BW_LIST, DATA_LEN_LIST_ABNORMAL],
+                                            target_values=[SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES],
                                             num_intrusions=num_intrusions)
 
         # NOTE: comment these lines to not print the number of training and testing samples for the device

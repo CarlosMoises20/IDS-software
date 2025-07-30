@@ -127,7 +127,7 @@ Before running the file, you must start the Zookeeper and Kafka server by runnin
 ./bin/kafka-server-start.sh ./config/server.properties
 ```
 
-It's important to check if there is another process running in the same address. You can do it and stop the running process executing the following commands
+Sometimes if the second command fails and you execute it again, it works. However, it's important to check if there is another process running in the same address. You can do it and stop the running process executing the following commands
 
 ```
 ps aux | grep zookeeper / kafka
