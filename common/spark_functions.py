@@ -4,15 +4,15 @@ from common.constants import *
 from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.functions import col, lit, when, monotonically_increasing_id
-from itertools import chain
 from pyspark.sql.types import StructType
 
 """
-Auxiliary function to create spark session
+Auxiliary function to create a spark session to be used during code execution
 
 """
 def create_spark_session():
 
+    # Throw an exception if one of the specified JARs don't exist on the user's local machine
     for jar in SPARK_JARS:
         if not os.path.exists(jar):
             raise FileNotFoundError(f"JAR not found: {jar}")
@@ -33,9 +33,8 @@ def create_spark_session():
                             .config("spark.jars", ",".join(SPARK_JARS)) \
                             .getOrCreate()
 
-
 """
-This function lauches attacks on test dataset based on a specific device
+This function lauches manual attacks on test dataset based on a specific device
 
 """
 def modify_device_dataset(df_train, df_test, params, target_values, num_intrusions):
@@ -63,9 +62,21 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # Remove any params that have no remaining intrusion values
     filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
 
-    if not params:
-        print("No available intrusion values to inject.")
-        return df_test
+    # While there is no abnormal values different than values existing on training dataset,
+    # try another abnormal values of PHYPayloadLen
+    while not filtered_target_values:
+        target_values[PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES] = [random.randint(200, 10000) for _ in range(5)]
+
+        # Filter only values not in training dataset
+        filtered_target_values = {
+            param: [val for val in values if val not in existing_values[param]]
+            for param, values in zip(params, target_values)
+        }
+
+        # Remove any params that have no remaining intrusion values
+        filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
+
+    print("filtered target values:", filtered_target_values)
     
     # Sample params randomly for each intrusion sample
     sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)

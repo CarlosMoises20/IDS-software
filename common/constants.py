@@ -1,7 +1,7 @@
 
 ## All constants are defined here
 
-import os
+import os, random
 
 '''SPARK'''
 SPARK_APP_NAME = "IDS for LoRaWAN network"
@@ -19,6 +19,17 @@ SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"
 SPARK_SERIALIZER = "org.apache.spark.serializer.KryoSerializer"     
 SPARK_SQL_ANSI_ENABLED = "false"
 
+'''UDP SOCKET'''
+UDP_IP = "0.0.0.0"
+UDP_PORT = 5200
+
+'''TCP SOCKET'''
+TCP_IP = "0.0.0.0"
+TCP_PORT = 7000
+
+'''KAFKA SOCKET'''
+KAFKA_PORT = 9092
+
 SPARK_JARS = [
     os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar"),
     os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-sql-kafka-0-10_2.12-3.3.2.jar"),
@@ -31,4 +42,4 @@ SPARK_JARS = [
 '''LORAWAN PARAMETERS VALUES'''
 SF_LIST = [7, 8, 9, 10, 11, 12]
 BW_LIST = [125, 250, 500]
-PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES = [200, 210, 220, 230, 240]
+PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES = [random.randint(200, 10000) for _ in range(5)]

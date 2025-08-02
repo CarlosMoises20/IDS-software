@@ -1,4 +1,6 @@
 
+### This script starts a spark application which allows Spark to process messages coming from a LoRa gateway in real-time
+
 import argparse
 from processing.message_classification import MessageClassification
 from common.constants import *
@@ -44,3 +46,5 @@ if __name__ == '__main__':
 
     # Call the function that will listen LoRaWAN messages from a gateway in real time and process them
     mc.classify_new_incoming_messages(datasets_format=datasets_format)
+
+    spark_session.stop()

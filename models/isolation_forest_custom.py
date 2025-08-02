@@ -2,7 +2,7 @@
 from pyspark.sql import DataFrame
 from pyspark.sql.functions import col
 from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql.types import DoubleType, IntegerType
+from pyspark.sql.types import IntegerType
 
 """
 This class is an implementation of the Isolation Forest algorithm from a JAR file resulted from building a GitHub project which

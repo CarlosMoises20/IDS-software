@@ -1,11 +1,9 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
-from pyspark.sql.functions import explode, col, from_json
-from pyspark.sql.types import StructType, BooleanType, StringType, StructField, FloatType, IntegerType
 
 class TxpkPreProcessing(DataPreProcessing):
 
-    """ NOTE: for stream processing this was not tested, because the LoRa gateway only sends RXPK and STATS
+    """ NOTE: for stream processing this was not tested, because the LoRa gateway only sends RXPK and STATS messages
     This function applies pre-processing on data from the dataframe 'df_txpk', for the 'txpk' dataset
 
         - Applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
@@ -19,12 +17,15 @@ class TxpkPreProcessing(DataPreProcessing):
 
         - Converts hexadecimal attributes to decimal
 
+    stream_processing is a boolean which indicates if the pre-processing is being done in the context of stream processing (i.e. 
+    receiving messages in real-time from a LoRa gateway) or in the context of creating static models
+
     """
     @staticmethod
     def pre_process_data(df, stream_processing=False):
 
+        # Stream processing for TXPK is not applicable on this project
         if stream_processing:
-
             pass
 
         else:

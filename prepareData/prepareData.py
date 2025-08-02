@@ -3,7 +3,7 @@ import time
 from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
-from pyspark.sql.types import FloatType, IntegerType, StringType, StructType, StructField
+from pyspark.sql.types import DoubleType, LongType, StringType, StructType, StructField
 from common.constants import SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.spark_functions import modify_device_dataset
@@ -22,6 +22,7 @@ def pre_process_type(df, dataset_type, stream_processing=False):
     # specific to each type of LoRaWAN message
     df = dataset_type.value["pre_processing_class"].pre_process_data(df, stream_processing)
 
+    # Pre-processing during stream processing (receiv)
     if stream_processing:
 
         parse_phy_payload = udf(DataPreProcessing.parse_data, StructType([
@@ -37,7 +38,7 @@ def pre_process_type(df, dataset_type, stream_processing=False):
             StructField("FCtrl", StringType(), True),
             StructField("FOpts", StringType(), True),
             StructField("FPort", StringType(), True),
-            StructField("PHYPayloadLen", IntegerType(), True),
+            StructField("PHYPayloadLen", LongType(), True),
             StructField("MIC", StringType(), True),
             StructField("MHDR", StringType(), True),
             StructField("RxDelay", StringType(), True),
@@ -67,6 +68,7 @@ def pre_process_type(df, dataset_type, stream_processing=False):
 
         df = DataPreProcessing.hex_to_decimal(df, ["AppEUI", "DevEUI", "DevNonce"])
 
+    # Pre-processing only to create static models
     else:
             # Create 'PHYPayloadLen' attributes that correspond to the length of 'PHYPayload', 
             # that represents the full content of the LoRaWAN message physical payload; we only need the length to detect anomalies
@@ -95,17 +97,17 @@ def pre_process_type(df, dataset_type, stream_processing=False):
 
     
     # Convert "codr" from string to float
-    str_float_udf = udf(DataPreProcessing.str_to_float, FloatType())
+    str_float_udf = udf(DataPreProcessing.str_to_float, DoubleType())
     df = df.withColumn("codr", str_float_udf(col("codr")))
 
     ### Extract values of LoRa parameters SF and BW from "datr" attribute
     pattern = r"SF(\d+)BW(\d+)"     # regex pattern to extract "SF" and "BW" 
 
-    # If pattern is not found, it returns -1 instead of throwing an error
-    df = df.withColumn("SF", when(length(regexp_extract(col("datr"), pattern, 1)) == 0, -1)  # if empty string, put -1
-                            .otherwise(regexp_extract(col("datr"), pattern, 1).cast(IntegerType()))
+    # If pattern is not found, it returns -1 to indicate an anomaly
+    df = df.withColumn("SF", when(length(regexp_extract(col("datr"), pattern, 1)) == 0, -1)
+                            .otherwise(regexp_extract(col("datr"), pattern, 1).cast(LongType()))
                         ).withColumn("BW", when(length(regexp_extract(col("datr"), pattern, 2)) == 0, -1)
-                                        .otherwise(regexp_extract(col("datr"), pattern, 2).cast(IntegerType()))
+                                        .otherwise(regexp_extract(col("datr"), pattern, 2).cast(LongType()))
                                     )
 
     # Remove "datr" after splitting it by "SF" and "BW"
@@ -145,8 +147,9 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
-    n_limit = 30
+    n_limit = 50
 
+    # Number of samples of the model dataset
     n_samples = df_model.count()
 
     # If there are not enough samples for the device, it's not possible to create a model since there is
@@ -154,6 +157,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     if n_samples < n_limit:
         print(f'There are no enough samples for the device {dev_addr} for {dataset_type.value["name"].upper()}. Must be at least {n_limit}. No model will be created.\n\n\n')
         
+        # Return the dataframe if there is at least one sample. This will be used for model training on stream processing
         if n_samples >= 1:
             return df_model, None, None
         
@@ -184,7 +188,8 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
 
-    print("Model df after pre-processing")
+    # NOTE: uncomment these lines to print the dataset after being pre-processed
+    #print("Model df after pre-processing")
     #df_model.show()
 
     # If we are only creating the models for testing, we can split the dataset into training and testing datasets
@@ -193,13 +198,14 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         # Applies division of samples into training and testing after processing dataframe 'df_model'
         df_model_train, df_model_test = train_test_split(df_model)
 
-        n_train_samples = df_model_train.count()
-        n_test_samples = df_model_test.count()
+        n_train_samples = df_model_train.count()        # Number of training samples
+        n_test_samples = df_model_test.count()          # Number of testing samples
 
         # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
         # and the number of intrusions is higher in larger datasets
         num_intrusions = max(1, min(round(0.3 * n_test_samples), 12))
 
+        # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
                                             df_test=df_model_test,
                                             params=["SF", "BW", "PHYPayloadLen"], 

@@ -100,7 +100,7 @@ class KNNAnomalyDetector:
 
         return avg_dists
 
-    """"
+    """
     Fits the kNN model using training data.
     
     """

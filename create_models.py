@@ -1,4 +1,6 @@
 
+# This script allows to create ML models from provided static datasets
+
 import argparse
 from pyspark.sql.types import *
 from common.spark_functions import create_spark_session

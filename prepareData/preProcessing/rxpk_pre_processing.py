@@ -1,7 +1,7 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import expr, col, explode, when, col, size, lit, from_json
-from pyspark.sql.types import StructType, ArrayType, StringType, StructField, FloatType, IntegerType, LongType
+from pyspark.sql.types import StructType, ArrayType, StringType, StructField, FloatType, LongType, DoubleType, IntegerType
 from common.constants import *
 
 
@@ -14,33 +14,41 @@ class RxpkPreProcessing(DataPreProcessing):
     """
     This method applies pre-processing on data from the dataframe 'df', for the 'rxpk' dataset
 
-    1 - Applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
-            selecting only the attributes that are relevant to build the intended model_numeric for IDS 
+    It applies feature selection techniques to remove irrelevant attributes (dimensionality reduction),
+            selecting only the attributes that are relevant to build the intended model_numeric for IDS, and
+            also other transformations on the relevant attributes
+
+    stream_processing is a boolean which indicates if the pre-processing is being done in the context of stream processing (i.e. 
+    receiving messages in real-time from a LoRa gateway) or in the context of creating static models 
 
     """
     @staticmethod
     def pre_process_data(df, stream_processing=False):
 
+        # Pre-processing for stream processing
         if stream_processing:
 
+            # Expected schema from the LoRaWAN message coming from LoRa gateway
+            # This schema is equivalent from what comes from static datasets
             schema = StructType([
                 StructField("rxpk", ArrayType(StructType([
-                    StructField("chan", IntegerType(), True),
+                    StructField("chan", LongType(), True),
                     StructField("codr", StringType(), True),
                     StructField("data", StringType(), True),
                     StructField("datr", StringType(), True),
-                    StructField("freq", FloatType(), True),
-                    StructField("lsnr", FloatType(), True),
+                    StructField("freq", DoubleType(), True),
+                    StructField("lsnr", DoubleType(), True),
                     StructField("modu", StringType(), True),
-                    StructField("rfch", IntegerType(), True),
-                    StructField("rssi", IntegerType(), True),
-                    StructField("size", IntegerType(), True),
-                    StructField("stat", IntegerType(), True),
+                    StructField("rfch", LongType(), True),
+                    StructField("rssi", LongType(), True),
+                    StructField("size", LongType(), True),
+                    StructField("stat", LongType(), True),
                     StructField("time", StringType(), True),
                     StructField("tmst", LongType(), True)
                 ])))
             ])
 
+            # parses "message" column according to the expected schema ('schema')
             df = df.withColumn("message", from_json(col("message"), schema))
 
             # explode 'rxpk' array, since each element inside the 'rxpk' array corresponds to a different LoRaWAN message
@@ -50,6 +58,7 @@ class RxpkPreProcessing(DataPreProcessing):
             df = df.select("rxpk.*")
             df = df.drop("modu", "stat", "time")
 
+        # Pre-processing for static models creation
         else:
 
             ## Feature Selection: remove irrelevant, redundant and correlated attributes

@@ -6,7 +6,8 @@ import mlflow.sklearn
 import numpy as np
 from common.dataset_type import DatasetType
 from prepareData.prepareData import *
-from common.auxiliary_functions import format_time, udp_to_kafka_forwarder
+from common.auxiliary_functions import format_time, udp_to_kafka_forwarder, udp_to_tcp_forwarder, start_tcp_server
+from common.constants import TCP_PORT, KAFKA_PORT
 from pyspark.sql.functions import count, regexp_extract
 from mlflow.tracking import MlflowClient
 from models.one_class_svm import OneClassSVM
@@ -73,6 +74,7 @@ class MessageClassification:
     """
     def __get_model_from_mlflow(self, dev_addr, dataset_type, model_type):
 
+        # get name of dataset type (example: DatasetType.RXPK -> "rxpk")
         dtype_name = dataset_type.value["name"]
         
         # Search the model according to DevAddr and MessageType
@@ -82,21 +84,28 @@ class MessageClassification:
             max_results=1
         )
         
+        # If there are no runs, there is no model, so return a tuple with None objects
         if not runs:
             return None, None, None, None
 
-        # for all
+        # get the ID of the retrieved run, if it exists
         run_id = runs[0].info.run_id
+
+        # attribute None as default value of all models' objects
         model, model_id, scaler_model, pca_model, svd_matrix = None, None, None, None, None
         
         try:
 
+            # retrieve the model of StandardScaler used on pre-processing for scaling. This model must always exist
             scaler_model = mlflow.spark.load_model(f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/scaler_model")
 
             # for sklearn models
             if model_type.value["type"] == "sklearn":
+
+                # Path where all sklearn models must be saved
                 path = f"./mlruns/{self.__experiment_id}/{run_id}/outputs"
                 
+                # Return the ID of the model on the indicated path, if it exists
                 model_id = [name for name in os.listdir(path) 
                         if os.path.isdir(os.path.join(path, name)) and name.startswith("m-")]
                 
@@ -115,6 +124,8 @@ class MessageClassification:
             
             # for spark models (kNN)
             elif model_type.value["type"] == "spark":
+
+                # Path where all spark models must be saved
                 model_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/model"
 
                 # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
@@ -128,6 +139,8 @@ class MessageClassification:
 
             # for pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
+                
+                # Path where all pyod models must be saved
                 model_path = f'./mlruns/{self.__experiment_id}/{run_id}/artifacts/model/model_{dev_addr}_{dtype_name}.pkl'
                 
                 # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
@@ -140,6 +153,7 @@ class MessageClassification:
                 else:
                     print("Model does not exist!")
 
+            # Model where spark-based PCA model must be stored, if it exists
             pca_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/pca_model"
             
             # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
@@ -150,6 +164,7 @@ class MessageClassification:
             else:
                 print("PCA model does not exist")
 
+            # Model where SVD matrix must be stored, if it exists
             svd_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/svd_model/svd_matrix.npy"
 
             # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
@@ -169,6 +184,7 @@ class MessageClassification:
         #print("PCA model:", pca_model)
         #print("SVD matrix:", svd_matrix)
 
+        # Create a dictionary where all models used for pre-processing are stored, for easier manipulation
         transform_models = {"StdScaler": scaler_model, "PCA": pca_model, "SVD": svd_matrix}
         transform_models = None if all(value is None for value in transform_models.values()) else transform_models
         
@@ -181,6 +197,7 @@ class MessageClassification:
     """
     def __load_train_dataset_from_mlflow(self, dev_addr, dataset_type, datasets_format):
         
+        # get name of dataset type (example: DatasetType.RXPK -> "rxpk")
         dtype_name = dataset_type.value["name"]
 
         # Search the model according to DevAddr and MessageType
@@ -190,26 +207,32 @@ class MessageClassification:
             max_results=1
         )
 
+        # If there are no runs, there is no model, so return a tuple with None objects
         if not runs:
             return None
 
+        # get the ID of the retrieved run, if it exists
         run_id = runs[0].info.run_id
 
+        # Get the path where the train dataset must be stored if it exists
         path = f'./mlruns/{self.__experiment_id}/{run_id}/artifacts/training_dataset/lorawan_dataset_{dev_addr}_train.{datasets_format}'
 
+        # If the train dataset does not exist on the indicated path, return None
         if not os.path.exists(path):
-            print("Train dataset path does not exist")
+            print("Train dataset does not exist")
             return None
 
-        print("Train dataset path found:", path)
+        print("Train dataset found on path", path)
 
+        # Load the train dataset according to its format (JSON or PARQUET)
         if datasets_format == "json":
             df = self.__spark_session.read.json(path)
         else:
             df = self.__spark_session.read.parquet(path)
         
+        # Print the number of dataset samples and print the dataset on the console
         print("Loaded train dataset with", df.count(), "samples")
-        df.show()
+        df.show(50, truncate=False)
         
         return df
 
@@ -243,6 +266,7 @@ class MessageClassification:
 
         # Save final dataframe in JSON or PARQUET format if the dataframe exists and contains rows
         if df and not df.isEmpty():
+            df = df.dropDuplicates()        # TODO review this
             if datasets_format == "json":
                 df.coalesce(1).write.mode("overwrite").json(path)
             else:
@@ -322,6 +346,7 @@ class MessageClassification:
             # Set tags that will identify the run on MLFlow: DevAddr (device address) and MessageType (RXPK or TXPK)
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
+
             mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
             # Log PCA model used for stream processing if it exists
@@ -596,6 +621,7 @@ class MessageClassification:
         print("Using algorithm", self.__ml_algorithm.value["name"])
 
         # If the user does not specify the list of DevAddr's manually, by default all available DevAddr's will be used
+        # this returns a list of strings with all DevAddr's if it's the case
         if dev_addr_list is None:
 
             # For the case of retrieving the JSON dataset
@@ -697,7 +723,7 @@ class MessageClassification:
                                         datasets_format=datasets_format,
                                         dev_addr=dev_addr,
                                         dataset_type=dataset_type)
-                
+
                 if transform_models is not None:
                 
                     # train the model and return the created models, which include the models used for feature reduction  
@@ -713,6 +739,8 @@ class MessageClassification:
     """
     Auxiliary function that classifies messages in real time, using the model that corresponds
     to the message's dev_addr
+
+        datasets_format: the expected format of the used datasets (JSON or PARQUET)
     
     """
     def classify_new_incoming_messages(self, datasets_format): 
@@ -721,6 +749,7 @@ class MessageClassification:
         # from a LoRa gateway and forward to a Kafka producer which will also be listening messages from UDP socket to
         # forward to Spark that will consume those messages
         threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
+        #threading.Thread(target=udp_to_tcp_forwarder, daemon=True).start()
 
         # NOTE: you can comment this line if you don't want to print this
         print("Using algorithm", self.__ml_algorithm.value["name"])
@@ -728,7 +757,7 @@ class MessageClassification:
         # This function will be executed for each batch of one or more messages received by Spark
         def process_batch(df, batch_id):
 
-            # TODO date is only for testing, maybe remove for final version to avoid confusions with time in different countries
+            # TODO date is only for testing, remove it for final version to avoid confusions with timezone in different countries
             print(f'\n=== Batch with ID {batch_id}; Date: {datetime.datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%Y-%m-%d %H:%M:%S")} (Lisbon Time) ===')
 
             df.show(truncate=False)
@@ -819,7 +848,7 @@ class MessageClassification:
                         
                         #print("transform models generated:", transform_models)
 
-                    # If the model is created, use the actual sample to train the model
+                    # If the models are created, use the actual sample to train the model
                     if model and transform_models:
 
                         # Remove columns where all values from the model dataframe and the stream dataframe are NULL
@@ -864,23 +893,27 @@ class MessageClassification:
                         # Apply model prediction on "features"
                         y_pred = model.predict(features)
 
+                        print("Predictions:", y_pred)
+
                         # Bind messages with corresponding predictions
                         rows_with_preds = [Row(**row.asDict(), prediction=int(pred)) for row, pred in zip(original_rows, y_pred)]
 
-                        # NOTE: This prints the number of anomalies and normal messages detected. You can uncomment these
-                        # 3 lines if you want  
-                        predictions = [np.array([0 if pred == 1 else 1 for pred in y_pred])]
-                        print(f"Number of anomalies detected: {predictions.count(1)}")
-                        print(f"Number of normal messages: {predictions.count(0)}")
+                        # NOTE: This prints the number of anomalies and normal messages detected.
+                        predictions = np.array([0 if pred == 1 else 1 for pred in y_pred])
+                        print(f"Number of anomalies detected: {(predictions == 1).sum()}")
+                        print(f"Number of normal messages: {(predictions == 0).sum()}")
 
                         df_with_preds = self.__spark_session.createDataFrame(rows_with_preds)
+
+                        # Create dataframe with new dataframes
                         df_normals = df_with_preds.filter(df_with_preds.prediction == 0)
 
                         print("Normal messages")
                         df_normals.show(truncate=False)
 
-                        # Retrain the model with the normal instances if they exist
+                        # Retrain the model with normal instances if they exist, and then store the new model on MLFlow
                         if not df_normals.isEmpty():
+                            print("Re-training model")
                             features = np.array(df_normals.select("features").rdd.map(lambda x: x[0]).collect())
                             model = model.fit(features)
                             self.__store_model(dev_addr=dev_addr, model=model,
@@ -891,21 +924,19 @@ class MessageClassification:
                             
                         df_device = df_normals
                         
-                    # if the model is not created for not having enough samples for it, bind the actual samples with the samples
-                    # from the training dataset on MLFlow, to make it to the minimum number of necessary samples to create the first model
-                    else:
+                    # bind the actual samples with the samples to update the training dataset, so that
+                    # it can be used when necessary, for example, to retraining       
+                    print("Binding training dataset to update it on MLFlow")
 
-                        print("Not enough samples. Binding until it reaches the minimum limit")
-
-                        # Get the training dataset that was saved on MLFlow
-                        df_model_train = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
-                                                                            dataset_type=dataset_type,
-                                                                            datasets_format=datasets_format)
-                    
-                        # If a previous static dataset exists, concatenate the actual dataframe with the device samples
-                        # from the static dataset, to form the dataframe to create                                      
-                        if df_model_train is not None:
-                            df_device = df_device.unionByName(df_model_train, allowMissingColumns=True)
+                    # Get the training dataset that was saved on MLFlow
+                    df_model_train = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
+                                                                        dataset_type=dataset_type,
+                                                                        datasets_format=datasets_format)
+                
+                    # If a previous static dataset exists, concatenate the actual dataframe with the device samples
+                    # from the static dataset, to form the dataframe to create                                      
+                    if df_model_train:
+                        df_device = df_device.unionByName(df_model_train, allowMissingColumns=True)
 
                     # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
                     n_samples = df_device.count()
@@ -930,9 +961,18 @@ class MessageClassification:
         # Read stream from Kafka server that listens messages from UDP server
         socket_stream_df = self.__spark_session.readStream \
                                 .format("kafka") \
-                                .option("kafka.bootstrap.servers", "localhost:9092") \
+                                .option("kafka.bootstrap.servers", f"localhost:{KAFKA_PORT}") \
                                 .option("subscribe", "lorawan-messages") \
                                 .load()
+
+        """# Read stream from TCP server that listens messages from UDP server
+        socket_stream_df = self.__spark_session.readStream \
+                                .format("socket") \
+                                .option("host", "localhost") \
+                                .option("port", TCP_PORT) \
+                                .load()"""
+        
+        #socket_stream_df = socket_stream_df.decode(errors='ignore').strip()
 
         # Convert bytes value to string
         decoded_df = socket_stream_df.selectExpr("CAST(value AS STRING) as message")

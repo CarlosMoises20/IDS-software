@@ -12,7 +12,13 @@ from pyspark.ml.linalg import DenseVector as MLDenseVector
 from common.model_type import ModelType
 import base64
 
+"""
+This is an abstract class that includes methods used for generic pre-processing steps, namely assemble features in a
+column that is used by machine learning, and manipulating attributes in a dataset (spark dataframe)
+models for training and testing, and also an abstract method used by the classes that inherit from it, to apply pre-processing steps
+that are only specific to a type of LoRaWAN messages
 
+"""
 class DataPreProcessing(ABC):
 
     """
@@ -213,7 +219,7 @@ class DataPreProcessing(ABC):
         return reversed_octets
 
     """
-    Method used to extract parameters from data during stream processing
+    Method used to extract LoRaWAN parameters from data during stream processing
     
     """
     @staticmethod
@@ -238,18 +244,21 @@ class DataPreProcessing(ABC):
                     "RxDelay": None
                 }
 
+        # If data is inexistent, all resulting fields are also inexistent (None)
         if not data:
             return result
         
         # Decode to base64, convert to hexadecimal, remove spaces if any, and put letters in uppercase
         phypayload_hex = base64.b64decode(data).hex().replace(" ", "").upper()
 
+        # Compute the size of PHYPayload; we only use its size because when PHYPayload is too large, Spark might not be able
+        # to process it, since it's only able to process values with at most 38 digits
         result['PHYPayloadLen'] = len(phypayload_hex)
 
-        # 12 characters (6 bytes) is the absolute minimum size of PHYPayload
-        # MHDR: 1 byte
-        # MIC: 4 bytes
-        # MACPayload: 1...M bytes
+        # 12 characters (6 bytes) is the absolute minimum size of PHYPayload; PHYPayload is composed by:
+            # MHDR: 1 byte
+            # MIC: 4 bytes
+            # MACPayload: 1...M bytes
         if len(phypayload_hex) < 12:
             return result
 
@@ -261,7 +270,7 @@ class DataPreProcessing(ABC):
         mhdr = phypayload_hex[:2]
         result['MHDR'] = mhdr
 
-        # Convert MHDR to binary and extract the first 3 bits that correspond to the message type
+        # Convert MHDR to binary and extract the first 3 bits that correspond to the message type (MType)
         # Fill the result with zeros to left to get exactly 8 bits on this case; and not 5 or 6;
         # In general, zfill guarantees that the conversion from hexadecimal to binary always results on a binary 
         # number size of 4 times the size of the hexadecimal
@@ -269,12 +278,14 @@ class DataPreProcessing(ABC):
         mhdr_binary = mhdr_binary_original.zfill(len(mhdr) * 4)
         m_type = mhdr_binary[:3] 
 
-        if m_type == '000':   # MType = '000' -> Join Request
+        # MType = '000' -> Join Request
+        if m_type == '000':   
             result['AppEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:18])
             result['DevEUI'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[18:34])
             result['DevNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[34:38])
 
-        elif m_type == '001':   # MType = '001' -> Join Accept         
+        # MType = '001' -> Join Accept
+        elif m_type == '001':            
             result['AppNonce'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[2:8])
             result['DevAddr'] = DataPreProcessing.reverse_hex_bytes(phypayload_hex[14:22])
             result['DLSettings'] = phypayload_hex[22:24]
@@ -287,15 +298,17 @@ class DataPreProcessing(ABC):
             result['CFListType'] = cf_list[-2:]     # CFListType is the last byte of CFList
             result['CFList'] = cf_list[:-2]         # part of CFList that excludes CFListType
 
-        # if Message is different from Join Request and Join Accept
+        # if Message Type (MType) is different from Join Request and Join Accept
         else:                   
 
-            # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes)
+            # FHDR: DevAddr (4 bytes), FCtrl (1 byte), FCnt (2 bytes); but all these fields also depends of the size of MACPayload,
+            # which can be between 1 and M bytes
             result['DevAddr'] = DataPreProcessing.reverse_hex_bytes((phypayload_hex[:mic_offset])[2:10])
             fctrl = (phypayload_hex[:mic_offset])[10:12]
+            result['FCtrl'] = fctrl
             result['FCnt'] = DataPreProcessing.reverse_hex_bytes((phypayload_hex[:mic_offset])[12:16])
 
-            # Size of FOpts depends of the second byte of FCtrl
+            # FOpts and FPort depend of the second byte of FCtrl
             if len(fctrl) == 2:
                 fctrl_byte_original = format(int(fctrl, 16), 'b')
                 fctrl_byte = fctrl_byte_original.zfill(len(fctrl) * 4)
@@ -309,16 +322,12 @@ class DataPreProcessing(ABC):
 
                 # Next field: FPort (0 or 1 byte, if exists)
                 fport_index = 16 + len(fopts)
-                if fport_index >= mic_offset:
-                     result['FPort'] = ""
-                else:
-                     result['FPort'] = (phypayload_hex[:mic_offset])[fport_index:fport_index + 2]
-
+                result['FPort'] = (phypayload_hex[:mic_offset])[fport_index:fport_index + 2]
                 result['FOpts'] = fopts
-                result['FCtrl'] = fctrl
-            
+
+            # If FCtrl has no bytes, it's because MACPayload size is very small and, in that case, FOpts and FPort are also inexistent
+            # If FCtrl has more than one byte, that's an anomaly that must be detected by ML models 
             else:
-                result['FCtrl'] = fctrl
                 result['FOpts'] = ""
                 result['FPort'] = ""
 
@@ -370,17 +379,20 @@ class DataPreProcessing(ABC):
         # ANOMALY: -1
         def hex_to_decimal_int(hex_str):
     
+            # If the attribute is absent (NULL or empty), just return None
             if hex_str is None or hex_str == "":
                 return None
             
             try:
-                res = int(hex_str, 16)      # Hexadecimal converted to decimal
+                result = int(hex_str, 16)      # Hexadecimal converted to decimal
                 
-                # When the size is higher than expected, indicate an anomaly through -1
-                if len(str(res)) > 38:
+                # When the size is higher than expected, indicate an anomaly through -1, indicating
+                # that the attribute is too large, and also because Spark will not be able to process
+                # values with more than 38 digits
+                if len(str(result)) > 38:
                     return Decimal(-1)
 
-                return Decimal(int(hex_str, 16))
+                return Decimal(result)
             
             except:
                 return Decimal(-1)
