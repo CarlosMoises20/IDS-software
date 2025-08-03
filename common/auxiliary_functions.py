@@ -137,9 +137,10 @@ def udp_to_kafka_forwarder():
     while True:
         data, _ = udp_sock.recvfrom(4096)
 
+        # Ignores empty messages
         if not data:
             print("[UDP MESSAGE IGNORED] Empty message received.")
-            continue  # Ignora mensagens vazias
+            continue  
 
         try:
             # Try to send message to Kafka topic

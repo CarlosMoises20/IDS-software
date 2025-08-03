@@ -219,7 +219,8 @@ class DataPreProcessing(ABC):
         return reversed_octets
 
     """
-    Method used to extract LoRaWAN parameters from data during stream processing
+    Method used to extract LoRaWAN parameters from data during stream processing, according to LoRaWAN specification in
+    https://lora-alliance.org/resource_hub/lorawan-specification-v1-0-3/ 
     
     """
     @staticmethod

@@ -843,13 +843,22 @@ class MessageClassification:
                         df_model = df_model.cache()
 
                         # NOTE: this prints from MLFlow or the static dataset corresponding to DevAddr. You can comment this if you want
-                        print("Loaded dataset or static dataset, with", df_model.count(), "samples")
+                        n_model_samples = df_model.count()
+
+                        if n_model_samples == 1:
+                            print("Loaded dataset or static dataset, with", n_model_samples, "sample")
+                        else:
+                            print("Loaded dataset or static dataset, with", n_model_samples, "samples")
+                            
                         df_model.show(truncate=False)
                         
                         #print("transform models generated:", transform_models)
 
                     # If the models are created, use the actual sample to train the model
                     if model and transform_models:
+
+                        if df_model is None:
+                            raise Exception("The train dataset must be stored on MLFlow when the model is about to be used!")
 
                         # Remove columns where all values from the model dataframe and the stream dataframe are NULL
                         df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
