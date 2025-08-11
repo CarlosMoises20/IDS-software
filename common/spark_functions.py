@@ -31,6 +31,7 @@ def create_spark_session():
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
                             .config("spark.jars", ",".join(SPARK_JARS)) \
+                            .config("spark.sql.parquet.enableVectorizedReader", "false") \
                             .getOrCreate()
 
 """
