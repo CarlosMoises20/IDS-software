@@ -115,7 +115,7 @@ class DataPreProcessing(ABC):
 
             # Manually applies the transformation feat * V to obtain the new reduced vectors
             def project_features(feat):
-                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) is applied
                 projected_array = feat.dot(V)
                 return MLDenseVector(projected_array)
 
@@ -179,6 +179,56 @@ class DataPreProcessing(ABC):
             df = df.withColumnRenamed("scaled", "features")
 
         return df.drop("feat", "scaled")
+    
+    def fit_transform_models_on_stream(df_model, model_type, transform_models, explained_variance_threshold=0.99):
+        
+        # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
+        column_names = list(set(get_all_attributes_names(df_model.schema)) - set(["DevAddr", "intrusion", "feat", "scaled", "features"]))
+
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
+        df_model = assembler.transform(df_model)
+
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        transform_models["StdScaler"] = scaler.fit(df_model)
+
+        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+
+            # Fit PCA using the train dataset    
+            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+            pca_model = pca.fit(df_model)
+            explained_variance = pca_model.explainedVariance.cumsum()
+
+            # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+            # Do the same thing but with the determined optimal k (k_optimal)
+            pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+            transform_models["PCA"] = pca.fit(df_model)
+
+        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+            ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
+            rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+            mat = RowMatrix(rdd_vectors)
+
+            # Applies SVD (maximum k = número de colunas)
+            k_max = len(column_names)
+            svd = mat.computeSVD(k_max)
+
+            # Calculates cumulated explained variance (according to the singular values)
+            sigma = svd.s.toArray()
+            total_variance = (sigma ** 2).sum()
+            explained_variance = (sigma ** 2).cumsum() / total_variance
+
+            # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
+            # 'explained_variance_threshold'*100 % of the variance of the dataset
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+            print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+
+            # Projects data for the k principal components through manual multiplying (using only top-k V) 
+            transform_models["SVD"] = svd.V.toArray()[:, :k_optimal]
+
+        return transform_models
        
     """
     Method to convert boolean attributes to integer attributes in numeric format (IntegerType())

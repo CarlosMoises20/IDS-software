@@ -164,18 +164,16 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         return None, None, None
 
     # Remove columns of device dataset where all values are null
+    # Remove columns from the string list that are not used for machine learning
     non_null_columns = [
         c for c in df_model.columns
         if (
             # Check if NOT all values are null
             (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-        )
+        ) and c not in ["features", "DevAddr", "intrusion"]
     ]
 
     df_model = df_model.select(non_null_columns)
-
-    # Remove columns from the string list that are not used for machine learning
-    non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value

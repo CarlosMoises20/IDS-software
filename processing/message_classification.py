@@ -860,21 +860,18 @@ class MessageClassification:
                         if df_model is None:
                             raise Exception("The train dataset must be stored on MLFlow when the model is about to be used!")
 
-                        # Remove columns where all values from the model dataframe and the stream dataframe are NULL
                         df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
 
+                        # Remove columns from the string list that are not used for machine learning
                         non_null_columns = [
                             c for c in df_bind.columns
                             if (
                                 # Check if NOT all values are null
                                 (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            )
+                            ) and c not in ["features", "DevAddr", "intrusion"]
                         ]
 
                         df_device = df_device.select(non_null_columns)
-
-                        # Remove columns from the string list that are not used for machine learning
-                        non_null_columns = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
                         
                         # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
                         # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
@@ -925,6 +922,13 @@ class MessageClassification:
                             print("Re-training model")
                             features = np.array(df_normals.select("features").rdd.map(lambda x: x[0]).collect())
                             model = model.fit(features)
+
+                            # fit transform models too
+                            df_bind = df_model.unionByName(df_normals, allowMissingColumns=True)
+                            transform_models = DataPreProcessing.fit_transform_models_on_stream(df_model=df_bind,
+                                                                                                model_type=self.__ml_algorithm,
+                                                                                                transform_models=transform_models)
+
                             self.__store_model(dev_addr=dev_addr, model=model,
                                             model_type=self.__ml_algorithm,
                                             dataset_type=dataset_type,
