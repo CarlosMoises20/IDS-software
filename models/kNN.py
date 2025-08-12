@@ -37,7 +37,7 @@ class KNNAnomalyDetector:
         model_class: variable with the Spark class corresponding to the model used for training
     
     """
-    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.9):
+    def __init__(self, df_train, df_test, featuresCol, labelCol, predictionCol, threshold_percentile=0.9, seed=42):
         self.__k = max(5, min(round(df_train.count() * 0.1), 15))
         
         # NOTE uncomment if you want to print the value of 'k' 
@@ -57,8 +57,9 @@ class KNNAnomalyDetector:
         self.__model_class = BucketedRandomProjectionLSH(
                                 inputCol=featuresCol,
                                 outputCol="hashes",
-                                bucketLength=1.0,
-                                numHashTables=5  
+                                bucketLength=2.0,
+                                numHashTables=5,
+                                seed=seed  
                             )
 
         self.__threshold = None        

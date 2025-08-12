@@ -43,7 +43,7 @@ class HBOS:
         #print("number of bins:", num_bins)
 
         # num_bins is the number of used bins for each feature, alpha is a regularizer that prevents overflow
-        # and tol is a parameter which decides he flexibility while dealing the samples falling outside the bins
+        # and tol is a parameter which decides the flexibility while dealing with the samples falling outside the bins
         # contamination (by default 0.1) is the expected outlier rate in training dataset
         model = HBOSModel(n_bins=num_bins)
         

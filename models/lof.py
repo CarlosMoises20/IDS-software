@@ -44,8 +44,8 @@ class LOF:
 
         # n_neighbors is the number of neighbors used to calculate the distance from the current point to those neighbors
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
-        # speeds up the process
-        # novelty set to True indicates that we want to detect specially unknown anomalies. This assumes that the train dataset has no anomalies
+        # speeds up the processing
+        # novelty set to True indicates that we want to detect specially unknown anomalies.
         # 'p' set to 1 means that the metric used to calculate the distance between the points is the Manhattan distance 
         model = LOFModel(n_neighbors=self.__k, 
                          n_jobs=-1,

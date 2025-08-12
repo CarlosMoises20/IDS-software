@@ -151,7 +151,8 @@ class DataPreProcessing(ABC):
     """
     def features_assembler_stream(df, model_type, transform_models):
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["DevAddr", "intrusion"]))
+        column_names = list(set(get_all_attributes_names(df.schema)) - set(["features", "feat", "scaled",
+                                                                            "DevAddr", "intrusion"]))
         
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df = assembler.transform(df)

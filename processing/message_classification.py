@@ -229,6 +229,8 @@ class MessageClassification:
             df = self.__spark_session.read.json(path)
         else:
             df = self.__spark_session.read.parquet(path)
+
+        df = df.dropDuplicates()
         
         # Print the number of dataset samples and print the dataset on the console
         print("Loaded train dataset with", df.count(), "samples")
@@ -266,11 +268,11 @@ class MessageClassification:
 
         # Save final dataframe in JSON or PARQUET format if the dataframe exists and contains rows
         if df and not df.isEmpty():
-            df = df.dropDuplicates()        # TODO review this
+            df_to_save = df.drop("features").dropDuplicates()       
             if datasets_format == "json":
-                df.coalesce(1).write.mode("overwrite").json(path)
+                df_to_save.coalesce(1).write.mode("overwrite").json(path)
             else:
-                df.coalesce(1).write.mode("overwrite").parquet(path)
+                df_to_save.coalesce(1).write.mode("overwrite").parquet(path)
             
             # Create model based on DevAddr and store it as an artifact using MLFlow
             # If there is a run associated to DevAddr and MessageType (old_run_id), use that run instead of creating another one
@@ -863,22 +865,35 @@ class MessageClassification:
                         df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
 
                         # Remove columns from the string list that are not used for machine learning
-                        non_null_columns = [
+                        non_null_columns_model = [
                             c for c in df_bind.columns
                             if (
                                 # Check if NOT all values are null
                                 (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and c not in ["features", "DevAddr", "intrusion"]
+                            ) and (c not in ["features", "DevAddr", "intrusion"])
                         ]
 
-                        df_device = df_device.select(non_null_columns)
+                        df_model = df_model.select(non_null_columns_model)
+
+                        # Remove columns from the string list that are not used for machine learning
+                        non_null_columns_device = [
+                            c for c in df_device.columns
+                            if (
+                                # Check if NOT all values are null
+                                (df_device.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+                            ) and (c not in ["features", "DevAddr", "intrusion"])
+                        ]
+
+                        df_device = df_device.select(non_null_columns_device)
                         
                         # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
                         # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
                         # the mean is the best approach to preserve the distribution and variety of the data
-                        imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
+                        imputer = Imputer(inputCols=non_null_columns_model, outputCols=non_null_columns_model, strategy="mean")
+                        
+                        imputer_model = imputer.fit(df_model)
 
-                        df_device = imputer.fit(df_model).transform(df_device)
+                        df_device = imputer_model.transform(df_device)
 
                         print("Device stream df after pre-processing")
 

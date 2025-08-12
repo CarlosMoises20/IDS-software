@@ -51,6 +51,9 @@ class IsolationForest:
     the efficacy of the model. We need to be careful to choose the adequate number of trees, because too few 
     trees make the model to not learn all patterns, and too many trees make the model too overfitted and takes
     too much time to be generated, making it less efficient
+
+    Even though num_training_samples // 5 is always a integer value, applying "int" function is necessary because the
+    value is always a float, i.e., for example 15.0 instead of 15, and the model does not support float values
     
     """
     def __set_num_trees(self, num_training_samples):
