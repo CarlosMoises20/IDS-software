@@ -172,7 +172,7 @@ class KNNAnomalyDetector:
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
 
         # Confusion matrix
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel().tolist()
         matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
 
         # Accuracy, to determine the level of convergence between the predicted labels and the expected labels

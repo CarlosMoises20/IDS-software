@@ -47,6 +47,8 @@ class DataPreProcessing(ABC):
         if df_test is not None:
             df_test = assembler.transform(df_test)
 
+        scaler_model, pca_final_model, svd_matrix = None, None, None
+
         """Normalize all assembled features using standards; with mean 0 and standard deviation 1;
         this allows all attributes' values to be centered on the mean 0 and have unit variance; this is
         important because several ML algorithms are sensitive to the scale of the numeric values and also to their variance
@@ -61,8 +63,6 @@ class DataPreProcessing(ABC):
         
         if df_test is not None:
             df_test = scaler_model.transform(df_test)
-
-        pca_final_model, svd_matrix = None, None
         
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
@@ -149,37 +149,107 @@ class DataPreProcessing(ABC):
     of the algorithm that is being used 
     
     """
-    def features_assembler_stream(df, model_type, transform_models):
+    def features_assembler_stream(df, df_model, columns_names, model_type, transform_models, 
+                                  new_schema=False, explained_variance_threshold=0.99):
+
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df.schema)) - set(["features", "feat", "scaled",
-                                                                            "DevAddr", "intrusion"]))
+        column_names = list(set(columns_names) - set(["features", "feat", "scaled", "DevAddr", "intrusion"]))
         
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df = assembler.transform(df)
 
-        scaler_model = transform_models["StdScaler"]
-        df = scaler_model.transform(df)
+        if not new_schema:  
+
+            scaler_model = transform_models["StdScaler"]
+            df = scaler_model.transform(df)
+
+            if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+                pca_model = transform_models["PCA"]
+                df = pca_model.transform(df)
+
+            elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+                V = transform_models["SVD"]
+
+                # Manually applies the transformation feat * V to obtain the new reduced vectors
+                def project_features(feat):
+                    # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+                    projected_array = feat.dot(V)
+                    return MLDenseVector(projected_array)
+                
+                project_udf = F.udf(project_features, returnType=VectorUDT())
+                df = df.withColumn("features", project_udf("scaled"))
+
+            else:
+                df = df.withColumnRenamed("scaled", "features")
+
+            return df.drop("feat", "scaled")
+        
+
+        # if a new schema is created
+        df_model = assembler.transform(df_model)
+        
+        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        scaler_model = scaler.fit(df_model)
 
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
-            pca_model = transform_models["PCA"]
-            df = pca_model.transform(df)
+            # Fit PCA using the train dataset    
+            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+            pca_model = pca.fit(df_model)
+            explained_variance = pca_model.explainedVariance.cumsum()
+
+            # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+            # Do the same thing but with the determined optimal k (k_optimal)
+            pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+            pca_final_model = pca.fit(df_model)
+
+            df = pca_final_model.transform(df)
+            df_model = pca_final_model.transform(df_model)
+
+            transform_models["PCA"] = pca_final_model
 
         elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
-            V = transform_models["SVD"]
+            ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
+            rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+            mat = RowMatrix(rdd_vectors)
+
+            # Applies SVD (maximum k = número de colunas)
+            k_max = len(column_names)
+            svd = mat.computeSVD(k_max)
+
+            # Calculates cumulated explained variance (according to the singular values)
+            sigma = svd.s.toArray()
+            total_variance = (sigma ** 2).sum()
+            explained_variance = (sigma ** 2).cumsum() / total_variance
+
+            # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
+            # 'explained_variance_threshold'*100 % of the variance of the dataset
+            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+
+            print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+
+            # Projects data for the k principal components through manual multiplying (using only top-k V)
+            V = svd.V.toArray()[:, :k_optimal]
 
             # Manually applies the transformation feat * V to obtain the new reduced vectors
             def project_features(feat):
-                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) works
+                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) is applied
                 projected_array = feat.dot(V)
                 return MLDenseVector(projected_array)
-            
+
+            transform_models["SVD"] = V
+
             project_udf = F.udf(project_features, returnType=VectorUDT())
+            df_model = df_model.withColumn("features", project_udf("scaled"))
             df = df.withColumn("features", project_udf("scaled"))
 
         else:
             df = df.withColumnRenamed("scaled", "features")
 
         return df.drop("feat", "scaled")
+
+
     
     def fit_transform_models_on_stream(df_model, model_type, transform_models, explained_variance_threshold=0.99):
         

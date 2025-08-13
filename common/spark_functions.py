@@ -77,7 +77,8 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
         # Remove any params that have no remaining intrusion values
         filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
 
-    print("filtered target values:", filtered_target_values)
+    # NOTE: uncomment if you want this print
+    #print("filtered target values:", filtered_target_values)
     
     # Sample params randomly for each intrusion sample
     sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)
@@ -110,6 +111,7 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
 
     # Prepare the non-modified dataframe
     df_unmodified = df_test.exceptAll(df_to_modify)
+    df_unmodified = df_unmodified.withColumn("intrusion", lit(0))
 
     # Join intrusive packets with normal packets
     df_final = df_unmodified.unionByName(df_indexed.drop("row_number"), allowMissingColumns=True)

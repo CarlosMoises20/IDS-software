@@ -86,7 +86,7 @@ class LOF:
         
         # sklearn LOF predictions are 1 for inliers and -1 for outliers; but in this case, we want to return 0 for inliers
         # and 1 for outliers
-        return np.array([0 if pred == 1 else 1 for pred in y_pred])
+        return [0 if pred == 1 else 1 for pred in y_pred]
     
     """
     This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
@@ -97,13 +97,13 @@ class LOF:
     """
     def evaluate(self, y_pred):
         # Real (expected) labels of the test dataset
-        y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
+        y_true = self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()
 
         # Report with relevant evaluation metrics such as recall, f1-score and precision
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)       
 
         # Confusion matrix 
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel().tolist()
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
 
         # Accuracy: it represents the rate of correctly classified samples

@@ -87,7 +87,7 @@ class HBOS:
         Y_true = self.__df_test[self.__labelCol].values     # Extract the real / expected labels of the test dataset
 
         # Confusion matrix
-        tn, fp, fn, tp = confusion_matrix(y_true=Y_true, y_pred=Y_pred).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true=Y_true, y_pred=Y_pred).ravel().tolist()
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         
         # Accuracy

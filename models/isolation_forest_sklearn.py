@@ -79,7 +79,7 @@ class IsolationForest:
         # Converts the dataset features into an adequate format for the IF model (a numpy array)
         features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
         y_pred = model.predict(features)
-        return np.array([0 if pred == 1 else 1 for pred in y_pred])
+        return [0 if pred == 1 else 1 for pred in y_pred]
     
     """
     This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
@@ -89,9 +89,9 @@ class IsolationForest:
 
     """
     def evaluate(self, y_pred):
-        y_true = np.array(self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()) 
+        y_true = self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
-        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel()
+        tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel().tolist()
         accuracy = accuracy_score(y_true, y_pred)
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
         return accuracy, conf_matrix, report

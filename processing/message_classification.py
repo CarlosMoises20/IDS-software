@@ -320,6 +320,13 @@ class MessageClassification:
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
         if old_model_id is not None:
+
+            mlflowclient = self.__mlflowclient
+            try:
+                mlflowclient.delete_logged_model(old_model_id)
+                print("Logged model was deleted on MLFLow active client")
+            except:
+                print("Model not found on MLFlow active client")
             
             # The paths where the model should be saved
             model_paths = [f"./mlruns/{self.__experiment_id}/models/{old_model_id}",
@@ -333,12 +340,6 @@ class MessageClassification:
 
                 else:
                     print(f"Model directory not found: {model_path}")
-            
-            mlflowclient = self.__mlflowclient
-            try:
-                mlflowclient.delete_logged_model(old_model_id)
-            except:
-                print("Model not found on MLFlow active client")
         
         # Create model based on DevAddr and store it as an artifact using MLFlow
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dtype_name}', 
@@ -349,6 +350,8 @@ class MessageClassification:
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
 
+            """TODO uncomment after finishing to log results on report
+            
             mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
             # Log PCA model used for stream processing if it exists
@@ -360,7 +363,7 @@ class MessageClassification:
                 svd_path = "svd_matrix.npy"
                 np.save(svd_path, transform_models["SVD"])
                 mlflow.log_artifact(local_path=svd_path, artifact_path="svd_model")
-                os.remove(svd_path)
+                os.remove(svd_path)"""
             
             ### Store the model as an artifact
 
@@ -451,7 +454,7 @@ class MessageClassification:
             recall_class_1 = report['1']['recall']
 
         ### Isolation Forest (sklearn)
-        elif model_type.value["name"] == "Isolation Forest (Sklearn)":
+        elif model_type.value["name"] == "Isolation Forest (SkLearn)":
 
             if_class = SkLearnIF(df_train=df_model_train, 
                                 df_test=df_model_test, 
@@ -862,18 +865,14 @@ class MessageClassification:
                         if df_model is None:
                             raise Exception("The train dataset must be stored on MLFlow when the model is about to be used!")
 
-                        df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
-
                         # Remove columns from the string list that are not used for machine learning
                         non_null_columns_model = [
-                            c for c in df_bind.columns
+                            c for c in df_model.columns
                             if (
                                 # Check if NOT all values are null
-                                (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["features", "DevAddr", "intrusion"])
+                                (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
+                            )
                         ]
-
-                        df_model = df_model.select(non_null_columns_model)
 
                         # Remove columns from the string list that are not used for machine learning
                         non_null_columns_device = [
@@ -881,31 +880,45 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_device.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["features", "DevAddr", "intrusion"])
+                            )
                         ]
-
-                        df_device = df_device.select(non_null_columns_device)
                         
-                        # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
-                        # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
-                        # the mean is the best approach to preserve the distribution and variety of the data
+                        # if there is a column on 'df_device' that is missing that is not missing in the model dataset, in the case
+                        # of the model existing, that NULL column of df_device is replaced with the mean
                         imputer = Imputer(inputCols=non_null_columns_model, outputCols=non_null_columns_model, strategy="mean")
                         
                         imputer_model = imputer.fit(df_model)
 
                         df_device = imputer_model.transform(df_device)
 
-                        print("Device stream df after pre-processing")
+                        df_model_filtered = df_model.select(non_null_columns_model)
+                        df_device_filtered = df_device.select(non_null_columns_device)
 
-                        # Assemble the attributes into "features" using the transform (Scaler, PCA and SVD) models from the device
-                        # to transform the features of the dataframe
-                        df_device = DataPreProcessing.features_assembler_stream(df=df_device,
-                                                                                model_type=self.__ml_algorithm,
-                                                                                transform_models=transform_models)
+                        columns_names = list(set(non_null_columns_model + non_null_columns_device))
+
+                        if (len(df_device_filtered.columns) > len(df_model_filtered.columns)):
+
+                            # Assemble the attributes into "features" using the transform (Scaler, PCA and SVD) models from the device
+                            # to transform the features of the dataframe
+                            df_device = DataPreProcessing.features_assembler_stream(df=df_device,
+                                                                                    df_model=df_model,
+                                                                                    columns_names=columns_names,
+                                                                                    model_type=self.__ml_algorithm,
+                                                                                    transform_models=transform_models,
+                                                                                    new_schema=True)
+                        else:
+
+                            df_device = DataPreProcessing.features_assembler_stream(df=df_device,
+                                                                                    df_model=df_model,
+                                                                                    columns_names=columns_names,
+                                                                                    model_type=self.__ml_algorithm,
+                                                                                    transform_models=transform_models)
                         
                         # Convert into rows to join dataframes with its predictions
                         original_rows = df_device.collect()
-
+                        
+                        print("Device stream df after pre-processing")
+                        
                         df_device.show(truncate=False)
                         
                         # Process "features" into a numpy array, the requested format for ML algorithm training

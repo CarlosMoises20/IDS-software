@@ -163,17 +163,14 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         
         return None, None, None
 
-    # Remove columns of device dataset where all values are null
-    # Remove columns from the string list that are not used for machine learning
+    # Columns of device dataset where NOT all values are null, except "features", "DevAddr" and "intrusion"
+    # These columns are used to replace the NULL values with the mean
     non_null_columns = [
         c for c in df_model.columns
         if (
-            # Check if NOT all values are null
             (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
         ) and c not in ["features", "DevAddr", "intrusion"]
     ]
-
-    df_model = df_model.select(non_null_columns)
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
     # that can assume any numeric value, so it's not a good approach to replace missing values with a static value
@@ -181,14 +178,9 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
     df_model = imputer.fit(df_model).transform(df_model)
 
+    df_model = df_model.select(non_null_columns)
+
     end_time = time.time()
-
-    # Print the total time of pre-processing
-    print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
-
-    # NOTE: uncomment these lines to print the dataset after being pre-processed
-    #print("Model df after pre-processing")
-    #df_model.show()
 
     # If we are only creating the models for testing, we can split the dataset into training and testing datasets
     if not stream_processing:
@@ -199,9 +191,9 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         n_train_samples = df_model_train.count()        # Number of training samples
         n_test_samples = df_model_test.count()          # Number of testing samples
 
-        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 12 intrusions,
+        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 15 intrusions,
         # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round((1/3) * n_test_samples), 12))
+        num_intrusions = max(1, min(round((1/3) * n_test_samples), 15))
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
@@ -214,9 +206,19 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {n_train_samples}')
         print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {n_test_samples}')
 
-        return DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
+        result = DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
     
     # If messages are being received in real time, use all samples for training to accelerate the training
     else:
-         return DataPreProcessing.features_assembler(df_model, None, model_type)
+        result = DataPreProcessing.features_assembler(df_model, None, model_type)
+    
+    # Print the total time of pre-processing
+    print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
+
+    # NOTE: uncomment these lines to print the training dataset after being pre-processed
+    #print("Model df after pre-processing")
+    #df_train_result = result[0]
+    #df_train_result.show()
+
+    return result
 

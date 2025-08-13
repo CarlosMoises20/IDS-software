@@ -16,7 +16,7 @@ class ModelType(Enum):
         "type": "java_estimator"
     }
     IF_SKLEARN = {
-        "name": "Isolation Forest (Sklearn)", 
+        "name": "Isolation Forest (SkLearn)", 
         "acronym": "if_sklearn", 
         "type": "sklearn"
     }
