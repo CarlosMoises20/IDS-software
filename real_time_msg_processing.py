@@ -20,7 +20,7 @@ if __name__ == '__main__':
                         help='Whether to skip model generation if it already exists')
     
     parser.add_argument('--ml_algorithm', type=str, 
-                        choices=['lof', 'if_custom', 'if_sklearn', 'hbos', 'knn', 'ocsvm'],
+                        choices=['lof', 'if_custom', 'if_sklearn', 'hbos', 'ocsvm'],
                         default='ocsvm',
                         help='ML Algorithm to choose to create the ML models')
     

@@ -25,11 +25,6 @@ class ModelType(Enum):
         "acronym": "hbos", 
         "type": "pyod"
     }
-    KNN = {
-        "name": "k-Nearest Neighbors", 
-        "acronym": "knn", 
-        "type": "spark"
-    }
     OCSVM = {
         "name": "One-Class Support Vector Machine", 
         "acronym": "ocsvm", 

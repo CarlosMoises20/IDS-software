@@ -2,6 +2,7 @@
 import time, mlflow, shutil, os, json, cloudpickle, threading, datetime
 from zoneinfo import ZoneInfo
 from pyspark.sql import Row
+from pyspark.sql.types import IntegerType
 import mlflow.sklearn
 import numpy as np
 from common.dataset_type import DatasetType
@@ -14,7 +15,6 @@ from models.one_class_svm import OneClassSVM
 from models.hbos import HBOS
 from common.model_type import ModelType
 from models.lof import LOF
-from models.kNN import KNNAnomalyDetector
 from models.isolation_forest_custom import IsolationForest as CustomIF
 from models.isolation_forest_sklearn import IsolationForest as SkLearnIF
 from prepareData.preProcessing.pre_processing import DataPreProcessing
@@ -122,21 +122,6 @@ class MessageClassification:
                 else:
                     print("Model does not exist on path", model_path)
             
-            # for spark models (kNN)
-            elif model_type.value["type"] == "spark":
-
-                # Path where all spark models must be saved
-                model_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/model"
-
-                # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
-                # Without this if/else block, the try/catch block would stop to run
-                # on the load_model function and not loading the other models (PCA, SVD)
-                # that might exist
-                if os.path.exists(model_path):
-                    model = mlflow.spark.load_model(model_path)
-                else:
-                    print("Model does not exist!")
-
             # for pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
                 
@@ -371,10 +356,6 @@ class MessageClassification:
             if model_type.value["type"] == "sklearn":
                 mlflow.sklearn.log_model(sk_model=model, name="model")
 
-            ## FOR spark models (kNN)
-            elif model_type.value["type"] == "spark":
-                mlflow.spark.log_model(spark_model=model, artifact_path="model")
-
             ## FOR pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
                 os.makedirs("./temp_models", exist_ok=True)    # Create the directory if it does not exist
@@ -427,19 +408,6 @@ class MessageClassification:
         
             model = lof.train()
             accuracy, matrix, report = lof.test(model)
-            recall_class_1 = report['1']['recall']
-
-        ### kNN (k-Nearest Neighbors)
-        elif model_type.value["name"] == "k-Nearest Neighbors":     
-        
-            knn = KNNAnomalyDetector(df_train=df_model_train,
-                                    df_test=df_model_test,
-                                    featuresCol="features",
-                                    labelCol="intrusion",
-                                    predictionCol="prediction")
-            
-            model = knn.train()
-            accuracy, matrix, report = knn.test(model)
             recall_class_1 = report['1']['recall']
 
         ### HBOS (Histogram-Based Outlier Score)
@@ -538,17 +506,6 @@ class MessageClassification:
                   labelCol="intrusion")
         
             model = lof.train()
-
-        ### kNN (k-Nearest Neighbors)
-        elif model_type.value["name"] == "k-Nearest Neighbors":     
-        
-            knn = KNNAnomalyDetector(df_train=df_model,
-                                    df_test=None,
-                                    featuresCol="features",
-                                    labelCol="intrusion",
-                                    predictionCol="prediction")
-            
-            model = knn.train()
 
         ### HBOS (Histogram-Based Outlier Score)
         elif model_type.value["name"] == "Histogram-Based Outlier Score":
@@ -786,7 +743,7 @@ class MessageClassification:
                 df_rxpk.show()
 
                 # get DevAddr to use it to get the model from MLFlow
-                dev_addrs = [str(row['DevAddr']) for row in df_rxpk.select("DevAddr").distinct().collect()]
+                dev_addrs = [str(row['DevAddr']) for row in df_rxpk.select("DevAddr").distinct().collect() if row['DevAddr'] is not None]
 
                 # Loop for each DevAddr in the batch
                 for dev_addr in dev_addrs:
@@ -871,7 +828,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            )
+                            ) and (c not in ["features", "DevAddr", "intrusion"])
                         ]
 
                         # Remove columns from the string list that are not used for machine learning
@@ -880,7 +837,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_device.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            )
+                            ) and (c not in ["DevAddr"])
                         ]
                         
                         # if there is a column on 'df_device' that is missing that is not missing in the model dataset, in the case
@@ -913,7 +870,7 @@ class MessageClassification:
                                                                                     columns_names=columns_names,
                                                                                     model_type=self.__ml_algorithm,
                                                                                     transform_models=transform_models)
-                        
+
                         # Convert into rows to join dataframes with its predictions
                         original_rows = df_device.collect()
                         
@@ -937,7 +894,9 @@ class MessageClassification:
                         print(f"Number of anomalies detected: {(predictions == 1).sum()}")
                         print(f"Number of normal messages: {(predictions == 0).sum()}")
 
-                        df_with_preds = self.__spark_session.createDataFrame(rows_with_preds)
+                        schema = df_device.schema.add(StructField('prediction', IntegerType(), True))
+
+                        df_with_preds = self.__spark_session.createDataFrame(rows_with_preds, schema=schema)
 
                         # Create dataframe with new dataframes
                         df_normals = df_with_preds.filter(df_with_preds.prediction == 0)

@@ -64,74 +64,74 @@ class DataPreProcessing(ABC):
         if df_test is not None:
             df_test = scaler_model.transform(df_test)
         
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+        #if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
-            ### PCA (Principal Component Analysis)
-                
-            # Fit PCA using the train dataset    
-            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
-            pca_model = pca.fit(df_train)
-            explained_variance = pca_model.explainedVariance.cumsum()
-
-            # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
-            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
-
-            # Do the same thing but with the determined optimal k (k_optimal)
-            pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
-            pca_final_model = pca.fit(df_train)
-
-            # Applies trained PCA model to train and test dataset
-            df_train = pca_final_model.transform(df_train)
+        """### PCA (Principal Component Analysis)
             
-            if df_test is not None:
-                df_test = pca_final_model.transform(df_test)
+        # Fit PCA using the train dataset    
+        pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+        pca_model = pca.fit(df_train)
+        explained_variance = pca_model.explainedVariance.cumsum()
 
-            # Prints the chosen value for k
-            print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+        # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
+        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+        # Do the same thing but with the determined optimal k (k_optimal)
+        pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
+        pca_final_model = pca.fit(df_train)
 
-            ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
-            rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
-            mat = RowMatrix(rdd_vectors)
+        # Applies trained PCA model to train and test dataset
+        df_train = pca_final_model.transform(df_train)
+        
+        if df_test is not None:
+            df_test = pca_final_model.transform(df_test)
 
-            # Applies SVD (maximum k = número de colunas)
-            k_max = len(column_names)
-            svd = mat.computeSVD(k_max)
+        # Prints the chosen value for k
+        print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")"""
 
-            # Calculates cumulated explained variance (according to the singular values)
-            sigma = svd.s.toArray()
-            total_variance = (sigma ** 2).sum()
-            explained_variance = (sigma ** 2).cumsum() / total_variance
+        #elif model_type in [ModelType.OCSVM, ModelType.HBOS]:
 
-            # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
-            # 'explained_variance_threshold'*100 % of the variance of the dataset
-            k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
+        ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
+        rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+        mat = RowMatrix(rdd_vectors)
 
-            print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
+        # Applies SVD (maximum k = número de colunas)
+        k_max = len(column_names)
+        svd = mat.computeSVD(k_max)
 
-            # Projects data for the k principal components through manual multiplying (using only top-k V)
-            V = svd.V.toArray()[:, :k_optimal]
+        # Calculates cumulated explained variance (according to the singular values)
+        sigma = svd.s.toArray()
+        total_variance = (sigma ** 2).sum()
+        explained_variance = (sigma ** 2).cumsum() / total_variance
 
-            # Manually applies the transformation feat * V to obtain the new reduced vectors
-            def project_features(feat):
-                # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) is applied
-                projected_array = feat.dot(V)
-                return MLDenseVector(projected_array)
+        # Determines the ideal k; that is the minimum number of necessary SVD components to capture at least
+        # 'explained_variance_threshold'*100 % of the variance of the dataset
+        k_optimal = next(i + 1 for i, v in enumerate(explained_variance) if v >= explained_variance_threshold)
 
-            svd_matrix = V
+        print(f"Optimal number of SVD components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-            project_udf = F.udf(project_features, returnType=VectorUDT())
-            df_train = df_train.withColumn("features", project_udf("scaled"))
-            
-            if df_test is not None:
-                df_test = df_test.withColumn("features", project_udf("scaled"))
+        # Projects data for the k principal components through manual multiplying (using only top-k V)
+        V = svd.V.toArray()[:, :k_optimal]
 
-        else:
+        # Manually applies the transformation feat * V to obtain the new reduced vectors
+        def project_features(feat):
+            # feat is a DenseVector from pyspark.ml.linalg, so feat.dot(V) is applied
+            projected_array = feat.dot(V)
+            return MLDenseVector(projected_array)
+
+        svd_matrix = V
+
+        project_udf = F.udf(project_features, returnType=VectorUDT())
+        df_train = df_train.withColumn("features", project_udf("scaled"))
+        
+        if df_test is not None:
+            df_test = df_test.withColumn("features", project_udf("scaled"))
+
+        """else:
             df_train = df_train.withColumnRenamed("scaled", "features")
             
             if df_test is not None:
-                df_test = df_test.withColumnRenamed("scaled", "features")
+                df_test = df_test.withColumnRenamed("scaled", "features")"""
 
         if df_test is not None:
             return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled"), {"StdScaler": scaler_model, 
