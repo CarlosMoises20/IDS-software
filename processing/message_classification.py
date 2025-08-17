@@ -214,12 +214,6 @@ class MessageClassification:
             df = self.__spark_session.read.json(path)
         else:
             df = self.__spark_session.read.parquet(path)
-
-        df = df.dropDuplicates()
-        
-        # Print the number of dataset samples and print the dataset on the console
-        print("Loaded train dataset with", df.count(), "samples")
-        df.show(50, truncate=False)
         
         return df
 
@@ -253,7 +247,7 @@ class MessageClassification:
 
         # Save final dataframe in JSON or PARQUET format if the dataframe exists and contains rows
         if df and not df.isEmpty():
-            df_to_save = df.drop("features").dropDuplicates()       
+            df_to_save = df.drop("features")     
             if datasets_format == "json":
                 df_to_save.coalesce(1).write.mode("overwrite").json(path)
             else:

@@ -167,7 +167,7 @@ class DataPreProcessing(ABC):
                 pca_model = transform_models["PCA"]
                 df = pca_model.transform(df)
 
-            elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+            elif model_type in [ModelType.OCSVM, ModelType.HBOS]:
                 V = transform_models["SVD"]
 
                 # Manually applies the transformation feat * V to obtain the new reduced vectors
@@ -209,7 +209,7 @@ class DataPreProcessing(ABC):
 
             transform_models["PCA"] = pca_final_model
 
-        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+        elif model_type in [ModelType.OCSVM, ModelType.HBOS]:
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
@@ -276,7 +276,7 @@ class DataPreProcessing(ABC):
             pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
             transform_models["PCA"] = pca.fit(df_model)
 
-        elif model_type in [ModelType.OCSVM, ModelType.HBOS, ModelType.KNN]:
+        elif model_type in [ModelType.OCSVM, ModelType.HBOS]:
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
