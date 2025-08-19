@@ -37,6 +37,7 @@ class HBOS:
         N = self.__df_train.count()         # the size of the training dataset
         
         # follow a often used rule, that is setting the number of bins to the square root of the number of training instances N
+        # The rule is specified on this reference: https://www.goldiges.de/publications/HBOS-KI-2012.pdf
         num_bins = round(math.sqrt(N))
 
         # NOTE: uncomment this line to print the computed number of bins for the algorithm
