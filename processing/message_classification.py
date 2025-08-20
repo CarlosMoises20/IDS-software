@@ -7,8 +7,8 @@ import mlflow.sklearn
 import numpy as np
 from common.dataset_type import DatasetType
 from prepareData.prepareData import *
-from common.auxiliary_functions import format_time, udp_to_kafka_forwarder, udp_to_tcp_forwarder, start_tcp_server
-from common.constants import TCP_PORT, KAFKA_PORT
+from common.auxiliary_functions import *
+from common.constants import KAFKA_PORT
 from pyspark.sql.functions import count, regexp_extract
 from mlflow.tracking import MlflowClient
 from models.one_class_svm import OneClassSVM
@@ -705,7 +705,6 @@ class MessageClassification:
         # from a LoRa gateway and forward to a Kafka producer which will also be listening messages from UDP socket to
         # forward to Spark that will consume those messages
         threading.Thread(target=udp_to_kafka_forwarder, daemon=True).start()
-        #threading.Thread(target=udp_to_tcp_forwarder, daemon=True).start()
 
         # NOTE: you can comment this line if you don't want to print this
         print("Using algorithm", self.__ml_algorithm.value["name"])
@@ -958,13 +957,6 @@ class MessageClassification:
                                 .option("kafka.bootstrap.servers", f"localhost:{KAFKA_PORT}") \
                                 .option("subscribe", "lorawan-messages") \
                                 .load()
-
-        """# Read stream from TCP server that listens messages from UDP server
-        socket_stream_df = self.__spark_session.readStream \
-                                .format("socket") \
-                                .option("host", "localhost") \
-                                .option("port", TCP_PORT) \
-                                .load()"""
         
         #socket_stream_df = socket_stream_df.decode(errors='ignore').strip()
 

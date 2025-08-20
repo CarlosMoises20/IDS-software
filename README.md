@@ -6,7 +6,7 @@ https://spark.apache.org/downloads.html
 
 That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file.
 
-You can also choose to use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image (see NOTE 1 in the end of the file)
+You can also choose to install and use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image.
 
 ### To install Java on your local machine (version 11), using the link below
 https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
@@ -88,19 +88,73 @@ choco install sbt
 ``` 
 
 
-### To install Kafka
+### To install Apache Kafka
 
-You must install Scala first (version 2.12) as previously indicated.
+You must install Scala first (version 2.12) as previously indicated. Then, ensure Java JDK 11 is properly installed on yout local machine, since its also a pre-requisite to install Apache Kafka (whether on Windows, Mac or Linux), and its installation instructions are above in this file.
 
-Then go to the following link: https://kafka.apache.org/downloads and install the latest version on your local machine. Make sure to properly define the KAFKA_HOME environment variable. 
+Then go to the link https://kafka.apache.org/downloads and install the Kafka latest version on your local machine. Use the binary version and choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the one indicated on the site and unzip the file. One of the solutions to unzip the .tgz file is to execute the following command (example for Kafka version 3.9.1):
 
-If using binary version, choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the indicated on the site.
+```
+tar -xvzf kafka_2.12-3.9.1.tgz
+```
+
+Also make sure to properly define the environment variable to point it to the Kafka installation directory (KAFKA_HOME).
+
+If you install Kafka on Windows, you will have to previously install WSL2 on your machine.
+
+After installing Kafka, you will want to start Apache KRaft, which removes Kafka dependency from Zookeeper, simplifying Kafka architecture. To do so, whether on Windows (10 or above), Mac or Linux, you will have to perform the following steps:
+
+&emsp; Move to the Kafka installation path
+```
+cd <kafka_path>
+```
+
+&emsp; Generate a new ID for your cluster running this command. The return of this command will be a generated UUID, which will be used in the next command (&lt;uuid&gt;) 
+```
+~/bin/kafka-storage.sh random-uuid
+```
+
+&emsp; Format your storage directory that is in the log.dirs in the config/kraft/server.properties, since the default directory is "/tmp/kraft-combined-logs".
+```
+~/bin/kafka-storage.sh format -t <uuid> -c ~/config/kraft/server.properties
+```
+
+&emsp; Finally, you can launch the broker itself in daemon mode by running this command. This is necessary to Spark to connect with Kafka to consume the LoRa messages coming from the UDP socket and stored on the created Kafka topic.
+```
+~/bin/kafka-server-start.sh ~/config/kraft/server.properties
+```
+
+&emsp; To stop the application, use Ctrl + C to force it. But when you start it again, it's a good practice to previously stop any running Kafka process, executing the command below.
+```
+~/bin/kafka-server-stop.sh ~/config/kraft/server.properties
+```
+
+These instructions to install Apache KRaft are also available on these sites below:
+
+&emsp; On Windows 10 or above
+```
+https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-windows-without-zookeeper-kraft-mode/
+```
+
+&emsp; On Mac
+```
+https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-mac-without-zookeeper-kraft-mode/
+```
+
+&emsp; On Linux
+```
+https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-linux-without-zookeeper-kraft-mode/
+```
+
 
 You also have to install the kafka connector for Spark. To do so, go to https://mvnrepository.com/artifact/org.apache.spark/spark-sql-kafka-0-10_2.12/3.3.2 and download the JAR by clicking on "jar" in Files section. Then, move the JAR file to the "jars" subdirectory in your Spark installation, making sure that SPARK_HOME is properly defined in your local machine.
 
 Then to the same thing for these JARs:
+
 https://repo1.maven.org/maven2/org/apache/kafka/kafka-clients/2.8.0/kafka-clients-2.8.0.jar
+
 https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_2.12/3.3.2/spark-token-provider-kafka-0-10_2.12-3.3.2.jar
+
 https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar
 
 
@@ -120,64 +174,5 @@ python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by
 python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
 
-Before running the file, you must start the Zookeeper and Kafka server by running the following commands on the Kafka installation directory, each one in a different terminal:
-
-```
-./bin/zookeeper-server-start.sh ./config/zookeeper.properties
-./bin/kafka-server-start.sh ./config/server.properties
-```
-
-This will start the Kafka server and the Zookeeper server. Sometimes the second command fails, but if you stop the running Kafka server and execute the command again, it works.
-
-If you want to stop the application after executing it, just force it (Ctrl + C in Windows)
-
-To stop Zookeeper and Kafka on local installation directory, just do Ctrl + Z on the terminals on which Zookeeper and Kafka are running, or run the following commands on new terminals:
-
-```
-./bin/zookeeper-server-stop.sh ./config/zookeeper.properties
-./bin/kafka-server-stop.sh ./config/server.properties
-```
 
 
-## NOTE 1: If you want to use Spark on Docker
-
-### Install Docker Desktop
-
-On Windows 10/11: https://docs.docker.com/desktop/setup/install/windows-install/
-
-On Linux: https://docs.docker.com/desktop/setup/install/linux/
-
-On Mac: https://docs.docker.com/desktop/setup/install/mac-install/
-
-
-### Pull Spark Docker image and create a container
-
-Link: https://hub.docker.com/_/spark
-
-```
-docker pull <name of image>
-docker docker run -d --name spark-master \
-  -h spark-master \
-  -p 8085:8080 \
-  -p 7077:7077 \
-  <name of image> \
-  spark-class org.apache.spark.deploy.master.Master
-```
-
-#### Check all existing docker images
-```
-docker images
-```
-
-#### Check all existing docker containers
-```
-docker ps -a
-```
-
-#### Check all running docker containers
-```
-docker ps
-```
-
-
-## NOTE 2: to store in MLFLow the artifacts of all models, around 10GB - 12GB of free space will be needed in your machine

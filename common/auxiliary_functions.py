@@ -1,7 +1,7 @@
 
 import socket, threading
 from kafka import KafkaProducer
-from common.constants import UDP_IP, UDP_PORT, TCP_IP, TCP_PORT, KAFKA_PORT
+from common.constants import UDP_IP, UDP_PORT, KAFKA_PORT
 
 """
 Auxiliary function to print processing time on an adequate format, in hours, minutes and seconds,
@@ -47,72 +47,6 @@ def format_time(seconds):
         return f"{hours} h {minutes} min"           # Only hours and minutes when "secs" are multiple of 60
         
     return f"{hours} h {minutes} min {secs} s"      # Format in minutes, hours and seconds
-
-clients = []
-
-"""
-This function forwards the traffic coming from UDP socket that receives LoRaWAN messages
-from LoRa gateway, to a TCP server that will be connected to Spark to send those messages
-That TCP server must be already active, otherwise no traffic will be forwarded
-
-"""
-def udp_to_tcp_forwarder():
-    
-    udp_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-    udp_sock.bind((UDP_IP, UDP_PORT))
-    print(f"[*] Listening on UDP Port {UDP_PORT}")
-
-    # Tries to connect TCP server
-    try:
-        tcp_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        tcp_sock.connect((TCP_IP, TCP_PORT))
-        print(f"[+] Connected to TCP server at {TCP_IP}:{TCP_PORT}")
-    
-    except Exception as e:
-        print(f"[TCP CONNECTION ERROR] {e}")
-        return
-
-    try:
-        while True:
-            data, _ = udp_sock.recvfrom(4096)
-            print(f"[UDP RECEIVED] {data}")
-
-            try:
-                tcp_sock.sendall(data)     
-                print("[TCP FORWARDED]")
-            except Exception as e:
-                print(f"[TCP SEND ERROR] {e}")
-                break
-
-    except KeyboardInterrupt:
-        print("Interrupted by user.")
-
-    finally:
-        udp_sock.close()
-        tcp_sock.close()
-        print("Sockets closed.")
-
-clients = []
-
-def handle_client(conn, addr):
-    print(f"[+] TCP Client connected: {addr}")
-    clients.append(conn)
-
-"""
-This function initializes the TCP server that will received traffic from UDP server by listening on port 7000
-
-"""
-def start_tcp_server():
-    tcp_server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    tcp_server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    tcp_server.bind((TCP_IP, TCP_PORT))
-    tcp_server.listen(5)
-    print(f"[*] TCP Server active on port {TCP_PORT}")
-
-    while True:
-        conn, addr = tcp_server.accept()
-        client_thread = threading.Thread(target=handle_client, args=(conn, addr), daemon=True)
-        client_thread.start()
 
 """
 Auxiliary function that will open a UDP socket that receives LoRaWAN messages coming from a LoRa
