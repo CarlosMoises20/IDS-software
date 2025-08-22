@@ -147,7 +147,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
-    n_limit = 50
+    n_limit = 400 if stream_processing else 50
 
     # Number of samples of the model dataset
     n_samples = df_model.count()

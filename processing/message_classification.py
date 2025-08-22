@@ -11,12 +11,12 @@ from common.auxiliary_functions import *
 from common.constants import KAFKA_PORT
 from pyspark.sql.functions import count, regexp_extract
 from mlflow.tracking import MlflowClient
-from models.one_class_svm import OneClassSVM
-from models.hbos import HBOS
+from algorithms.one_class_svm import OneClassSVM
+from algorithms.hbos import HBOS
 from common.model_type import ModelType
-from models.lof import LOF
-from models.isolation_forest_custom import IsolationForest as CustomIF
-from models.isolation_forest_sklearn import IsolationForest as SkLearnIF
+from algorithms.lof import LOF
+from algorithms.isolation_forest_custom import IsolationForest as CustomIF
+from algorithms.isolation_forest_sklearn import IsolationForest as SkLearnIF
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 
 """
