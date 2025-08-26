@@ -301,6 +301,7 @@ class MessageClassification:
         if old_model_id is not None:
 
             mlflowclient = self.__mlflowclient
+            
             try:
                 mlflowclient.delete_logged_model(old_model_id)
                 print("Logged model was deleted on MLFLow active client")
@@ -328,8 +329,6 @@ class MessageClassification:
             # Set tags that will identify the run on MLFlow: DevAddr (device address) and MessageType (RXPK or TXPK)
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
-
-            """TODO uncomment after finishing to log results on report
             
             mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
@@ -342,7 +341,7 @@ class MessageClassification:
                 svd_path = "svd_matrix.npy"
                 np.save(svd_path, transform_models["SVD"])
                 mlflow.log_artifact(local_path=svd_path, artifact_path="svd_model")
-                os.remove(svd_path)"""
+                os.remove(svd_path)
             
             ### Store the model as an artifact
 

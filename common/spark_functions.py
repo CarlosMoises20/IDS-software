@@ -32,6 +32,7 @@ def create_spark_session():
                             .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
                             .config("spark.jars", ",".join(SPARK_JARS)) \
                             .config("spark.sql.parquet.enableVectorizedReader", "false") \
+                            .config("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true") \
                             .getOrCreate()
 
 """
