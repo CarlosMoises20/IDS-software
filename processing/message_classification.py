@@ -249,9 +249,9 @@ class MessageClassification:
         if df and not df.isEmpty():
             df_to_save = df.drop("features")     
             if datasets_format == "json":
-                df_to_save.coalesce(1).write.mode("overwrite").json(path)
+                df_to_save.write.mode("overwrite").json(path)
             else:
-                df_to_save.coalesce(1).write.mode("overwrite").parquet(path)
+                df_to_save.write.mode("overwrite").parquet(path)
             
             # Create model based on DevAddr and store it as an artifact using MLFlow
             # If there is a run associated to DevAddr and MessageType (old_run_id), use that run instead of creating another one
@@ -712,7 +712,7 @@ class MessageClassification:
         def process_batch(df, batch_id):
 
             # TODO date is only for testing, remove it for final version to avoid confusions with timezone in different countries
-            print(f'\n=== Batch with ID {batch_id}; Date: {datetime.datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%Y-%m-%d %H:%M:%S")} (Lisbon Time) ===')
+            print(f'\n=== Batch with ID {batch_id}; Date: {datetime.datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%d-%m-%Y %H:%M:%S")} (Lisbon Time) ===')
 
             df.show(truncate=False)
 
@@ -780,7 +780,7 @@ class MessageClassification:
                             else:
                                 df_model = self.__spark_session.read.parquet(
                                     f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
-                                ).filter(col("DevAddr") == dev_addr)     
+                                ).filter(col("DevAddr") == dev_addr)                           
 
                         # try to create the model using the dataset which was loaded from MLFlow, or the dataset
                         # created using static datasets if they exist
@@ -793,6 +793,8 @@ class MessageClassification:
                                                                                 datasets_format=datasets_format,
                                                                                 stream_processing=True)
                         
+                        df_model_to_bind = df_model
+
                         # Applies cache operations to speed up the dataframe processing
                         df_model = df_model.cache()
 
@@ -831,21 +833,24 @@ class MessageClassification:
                                 (df_device.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
                             ) and (c not in ["DevAddr"])
                         ]
+
+                        columns_names = list(set(non_null_columns_model + non_null_columns_device))
+
+                        df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
                         
                         # if there is a column on 'df_device' that is missing that is not missing in the model dataset, in the case
                         # of the model existing, that NULL column of df_device is replaced with the mean
-                        imputer = Imputer(inputCols=non_null_columns_model, outputCols=non_null_columns_model, strategy="mean")
+                        imputer = Imputer(inputCols=columns_names, outputCols=columns_names, strategy="mean")
                         
-                        imputer_model = imputer.fit(df_model)
+                        imputer_model = imputer.fit(df_bind)
 
                         df_device = imputer_model.transform(df_device)
+                        df_model = imputer_model.transform(df_model)
 
                         df_model_filtered = df_model.select(non_null_columns_model)
                         df_device_filtered = df_device.select(non_null_columns_device)
 
-                        columns_names = list(set(non_null_columns_model + non_null_columns_device))
-
-                        if (len(df_device_filtered.columns) > len(df_model_filtered.columns)):
+                        if df_device_filtered.columns != df_model_filtered.columns:
 
                             # Assemble the attributes into "features" using the transform (Scaler, PCA and SVD) models from the device
                             # to transform the features of the dataframe
@@ -903,7 +908,7 @@ class MessageClassification:
                             model = model.fit(features)
 
                             # fit transform models too
-                            df_bind = df_model.unionByName(df_normals, allowMissingColumns=True)
+                            df_bind = df_model_to_bind.unionByName(df_normals, allowMissingColumns=True)
                             transform_models = DataPreProcessing.fit_transform_models_on_stream(df_model=df_bind,
                                                                                                 model_type=self.__ml_algorithm,
                                                                                                 transform_models=transform_models)
@@ -925,20 +930,22 @@ class MessageClassification:
                                                                         dataset_type=dataset_type,
                                                                         datasets_format=datasets_format)
                 
+                    df_result = df_device
+
                     # If a previous static dataset exists, concatenate the actual dataframe with the device samples
                     # from the static dataset, to form the dataframe to create                                      
                     if df_model_train:
-                        df_device = df_device.unionByName(df_model_train, allowMissingColumns=True)
+                        df_result = df_device.unionByName(df_model_train, allowMissingColumns=True)
 
                     # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
-                    n_samples = df_device.count()
+                    n_samples = df_result.count()
                     if n_samples == 1:
                         print(f"Logging dataset on MLFlow with {n_samples} sample")
                     else:
                         print(f"Logging dataset on MLFlow with {n_samples} samples")
                     
                     # Log the dataset on MLFlow to be used to retrain the model when a message with the same DevAddr is used
-                    self.__log_dataset_on_mlflow(df=df_device,
+                    self.__log_dataset_on_mlflow(df=df_result,
                                     path=f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}', 
                                     artifact_path="training_dataset", 
                                     datasets_format=datasets_format,

@@ -155,10 +155,10 @@ class DataPreProcessing(ABC):
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(columns_names) - set(["features", "feat", "scaled", "DevAddr", "intrusion"]))
         
-        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="feat", handleInvalid="keep")
         df = assembler.transform(df)
 
-        if not new_schema:  
+        if not new_schema: 
 
             scaler_model = transform_models["StdScaler"]
             df = scaler_model.transform(df)
@@ -184,14 +184,15 @@ class DataPreProcessing(ABC):
 
             return df.drop("feat", "scaled")
         
-
         # if a new schema is created
         df_model = assembler.transform(df_model)
         
         scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_model)
+        df = scaler_model.transform(df)
 
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
+            
             # Fit PCA using the train dataset    
             pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
             pca_model = pca.fit(df_model)
