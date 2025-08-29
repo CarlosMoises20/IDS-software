@@ -215,7 +215,7 @@ class MessageClassification:
         else:
             df = self.__spark_session.read.parquet(path)
         
-        return df
+        return df.dropDuplicates()
 
     """
     This method logs training dataset on MLFlow according to DevAddr aht MessageType
@@ -272,7 +272,10 @@ class MessageClassification:
                 mlflow.log_artifact(path, artifact_path=artifact_path)  
 
                 # Remove dataset from original path
-                shutil.rmtree(path)                                          
+                shutil.rmtree(path)
+
+        else:
+            return                                          
 
     """
     Auxiliary function that stores on MLFlow the model based on DevAddr, replacing the old model if it exists
@@ -935,7 +938,7 @@ class MessageClassification:
                     # If a previous static dataset exists, concatenate the actual dataframe with the device samples
                     # from the static dataset, to form the dataframe to create                                      
                     if df_model_train:
-                        df_result = df_device.unionByName(df_model_train, allowMissingColumns=True)
+                        df_result = df_result.unionByName(df_model_train, allowMissingColumns=True)
 
                     # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
                     n_samples = df_result.count()
