@@ -89,11 +89,20 @@ class IsolationForest:
 
     """
     def evaluate(self, y_pred):
+
+        # Real (expected) labels of the test dataset
         y_true = self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()
+
+        # Report with relevant evaluation metrics such as recall, f1-score and precision
         report = classification_report(y_true, y_pred, output_dict=True, zero_division=0)
+
+        # Confusion matrix 
         tn, fp, fn, tp = confusion_matrix(y_true, y_pred).ravel().tolist()
-        accuracy = accuracy_score(y_true, y_pred)
         conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
+
+        # Accuracy: it represents the rate of correctly classified samples
+        accuracy = accuracy_score(y_true, y_pred)
+        
         return accuracy, conf_matrix, report
   
     """

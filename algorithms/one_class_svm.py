@@ -1,9 +1,7 @@
 
-from pyspark.sql.functions import col, monotonically_increasing_id
 import numpy as np
 from sklearn.svm import OneClassSVM as OCSVM
-from pyspark.ml.evaluation import MulticlassClassificationEvaluator
-from pyspark.sql.types import DoubleType
+from sklearn.metrics import classification_report, confusion_matrix, accuracy_score
 
 
 """
@@ -32,14 +30,10 @@ class OneClassSVM:
                 efficacy of the model in testing
 
     """
-    def __init__(self, spark_session, df_train, df_test, featuresCol, 
-                 predictionCol, labelCol):
-        
-        self.__spark_session = spark_session
+    def __init__(self, df_train, df_test, featuresCol, labelCol):
         self.__df_train = df_train
         self.__df_test = df_test
         self.__featuresCol = featuresCol
-        self.__predictionCol = predictionCol
         self.__labelCol = labelCol
 
     """
@@ -68,10 +62,10 @@ class OneClassSVM:
     """
     def test(self, model):  
         # Use the model to predict the labels for the samples in the test dataset
-        df_preds = self.predict(model)
+        y_preds = self.predict(model)
 
         # Compute the evaluation metrics to determine the efficacy of the model during testing
-        return self.evaluate(df_preds)
+        return self.evaluate(y_preds)
 
     """
     This method is used for the model to predict the labels of the testing samples,
@@ -83,76 +77,31 @@ class OneClassSVM:
         if model is None:
             raise Exception("Model must be specified!")
 
-        df_test_indexed = self.__df_test.withColumn("row_id", monotonically_increasing_id())
-
         # convert the "features" column from the dataframe into a numpy array, the adequate format for sklearn models
         # this column results from assembling all attributes of each row into one vector with the appropriated format
-        features = np.array(df_test_indexed.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
         
-        preds = model.predict(features)
+        y_preds = model.predict(features)
 
-        # Convert scikit predictions to binary labels (-1: anomaly -> 1: normal -> 0)
-        pred_labels = np.where(preds == -1, 1, 0)
-
-        # Extracts the real test labels from the dataframe
-        true_labels = df_test_indexed.select(self.__labelCol).rdd.map(lambda r: int(r[0])).collect()
-
-        row_ids = df_test_indexed.select("row_id").rdd.map(lambda r: r[0]).collect()
-
-        data = [(row_id, int(label), int(pred)) for row_id, label, pred in zip(row_ids, true_labels, pred_labels)]
-
-        # Create a dataframe with the columns' names and the predictions
-        pred_df = self.__spark_session.createDataFrame(data, ["row_id", self.__labelCol, self.__predictionCol])
-
-        # Dataframe that results from the join of the created dataframe and the original indexed test dataframe 
-        joined_df = df_test_indexed.drop(self.__predictionCol, self.__labelCol) \
-                                    .join(pred_df, on="row_id", how="inner")
-
-        return joined_df.drop("row_id")
+        return [0 if pred == 1 else 1 for pred in y_preds]
 
     """
     Evaluates the model's results, computing the evaluation metrics to determine the efficacy of the model during testing
     
     """
-    def evaluate(self, df_with_preds):
+    def evaluate(self, y_preds):
+
+        # Real (expected) labels of the test dataset
+        y_true = self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()
+
+        # Report with relevant evaluation metrics such as recall, f1-score and precision
+        report = classification_report(y_true, y_preds, output_dict=True, zero_division=0)
         
-        # Convert the prediction column to DoubleType to be supported by the Spark evaluation "MulticlassClassificationEvaluator"
-        df_eval = df_with_preds.withColumn(self.__predictionCol, col(self.__predictionCol).cast(DoubleType()))
+        # Confusion matrix 
+        tn, fp, fn, tp = confusion_matrix(y_true, y_preds).ravel().tolist()
+        conf_matrix = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
 
-        # Accuracy
-        evaluator = MulticlassClassificationEvaluator(
-            labelCol=self.__labelCol, predictionCol=self.__predictionCol, metricName="accuracy"
-        )
-
-        # Compute the accuracy
-        accuracy = evaluator.evaluate(df_eval)
-
-        # Build confusion matrix from prediction and label columns of the spark dataframe corresponding to the test dataset
-        cm = df_eval.groupBy(self.__labelCol, self.__predictionCol).count().collect()
-        matrix = {(row[self.__labelCol], row[self.__predictionCol]): row["count"] for row in cm}
-
-        tn = matrix.get((0, 0), 0)      # True negatives: normal samples correctly detected as normal
-        fp = matrix.get((0, 1), 0)      # False positives: normal samples incorrectly detected as anomalies
-        fn = matrix.get((1, 0), 0)      # False negatives: anomalies incorrectly detected as normal samples
-        tp = matrix.get((1, 1), 0)      # True positives: anomalies correctly detected as anomalies
-
-        # Confusion matrix in dictionary format
-        confusion = {"tp": tp, "tn": tn, "fp": fp, "fn": fn}
-
-        # Metrics
-        precision_class_1 = tp / (tp + fp) if (tp + fp) > 0 else 0.0        # Precision (class 1 -> anomaly)
-        recall_class_1 = tp / (tp + fn) if (tp + fn) > 0 else 0.0           # Recall (class 1 -> anomaly)
-        recall_class_0 = tn / (tn + fp) if (tn + fp) > 0 else 0.0           # Precision (class 0 -> normal)
-        f1_score_class_1 = (2 * precision_class_1 * recall_class_1) / (precision_class_1 + recall_class_1) \
-                                if (precision_class_1 + recall_class_1) > 0 else 0.0         # F1-Score (class 1 -> anomaly)
-
-        # Dictionary with relevant evaluation metrics to analyse the efficacy of the model in testing
-        report = {
-            "Accuracy": accuracy,
-            "Recall (class 1 -> anomaly)": recall_class_1,
-            "Precision (class 1 -> anomaly)": precision_class_1,
-            "F1-Score (class 1 -> anomaly)": f1_score_class_1,
-            "Recall (class 0 -> normal)": recall_class_0
-        }
-
-        return confusion, report
+        # Accuracy: it represents the rate of correctly classified samples
+        accuracy = accuracy_score(y_true, y_preds)
+        
+        return accuracy, conf_matrix, report

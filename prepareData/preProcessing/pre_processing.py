@@ -41,7 +41,7 @@ class DataPreProcessing(ABC):
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion"]))
         
-        assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
+        assembler = VectorAssembler(inputCols=column_names, outputCol="features")
         df_train = assembler.transform(df_train)
 
         if df_test is not None:
@@ -49,6 +49,7 @@ class DataPreProcessing(ABC):
 
         scaler_model, pca_final_model, svd_matrix = None, None, None
 
+        # TODO continue registering results
         """Normalize all assembled features using standards; with mean 0 and standard deviation 1;
         this allows all attributes' values to be centered on the mean 0 and have unit variance; this is
         important because several ML algorithms are sensitive to the scale of the numeric values and also to their variance
@@ -56,15 +57,15 @@ class DataPreProcessing(ABC):
         is higher or lower; instead, all features contribute equally to distance-based computations and model training;
         
         """
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+        """scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
         scaler_model = scaler.fit(df_train)
 
         df_train = scaler_model.transform(df_train)
         
         if df_test is not None:
-            df_test = scaler_model.transform(df_test)
+            df_test = scaler_model.transform(df_test)"""
         
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
+        """if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
 
             ### PCA (Principal Component Analysis)
                 
@@ -131,7 +132,7 @@ class DataPreProcessing(ABC):
             df_train = df_train.withColumnRenamed("scaled", "features")
             
             if df_test is not None:
-                df_test = df_test.withColumnRenamed("scaled", "features")
+                df_test = df_test.withColumnRenamed("scaled", "features")"""
 
         if df_test is not None:
             return df_train.drop("feat", "scaled"), df_test.drop("feat", "scaled"), {"StdScaler": scaler_model, 

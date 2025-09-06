@@ -60,8 +60,7 @@ class HBOS:
     """
     def test(self, model):
         Y_pred = self.predict(model)
-        accuracy, matrix, report = self.evaluate(Y_pred)
-        return accuracy, matrix, report
+        return self.evaluate(Y_pred)
 
     """
     Predict the labels using the indicated model

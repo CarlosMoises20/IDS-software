@@ -91,8 +91,8 @@ class LOF:
     """
     This method evaluates the predictions calculated by the model during testing, to give an idea of the model's efficacy
     As an argument, the method receives 'y_pred', which corresponds to a numpy array that contains the model's calculated predictions
-    It returns the confusion matrix, a dictionary with true negatives (tn), true positives (tp), false positives (fp) and false negatives (fn),
-    the accuracy and the report that contains all resumed evaluation metrics
+    It returns the confusion matrix, a dictionary with true negatives (tn), true positives (tp), false positives (fp) and false negatives (fn)
+    and the report that contains all resumed evaluation metrics
 
     """
     def evaluate(self, y_pred):

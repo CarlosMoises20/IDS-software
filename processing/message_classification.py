@@ -283,9 +283,7 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, model, model_type,
-                      dataset_type, accuracy, matrix, recall_anomalies, 
-                      report, transform_models):
+    def __store_model(self, dev_addr, model, model_type, dataset_type, matrix, report, transform_models):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
@@ -333,6 +331,8 @@ class MessageClassification:
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
             
+            """TODO uncomment after registering results
+            
             mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
             # Log PCA model used for stream processing if it exists
@@ -344,7 +344,7 @@ class MessageClassification:
                 svd_path = "svd_matrix.npy"
                 np.save(svd_path, transform_models["SVD"])
                 mlflow.log_artifact(local_path=svd_path, artifact_path="svd_model")
-                os.remove(svd_path)
+                os.remove(svd_path)"""
             
             ### Store the model as an artifact
 
@@ -373,16 +373,10 @@ class MessageClassification:
 
             print("New model stored")
 
-            ### Log evaluation metrics on the MLFlow run      
-            
-            if accuracy:
-                mlflow.log_metric("accuracy", accuracy)
+            ### Log evaluation metrics on the MLFlow run
             
             if matrix:
                 mlflow.log_dict(matrix, "confusion_matrix.json")
-            
-            if recall_anomalies:
-                mlflow.log_metric("recall_class_1", recall_anomalies)
             
             if report:
                 mlflow.log_dict(report, "report.json")
@@ -405,6 +399,7 @@ class MessageClassification:
             model = lof.train()
             accuracy, matrix, report = lof.test(model)
             recall_class_1 = report['1']['recall']
+            f1_score_class_1 = report['1']['f1-score']
 
         ### HBOS (Histogram-Based Outlier Score)
         elif model_type.value["name"] == "Histogram-Based Outlier Score":
@@ -416,6 +411,7 @@ class MessageClassification:
             model = hbos.train()
             accuracy, matrix, report = hbos.test(model)
             recall_class_1 = report['1']['recall']
+            f1_score_class_1 = report['1']['f1-score']
 
         ### Isolation Forest (sklearn)
         elif model_type.value["name"] == "Isolation Forest (SkLearn)":
@@ -428,6 +424,7 @@ class MessageClassification:
             model = if_class.train()
             accuracy, matrix, report = if_class.test(model)
             recall_class_1 = report['1']['recall']
+            f1_score_class_1 = report['1']['f1-score']
 
         ### Isolation Forest (JAR from GitHub implementation)
         # NOTE: can't be saved on MLFlow
@@ -443,32 +440,35 @@ class MessageClassification:
             model = if_class.train()
             matrix, report = if_class.test(model)
             accuracy = report["Accuracy"]
+            f1_score_class_1 = report["F1-Score (class 1 -> anomaly)"]
             recall_class_1 = report["Recall (class 1 -> anomaly)"]
 
         ### One-Class SVM
         elif model_type.value["name"] == "One-Class Support Vector Machine":
 
-            ocsvm = OneClassSVM(spark_session=self.__spark_session,
-                                df_train=df_model_train,
+            ocsvm = OneClassSVM(df_train=df_model_train,
                                 df_test=df_model_test,
                                 featuresCol="features",
-                                predictionCol="prediction",
                                 labelCol="intrusion")
             
             model = ocsvm.train()
-            matrix, report = ocsvm.test(model)
-            accuracy = report["Accuracy"]
-            recall_class_1 = report["Recall (class 1 -> anomaly)"]
+            accuracy, matrix, report = ocsvm.test(model)
+            recall_class_1 = report['1']['recall']
+            f1_score_class_1 = report['1']['f1-score']
 
         else:
             raise Exception("Model must correspond one of the algorithms used on the IDS!")
         
         ### Print evaluation metrics if they are not None
+
+        if recall_class_1 is not None:
+            print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(recall_class_1 * 100, 2)}%')
+
         if accuracy is not None:
             print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
         
-        if recall_class_1 is not None:
-            print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(recall_class_1 * 100, 2)}%')
+        if f1_score_class_1 is not None:
+            print(f'F1-Score (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(f1_score_class_1 * 100, 2)}%')
 
         if matrix is not None:
             print("Confusion matrix:\n", matrix)
@@ -477,13 +477,14 @@ class MessageClassification:
             print("Report:\n", json.dumps(report, indent=4))
 
         # store the model on MLFlow
-        self.__store_model(dev_addr, model, model_type, 
-                           dataset_type, accuracy, matrix, recall_class_1, 
-                           report, transform_models)
+        self.__store_model(dev_addr=dev_addr, model=model, model_type=model_type, 
+                           dataset_type=dataset_type, matrix=matrix, 
+                           report=report, transform_models=transform_models)
 
         end_time = time.time()
 
-        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}\n\n\n')
+        # TODO change back to format_time after registering results
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {round(end_time - start_time, 2)} s\n\n\n')
 
         return model, transform_models
     
@@ -552,7 +553,7 @@ class MessageClassification:
         
         # store the model on MLFlow
         self.__store_model(dev_addr=dev_addr, model=model, model_type=model_type, 
-                           dataset_type=dataset_type, accuracy=None, matrix=None, recall_anomalies=None, 
+                           dataset_type=dataset_type, matrix=None, 
                            report=None, transform_models=transform_models)
         
         return model, transform_models
@@ -919,7 +920,7 @@ class MessageClassification:
                             self.__store_model(dev_addr=dev_addr, model=model,
                                             model_type=self.__ml_algorithm,
                                             dataset_type=dataset_type,
-                                            accuracy=None, matrix=None, recall_anomalies=None, report=None,
+                                            matrix=None, report=None,
                                             transform_models=transform_models)
                             
                         df_device = df_normals
