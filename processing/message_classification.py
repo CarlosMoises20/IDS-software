@@ -331,8 +331,6 @@ class MessageClassification:
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
             
-            """TODO uncomment after registering results
-            
             mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
             # Log PCA model used for stream processing if it exists
@@ -344,7 +342,7 @@ class MessageClassification:
                 svd_path = "svd_matrix.npy"
                 np.save(svd_path, transform_models["SVD"])
                 mlflow.log_artifact(local_path=svd_path, artifact_path="svd_model")
-                os.remove(svd_path)"""
+                os.remove(svd_path)
             
             ### Store the model as an artifact
 
@@ -464,11 +462,11 @@ class MessageClassification:
         if recall_class_1 is not None:
             print(f'Recall (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(recall_class_1 * 100, 2)}%')
 
-        if accuracy is not None:
-            print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
-        
         if f1_score_class_1 is not None:
             print(f'F1-Score (class 1) for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(f1_score_class_1 * 100, 2)}%')
+
+        if accuracy is not None:
+            print(f'Accuracy for model of device {dev_addr} for {dataset_type.value["name"].upper()}: {round(accuracy * 100, 2)}%')
 
         if matrix is not None:
             print("Confusion matrix:\n", matrix)
@@ -483,8 +481,7 @@ class MessageClassification:
 
         end_time = time.time()
 
-        # TODO change back to format_time after registering results
-        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {round(end_time - start_time, 2)} s\n\n\n')
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)} s\n\n\n')
 
         return model, transform_models
     
