@@ -1,5 +1,5 @@
 
-import socket, threading
+import socket
 from kafka import KafkaProducer
 from common.constants import UDP_IP, UDP_PORT, KAFKA_PORT
 

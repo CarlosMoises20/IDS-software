@@ -892,7 +892,7 @@ class MessageClassification:
                         print(f"Number of anomalies detected: {(predictions == 1).sum()}")
                         print(f"Number of normal messages: {(predictions == 0).sum()}")
 
-                        schema = df_device.schema.add(StructField('prediction', IntegerType(), True))
+                        schema = df_device.schema.add(StructField('prediction', IntegerType(), False))
 
                         df_with_preds = self.__spark_session.createDataFrame(rows_with_preds, schema=schema)
 
@@ -964,8 +964,6 @@ class MessageClassification:
                                 .option("kafka.bootstrap.servers", f"localhost:{KAFKA_PORT}") \
                                 .option("subscribe", "lorawan-messages") \
                                 .load()
-        
-        #socket_stream_df = socket_stream_df.decode(errors='ignore').strip()
 
         # Convert bytes value to string
         decoded_df = socket_stream_df.selectExpr("CAST(value AS STRING) as message")
