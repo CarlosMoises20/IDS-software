@@ -215,7 +215,7 @@ class MessageClassification:
         else:
             df = self.__spark_session.read.parquet(path)
         
-        return df.dropDuplicates()
+        return df
 
     """
     This method logs training dataset on MLFlow according to DevAddr aht MessageType
@@ -301,13 +301,13 @@ class MessageClassification:
         # be constantly learning new network traffic patterns
         if old_model_id is not None:
 
-            mlflowclient = self.__mlflowclient
+            """mlflowclient = self.__mlflowclient
             
             try:
                 mlflowclient.delete_logged_model(old_model_id)
                 print("Logged model was deleted on MLFLow active client")
             except:
-                print("Model not found on MLFlow active client")
+                print("Model not found on MLFlow active client")"""
             
             # The paths where the model should be saved
             model_paths = [f"./mlruns/{self.__experiment_id}/models/{old_model_id}",
@@ -481,7 +481,7 @@ class MessageClassification:
 
         end_time = time.time()
 
-        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)} s\n\n\n')
+        print(f'Model for end-device with DevAddr {dev_addr} and {dataset_type.value["name"].upper()} saved successfully and created in {format_time(end_time - start_time)}\n\n\n')
 
         return model, transform_models
     
