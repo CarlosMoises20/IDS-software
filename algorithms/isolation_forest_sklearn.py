@@ -43,7 +43,7 @@ class IsolationForest:
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
         # speeds up the process
         # random_state is the seed
-        self.__model = IF(n_estimators=self.__numTrees, n_jobs=-1, random_state=seed)
+        self.__model = IF(n_estimators=self.__numTrees, n_jobs=-1, random_state=seed, contamination=0.1)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset

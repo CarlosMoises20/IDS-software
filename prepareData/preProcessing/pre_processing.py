@@ -252,22 +252,22 @@ class DataPreProcessing(ABC):
 
 
     
-    def fit_transform_models_on_stream(df_model, model_type, transform_models, explained_variance_threshold=0.99):
+    def fit_transform_models_on_stream(df_normals, model_type, transform_models, explained_variance_threshold=0.99):
         
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(get_all_attributes_names(df_model.schema)) - set(["DevAddr", "intrusion", "feat", "scaled", "features"]))
+        column_names = list(set(get_all_attributes_names(df_normals.schema)) - set(["DevAddr", "intrusion", "feat", "scaled", "features"]))
 
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
-        df_model = assembler.transform(df_model)
+        df_normals = assembler.transform(df_normals)
 
         scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
-        transform_models["StdScaler"] = scaler.fit(df_model)
+        transform_models["StdScaler"] = scaler.fit(df_normals)
 
         if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
             # Fit PCA using the train dataset    
             pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
-            pca_model = pca.fit(df_model)
+            pca_model = pca.fit(df_normals)
             explained_variance = pca_model.explainedVariance.cumsum()
 
             # Determine the optimal k, that allows to capture at least 'explained_variance_threshold'*100 % of the variance
@@ -275,11 +275,11 @@ class DataPreProcessing(ABC):
 
             # Do the same thing but with the determined optimal k (k_optimal)
             pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
-            transform_models["PCA"] = pca.fit(df_model)
+            transform_models["PCA"] = pca.fit(df_normals)
 
         elif model_type == ModelType.HBOS:
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
-            rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
+            rdd_vectors = df_normals.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
 
             # Applies SVD (maximum k = número de colunas)

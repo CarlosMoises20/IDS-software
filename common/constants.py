@@ -23,9 +23,10 @@ SPARK_SQL_ANSI_ENABLED = "false"
 UDP_IP = "0.0.0.0"
 UDP_PORT = 5200
 
-'''KAFKA SOCKET'''
+'''KAFKA VARIABLES'''
 KAFKA_PORT = 9092
 
+'''SPARK JAR FILES'''
 SPARK_JARS = [
     os.path.join(os.environ.get("SPARK_HOME"), "jars", "isolation-forest_3.3.2_2.12-4.0.1.jar"),
     os.path.join(os.environ.get("SPARK_HOME"), "jars", "spark-sql-kafka-0-10_2.12-3.3.2.jar"),

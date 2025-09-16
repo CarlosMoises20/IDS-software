@@ -147,7 +147,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
-    n_limit = 3000 if stream_processing else 50
+    n_limit = 5000 if stream_processing else 50
 
     # Number of samples of the model dataset
     n_samples = df_model.count()
@@ -163,7 +163,8 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         
         return None, None, None
 
-    # Columns of device dataset where NOT all values are null, except "features", "DevAddr" and "intrusion"
+    # Remove columns where ALL rows are NULL
+    # Columns of device dataset where NOT all values are null, except "features", "DevAddr" and "intrusion", are maintained in the dataset
     # These columns are used to replace the NULL values with the mean
     non_null_columns = [
         c for c in df_model.columns
@@ -191,9 +192,9 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         n_train_samples = df_model_train.count()        # Number of training samples
         n_test_samples = df_model_test.count()          # Number of testing samples
 
-        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 15 intrusions,
+        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 2000 intrusions,
         # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round((1/3) * n_test_samples), 15))
+        num_intrusions = max(1, round((5/12) * n_test_samples))
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,

@@ -6,6 +6,9 @@ df_tmp/*
 *metadata
 temp_models/*
 
+# Logs
+logs*
+
 # Artifacts
 artifacts/*
 

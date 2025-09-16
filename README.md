@@ -174,5 +174,12 @@ python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by
 python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
 
+### Add these lines to $SPARK_HOME$/conf/spark-env.sh.template
+```
+export SPARK_LOCAL_IP="127.0.0.1"
+export SPARK_MASTER_WEBUI_PORT=8080
+export SPARK_WORKER_DIR=/opt/spark/conf/slaves "user-case based path"
+export SPARK_LOG_DIR=/opt/spark/logs
+```
 
 

@@ -17,7 +17,7 @@ def create_spark_session():
         if not os.path.exists(jar):
             raise FileNotFoundError(f"JAR not found: {jar}")
 
-    return SparkSession.builder \
+    spark_session = SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
                             .config("spark.sql.shuffle.partitions", SPARK_PRE_PROCESSING_NUM_PARTITIONS)  \
@@ -33,7 +33,13 @@ def create_spark_session():
                             .config("spark.jars", ",".join(SPARK_JARS)) \
                             .config("spark.sql.parquet.enableVectorizedReader", "false") \
                             .config("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true") \
+                            .config('spark.sql.codegen.wholeStage', 'false') \
                             .getOrCreate()
+    
+    print("master:", spark_session.sparkContext.master)
+    print("UI Web URI:", spark_session.sparkContext.uiWebUrl)
+
+    return spark_session
 
 """
 This function lauches manual attacks on test dataset based on a specific device

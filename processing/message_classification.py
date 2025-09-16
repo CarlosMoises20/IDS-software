@@ -4,6 +4,7 @@ from zoneinfo import ZoneInfo
 from pyspark.sql import Row
 from pyspark.sql.types import IntegerType
 import mlflow.sklearn
+import pandas as pd
 import numpy as np
 from common.dataset_type import DatasetType
 from prepareData.prepareData import *
@@ -83,18 +84,24 @@ class MessageClassification:
             filter_string=f"tags.DevAddr = '{dev_addr}' and tags.MessageType = '{dtype_name}'",
             max_results=1
         )
-        
+
         # If there are no runs, there is no model, so return a tuple with None objects
         if not runs:
-            return None, None, None, None
+            return None, None, None, None, None
 
         # get the ID of the retrieved run, if it exists
         run_id = runs[0].info.run_id
 
         # attribute None as default value of all models' objects
-        model, model_id, scaler_model, pca_model, svd_matrix = None, None, None, None, None
+        model, model_id, scaler_model, pca_model, svd_matrix, train_columns = None, None, None, None, None, None
         
         try:
+
+            local_path_columns = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/train_columns.json"
+
+            train_columns = mlflow.artifacts.load_dict(local_path_columns)
+            
+            print(train_columns)
 
             # retrieve the model of StandardScaler used on pre-processing for scaling. This model must always exist
             scaler_model = mlflow.spark.load_model(f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/scaler_model")
@@ -173,7 +180,7 @@ class MessageClassification:
         transform_models = {"StdScaler": scaler_model, "PCA": pca_model, "SVD": svd_matrix}
         transform_models = None if all(value is None for value in transform_models.values()) else transform_models
         
-        return model, transform_models, model_id, run_id
+        return model, transform_models, train_columns, model_id, run_id
 
     """
     This function returns the MLFlow training dataset based on the associated DevAddr, received in the
@@ -283,11 +290,11 @@ class MessageClassification:
     new messages in real time, or for the re-training process
     
     """
-    def __store_model(self, dev_addr, model, model_type, dataset_type, matrix, report, transform_models):
+    def __store_model(self, dev_addr, model, model_type, dataset_type, matrix, report, transform_models, df_model_train_columns):
 
         # Verify if a model associated to the device already exists. If so, return it;
         # otherwise, return None
-        _, _, old_model_id, old_run_id = self.__get_model_from_mlflow(
+        _, _, _, old_model_id, old_run_id = self.__get_model_from_mlflow(
             dev_addr=dev_addr, 
             dataset_type=dataset_type, 
             model_type=model_type
@@ -300,20 +307,12 @@ class MessageClassification:
         # the new model, so that the system is always with the newest model in order to 
         # be constantly learning new network traffic patterns
         if old_model_id is not None:
-
-            """mlflowclient = self.__mlflowclient
-            
-            try:
-                mlflowclient.delete_logged_model(old_model_id)
-                print("Logged model was deleted on MLFLow active client")
-            except:
-                print("Model not found on MLFlow active client")"""
             
             # The paths where the model should be saved
             model_paths = [f"./mlruns/{self.__experiment_id}/models/{old_model_id}",
                            f"./mlruns/{self.__experiment_id}/{old_run_id}/outputs/{old_model_id}"]
             
-            # If the path exists (which happens in normal cases), delete it
+            # If the path exists (which happens in normal cases), delete it to save space on local machine (but not from MLFlow)
             for model_path in model_paths:
                 if os.path.exists(model_path):
                     shutil.rmtree(model_path)
@@ -371,8 +370,9 @@ class MessageClassification:
 
             print("New model stored")
 
+            mlflow.log_dict(df_model_train_columns, "train_columns.json")
+
             ### Log evaluation metrics on the MLFlow run
-            
             if matrix:
                 mlflow.log_dict(matrix, "confusion_matrix.json")
             
@@ -477,7 +477,8 @@ class MessageClassification:
         # store the model on MLFlow
         self.__store_model(dev_addr=dev_addr, model=model, model_type=model_type, 
                            dataset_type=dataset_type, matrix=matrix, 
-                           report=report, transform_models=transform_models)
+                           report=report, transform_models=transform_models, 
+                           df_model_train_columns=df_model_train.columns)
 
         end_time = time.time()
 
@@ -536,11 +537,9 @@ class MessageClassification:
         ### One-Class SVM
         elif model_type.value["name"] == "One-Class Support Vector Machine":
 
-            ocsvm = OneClassSVM(spark_session=self.__spark_session,
-                                df_train=df_model,
+            ocsvm = OneClassSVM(df_train=df_model,
                                 df_test=None,
                                 featuresCol="features",
-                                predictionCol="prediction",
                                 labelCol="intrusion")
             
             model = ocsvm.train()
@@ -551,7 +550,7 @@ class MessageClassification:
         # store the model on MLFlow
         self.__store_model(dev_addr=dev_addr, model=model, model_type=model_type, 
                            dataset_type=dataset_type, matrix=None, 
-                           report=None, transform_models=transform_models)
+                           report=None, transform_models=transform_models, df_model_train_columns=df_model.columns)
         
         return model, transform_models
 
@@ -750,34 +749,34 @@ class MessageClassification:
                     df_device.show(truncate=False)
 
                     # Retrieve the model using DevAddr
-                    model, transform_models, _, _ = self.__get_model_from_mlflow(
+                    model, transform_models, stored_df_model_columns, _, _ = self.__get_model_from_mlflow(
                         dev_addr=dev_addr, dataset_type=dataset_type, model_type=self.__ml_algorithm
                     )
 
-                    # Get the training dataset that was saved on MLFlow
-                    df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
-                                                                    dataset_type=dataset_type,
-                                                                    datasets_format=datasets_format)
+                    df_model = None
 
                     # If there is not previous model saved on MLFlow, try to create one
                     # If there is not enough samples to create the model, it won't be created, and
                     # the result will be a tuple of None objects 
                     if model is None:
 
-                        print("Still no model created for device in RXPK. Creating the first")
+                        # Get the training dataset that was saved on MLFlow, with samples from static dataset and also from gateway
+                        df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
+                                                                            dataset_type=dataset_type,
+                                                                            datasets_format=datasets_format)
                         
-                        # If there is no previous training dataset from MLFlow, create one from static datasets
+                        # if there is no previous training dataset stored on MLFlow, retrieve from static datasets
                         if df_model is None:
 
-                            print("Creating model from static dataset")
+                            print(f"Still no store training dataset for device {dev_addr} in RXPK. Creating the first from static datasets")
 
-                            # to use the JSON dataset
+                            # for JSON format
                             if datasets_format == "json":
                                 df_model = self.__spark_session.read.json(
                                     f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
                                 ).filter(col("DevAddr") == dev_addr)
 
-                            # to use the PARQUET dataset
+                            # for PARQUET format
                             else:
                                 df_model = self.__spark_session.read.parquet(
                                     f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset.{datasets_format}'
@@ -794,7 +793,8 @@ class MessageClassification:
                                                                                 datasets_format=datasets_format,
                                                                                 stream_processing=True)
                         
-                        df_model_to_bind = df_model
+                        if model:
+                            stored_df_model_columns = df_model.columns
 
                         # Applies cache operations to speed up the dataframe processing
                         df_model = df_model.cache()
@@ -808,23 +808,10 @@ class MessageClassification:
                             print("Loaded dataset or static dataset, with", n_model_samples, "samples")
                             
                         df_model.show(truncate=False)
-                        
-                        #print("transform models generated:", transform_models)
+
 
                     # If the models are created, use the actual sample to train the model
-                    if model and transform_models:
-
-                        if df_model is None:
-                            raise Exception("The train dataset must be stored on MLFlow when the model is about to be used!")
-
-                        # Remove columns from the string list that are not used for machine learning
-                        non_null_columns_model = [
-                            c for c in df_model.columns
-                            if (
-                                # Check if NOT all values are null
-                                (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["features", "DevAddr", "intrusion"])
-                        ]
+                    if model and transform_models and stored_df_model_columns:
 
                         # Remove columns from the string list that are not used for machine learning
                         non_null_columns_device = [
@@ -835,23 +822,18 @@ class MessageClassification:
                             ) and (c not in ["DevAddr"])
                         ]
 
-                        columns_names = list(set(non_null_columns_model + non_null_columns_device))
+                        columns_names = list(set(stored_df_model_columns + non_null_columns_device))
 
-                        df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
+                        # NOTE uncomment if necessary
+                        #df_bind = df_model.unionByName(df_device, allowMissingColumns=True)
                         
-                        # if there is a column on 'df_device' that is missing that is not missing in the model dataset, in the case
-                        # of the model existing, that NULL column of df_device is replaced with the mean
+                        # if there is a column on 'df_device' that is missing that is not missing in the model dataset, and if
+                        # the model exists, that NULL column of df_device is replaced with the mean according to df_model
                         imputer = Imputer(inputCols=columns_names, outputCols=columns_names, strategy="mean")
-                        
-                        imputer_model = imputer.fit(df_bind)
-
+                        imputer_model = imputer.fit(df_model)
                         df_device = imputer_model.transform(df_device)
-                        df_model = imputer_model.transform(df_model)
 
-                        df_model_filtered = df_model.select(non_null_columns_model)
-                        df_device_filtered = df_device.select(non_null_columns_device)
-
-                        if df_device_filtered.columns != df_model_filtered.columns:
+                        if columns_names != stored_df_model_columns:
 
                             # Assemble the attributes into "features" using the transform (Scaler, PCA and SVD) models from the device
                             # to transform the features of the dataframe
@@ -886,9 +868,10 @@ class MessageClassification:
 
                         # Bind messages with corresponding predictions
                         rows_with_preds = [Row(**row.asDict(), prediction=int(pred)) for row, pred in zip(original_rows, y_pred)]
-
-                        # NOTE: This prints the number of anomalies and normal messages detected.
+                        
                         predictions = np.array([0 if pred == 1 else 1 for pred in y_pred])
+                        
+                        # NOTE: This prints the number of anomalies and normal messages detected, which is not recommended to uncomment
                         print(f"Number of anomalies detected: {(predictions == 1).sum()}")
                         print(f"Number of normal messages: {(predictions == 0).sum()}")
 
@@ -909,8 +892,7 @@ class MessageClassification:
                             model = model.fit(features)
 
                             # fit transform models too
-                            df_bind = df_model_to_bind.unionByName(df_normals, allowMissingColumns=True)
-                            transform_models = DataPreProcessing.fit_transform_models_on_stream(df_model=df_bind,
+                            transform_models = DataPreProcessing.fit_transform_models_on_stream(df_normals=df_normals,
                                                                                                 model_type=self.__ml_algorithm,
                                                                                                 transform_models=transform_models)
 
@@ -918,40 +900,40 @@ class MessageClassification:
                                             model_type=self.__ml_algorithm,
                                             dataset_type=dataset_type,
                                             matrix=None, report=None,
-                                            transform_models=transform_models)
+                                            transform_models=transform_models,
+                                            df_model_train_columns=df_model.columns)
                             
                         df_device = df_normals
                         
-                    # bind the actual samples with the samples to update the training dataset, so that
-                    # it can be used when necessary, for example, to retraining       
-                    print("Binding training dataset to update it on MLFlow")
-
-                    # Get the training dataset that was saved on MLFlow
-                    df_model_train = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
-                                                                        dataset_type=dataset_type,
-                                                                        datasets_format=datasets_format)
-                
-                    df_result = df_device
-
-                    # If a previous static dataset exists, concatenate the actual dataframe with the device samples
-                    # from the static dataset, to form the dataframe to create                                      
-                    if df_model_train:
-                        df_result = df_result.unionByName(df_model_train, allowMissingColumns=True)
-
-                    # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
-                    n_samples = df_result.count()
-                    if n_samples == 1:
-                        print(f"Logging dataset on MLFlow with {n_samples} sample")
-                    else:
-                        print(f"Logging dataset on MLFlow with {n_samples} samples")
+                    # If no model was created for having no enough train samples, concatenate the new sample with the
+                    # device training dataset which will be used later to create the first device model
+                    if model is None:
                     
-                    # Log the dataset on MLFlow to be used to retrain the model when a message with the same DevAddr is used
-                    self.__log_dataset_on_mlflow(df=df_result,
-                                    path=f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}', 
-                                    artifact_path="training_dataset", 
-                                    datasets_format=datasets_format,
-                                    dev_addr=dev_addr,
-                                    dataset_type=dataset_type)
+                        # bind the actual samples with the samples to update the training dataset, so that
+                        # it can be used when necessary, for example, to retraining       
+                        print("Binding training dataset to update it on MLFlow")
+                    
+                        df_result = df_device
+
+                        # If a previous static dataset exists, concatenate the actual dataframe with the device samples
+                        # from the static dataset, to form the dataframe to create                                      
+                        if df_model:
+                            df_result = df_result.unionByName(df_model, allowMissingColumns=True)
+
+                        # NOTE: Print the number of samples of the training dataset to be logged on MLFLow. You can comment this 5 lines if you want
+                        n_samples = df_result.count()
+                        if n_samples == 1:
+                            print(f"Logging dataset on MLFlow with {n_samples} sample")
+                        else:
+                            print(f"Logging dataset on MLFlow with {n_samples} samples")
+                        
+                        # Log the dataset on MLFlow to be used to retrain the model when a message with the same DevAddr is used
+                        self.__log_dataset_on_mlflow(df=df_result,
+                                        path=f'./generatedDatasets/{dataset_type.value["name"]}/lorawan_dataset_{dev_addr}_train.{datasets_format}', 
+                                        artifact_path="training_dataset", 
+                                        datasets_format=datasets_format,
+                                        dev_addr=dev_addr,
+                                        dataset_type=dataset_type)
             
             # if there are no RXPK messages, skip the batch processing and keep listening new messages
             else:

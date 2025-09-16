@@ -50,7 +50,8 @@ class LOF:
         model = LOFModel(n_neighbors=self.__k, 
                          n_jobs=-1,
                          novelty=True,
-                         p=1)
+                         p=1,
+                         contamination=0.1)
         
         # convert the assembled features from the Spark dataset into an adequate format for the sklearn-based LOF model
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
