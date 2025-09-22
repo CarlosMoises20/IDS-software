@@ -32,7 +32,7 @@ if __name__ == '__main__':
     spark_session = create_spark_session()
 
     # If you want to see spark errors in debug level on console during script execution
-    spark_session.sparkContext.setLogLevel("DEBUG")
+    #spark_session.sparkContext.setLogLevel("DEBUG")
 
     # Generate input datasets that will be used to create the models, if they don't exist yet
     generate_input_datasets(spark_session=spark_session, 

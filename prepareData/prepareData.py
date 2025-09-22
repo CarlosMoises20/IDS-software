@@ -194,7 +194,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
         # ensure that, regardless of the size of the test dataset, we always insert between 1 and 2000 intrusions,
         # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, round((5/12) * n_test_samples))
+        num_intrusions = max(1, round(0.2 * n_test_samples))
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,

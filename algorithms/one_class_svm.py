@@ -44,7 +44,7 @@ class OneClassSVM:
         
         # convert the "features" column from the dataframe into a numpy array, the adequate format for sklearn models
         # this column results from assembling all attributes of each row into one vector with the appropriated format
-        features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
 
         # kernel='rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
@@ -52,9 +52,9 @@ class OneClassSVM:
         # it converged; a smaller 'tol' will result in a more accurate training, but also slower
         # NU is the upper bound of the contamination rate in the dataset
         # NU is also the lower bound of the fraction of support vectors
-        self.__model = OCSVM(tol=1e-10, nu=0.05)
+        model = OCSVM(tol=1e-10, nu=0.15)
 
-        return self.__model.fit(features)
+        return model.fit(features)
 
     """
     Method used to test the model, using the testing dataset
@@ -79,7 +79,7 @@ class OneClassSVM:
 
         # convert the "features" column from the dataframe into a numpy array, the adequate format for sklearn models
         # this column results from assembling all attributes of each row into one vector with the appropriated format
-        features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        features = np.array(self.__df_test.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         
         y_preds = model.predict(features)
 

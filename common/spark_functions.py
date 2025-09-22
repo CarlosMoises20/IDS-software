@@ -5,6 +5,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.functions import col, lit, when, monotonically_increasing_id
 from pyspark.sql.types import StructType
+from functools import reduce
 
 """
 Auxiliary function to create a spark session to be used during code execution
@@ -17,23 +18,22 @@ def create_spark_session():
         if not os.path.exists(jar):
             raise FileNotFoundError(f"JAR not found: {jar}")
 
+    # spark.sql.parquet.enableVectorizedReader -> set to False to properly read parquet files
+    # spark.sql.streaming.forceDeleteTempCheckpointLocation -> enable temporary checkpoint locations force delete
+    # spark.sql.codegen.wholeStage
     spark_session = SparkSession.builder \
                             .appName(SPARK_APP_NAME) \
                             .config("spark.ui.port", SPARK_PORT) \
-                            .config("spark.sql.shuffle.partitions", SPARK_PRE_PROCESSING_NUM_PARTITIONS)  \
-                            .config("spark.sql.files.maxPartitionBytes", SPARK_FILES_MAX_PARTITION_BYTES)  \
-                            .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
                             .config("spark.executor.cores", SPARK_EXECUTOR_CORES) \
                             .config("spark.driver.memory", SPARK_DRIVER_MEMORY) \
-                            .config("spark.executor.memoryOverhead", SPARK_EXECUTOR_MEMORY_OVERHEAD) \
-                            .config("spark.network.timeout", SPARK_NETWORK_TIMEOUT) \
-                            .config("spark.executor.heartbeatInterval", SPARK_EXECUTOR_HEARTBEAT_INTERVAL) \
-                            .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
-                            .config("spark.sql.ansi.enabled", SPARK_SQL_ANSI_ENABLED) \
+                            .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
+                            .config("spark.sql.shuffle.partitions", SPARK_PROCESSING_NUM_PARTITIONS)  \
                             .config("spark.jars", ",".join(SPARK_JARS)) \
+                            .config("spark.sql.ansi.enabled", "false") \
+                            .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.sql.parquet.enableVectorizedReader", "false") \
                             .config("spark.sql.streaming.forceDeleteTempCheckpointLocation", "true") \
-                            .config('spark.sql.codegen.wholeStage', 'false') \
+                            .config("spark.sql.codegen.wholeStage", "false") \
                             .getOrCreate()
     
     print("master:", spark_session.sparkContext.master)
@@ -73,7 +73,8 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # While there is no abnormal values different than values existing on training dataset,
     # try another abnormal values of PHYPayloadLen
     while not filtered_target_values:
-        target_values[PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES] = [random.randint(200, 10000) for _ in range(5)]
+        print("here?")
+        target_values[-1] = [random.randint(1500, 10000) for _ in range(5)]
 
         # Filter only values not in training dataset
         filtered_target_values = {
@@ -85,7 +86,7 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
         filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
 
     # NOTE: uncomment if you want this print
-    #print("filtered target values:", filtered_target_values)
+    print("filtered target values:", filtered_target_values)
     
     # Sample params randomly for each intrusion sample
     sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)
@@ -100,18 +101,12 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # Apply modifications
     for param in set(sampled_params):
         updates = {i: v for i, p, v in intrusion_inserts if p == param}
-        df_indexed = df_indexed.withColumn(
-            param,
-            when(col("row_number").isin(list(updates.keys())), 
-                 when(col("row_number").isNotNull(), 
-                      lit(None)  # placeholder that gets overwritten
-                 )).otherwise(col(param))
+        cond_expr = reduce(
+            lambda param, item: when(col("row_number") == item[0], lit(item[1])).otherwise(param),
+            updates.items(),
+            col(param)
         )
-        for i, v in updates.items():
-            df_indexed = df_indexed.withColumn(
-                param,
-                when(col("row_number") == i, lit(v)).otherwise(col(param))
-            )
+        df_indexed = df_indexed.withColumn(param, cond_expr)
 
     # Mark packets as intrusive
     df_indexed = df_indexed.withColumn("intrusion", lit(1))

@@ -65,7 +65,7 @@ class IsolationForest:
     """
     def train(self):
         # Converts the dataset features into an adequate format for the IF model (a numpy array)
-        features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         return self.__model.fit(features)
 
     """
@@ -77,7 +77,7 @@ class IsolationForest:
         if model is None:
             raise RuntimeError("Model does not exist!")
         # Converts the dataset features into an adequate format for the IF model (a numpy array)
-        features = np.array(self.__df_test.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
+        features = np.array(self.__df_test.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         y_pred = model.predict(features)
         return [0 if pred == 1 else 1 for pred in y_pred]
     

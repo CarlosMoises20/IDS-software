@@ -48,11 +48,9 @@ class HBOS:
         # contamination (by default 0.1) is the expected outlier rate in training dataset
         model = HBOSModel(n_bins=num_bins)
         
-        df_train = self.__df_train.select(self.__featuresCol).toPandas()
+        features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         
-        X = np.array(df_train[self.__featuresCol].tolist())
-        
-        return model.fit(X)
+        return model.fit(features)
 
     """
     Test the model and return the evaluation metrics
@@ -68,9 +66,8 @@ class HBOS:
     """
     def predict(self, model):
         # convert dataset to pandas to be compatible with pyod-based HBOS model 
-        self.__df_test = self.__df_test.select(self.__featuresCol, self.__labelCol).toPandas()
-        Y = np.array(self.__df_test[self.__featuresCol].tolist())
-        return model.predict(Y)
+        features = np.array(self.__df_test.select(self.__featuresCol, self.__labelCol).toPandas()[self.__featuresCol].tolist())
+        return model.predict(features)
 
     """
     Evaluates the model's results, using the predicted labels and the real labels

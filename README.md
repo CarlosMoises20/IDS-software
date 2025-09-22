@@ -1,12 +1,17 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
+### To install Apache Hadoop on your local machine (use version 3, for example 3.4.0)
+
+https://hadoop.apache.org/releases.html
+
+Go to "Downloads" and click on the link on HTTP. Then, verify the integrity of the tgz file, extract the file and store the extracted folder on any directory. Finally, set HADOOP_HOME according to the directory you have chosen, and add the bin folder to PATH. You can also download the installer instead. 
+
+
 ### To install Apache Spark on your local machine (use version 3.3.2)
-https://spark.apache.org/downloads.html
+https://spark.apache.org/downloads.html (go to the "Archived releases" section or similar to find a link with older Spark releases which includes the version 3.3.2)
 
-That will download a zip file. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the zip file.
-
-You can also choose to install and use spark in a docker container if you want. To do so, first install Docker Desktop on your local machine, download the Spark docker image and then create a Docker container based on that image.
+You must download the installer or download a tgz file which finishes with (bin-hadoop3.tgz), indicating that the Spark version uses the version 3 of Apache Hadoop. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the tgz file. It's recommended to always check its integrity by verifying its signature. Don't forget to properly set the environment variable SPARK_HOME and add its bin folder to PATH.
 
 ### To install Java on your local machine (version 11), using the link below
 https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
@@ -42,14 +47,16 @@ python --version
 ```
 
 ### If pip is not automatically installed on your local machine after installing Python
-Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux)
+Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux).
 
 Then run the following command
 ```python
 python ./get-pip.py
 ```
 
-### Install the necessary Python packages on your local machine (in root directory)
+Finally, ensure that the PATH environment variables contains the folder where the "pip" file is located. 
+
+### Install the necessary Python packages (and all their dependencies) on your local machine (in root directory)
 ```
 pip install -r ./requirements.txt
 ```
@@ -66,7 +73,14 @@ Go to the link https://git-scm.com/downloads
 ```
 git clone https://github.com/linkedin/isolation-forest
 ```
-And then follow only the steps on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. Save the JAR file in the "jars" directory of your spark installation, and make sure SPARK_HOME environment variable is properly defined on your local machine
+
+Install python virtual environment with this command:
+
+```
+sudo apt install python3.10-venv
+```
+
+And then follow only the steps on the corresponding README file, adding that you need to properly modify the corresponding POM file if you want to use a different version for Java, Maven, Scala, Spark, etc. Save the JAR file in the "jars" directory of your spark installation, and make sure SPARK_HOME environment variable is properly defined on your local machine, as well as Scala, Java, Maven and Python environment variables.
 
 2 - Install Scala (version 2.12.12 recommended): https://www.scala-lang.org/download/ (or in the command line)
 
@@ -74,7 +88,10 @@ And then follow only the steps on the corresponding README file, adding that you
 
 &emsp; 3a - On Linux
 ```
-sudo apt install sbt
+echo "deb https://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
+sudo apt-get update
+sudo apt-get install sbt
 ``` 
 
 &emsp; 3b - On MacOS
@@ -158,6 +175,12 @@ https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_
 https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar
 
 
+# Additional necessary enviromnent variables
+
+To run Spark jobs with PySpark, you need to set the environment variables PYSPARK_PYTHON and PYSPARK_DRIVER_PYTHON so they point to the Python interpreter you want to use (for example, python3).
+
+In addition, you should set PYTHONPATH to include the python subdirectory of SPARK_HOME as well as the py4j-(version).zip file inside SPARK_HOME/python/lib. This ensures that the Spark workers can properly use Py4J to connect Python with the JVM, avoiding related errors.
+
 ### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET), and if you want to skip dataset generation if it already exists. PARQUET allows a faster processing but JSON allows you to see the content in a legible format.
 ```python3
 python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
@@ -173,13 +196,3 @@ python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by
  ```python3
 python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
-
-### Add these lines to $SPARK_HOME$/conf/spark-env.sh.template
-```
-export SPARK_LOCAL_IP="127.0.0.1"
-export SPARK_MASTER_WEBUI_PORT=8080
-export SPARK_WORKER_DIR=/opt/spark/conf/slaves "user-case based path"
-export SPARK_LOG_DIR=/opt/spark/logs
-```
-
-
