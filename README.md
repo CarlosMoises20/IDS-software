@@ -1,19 +1,28 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
-### To install Apache Hadoop on your local machine (use version 3, for example 3.4.0)
+
+Firstly, for Windows users, it's recommended to install WSL, using the following command:
+
+```
+wsl --install
+```
+
+After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages to run this solution, avoiding possible conflicts with your local machine.
+
+### To install Apache Hadoop (use version 3, for example 3.4.0)
 
 https://hadoop.apache.org/releases.html
 
 Go to "Downloads" and click on the link on HTTP. Then, verify the integrity of the tgz file, extract the file and store the extracted folder on any directory. Finally, set HADOOP_HOME according to the directory you have chosen, and add the bin folder to PATH. You can also download the installer instead. 
 
 
-### To install Apache Spark on your local machine (use version 3.3.2)
+### To install Apache Spark (use version 3.3.2)
 https://spark.apache.org/downloads.html (go to the "Archived releases" section or similar to find a link with older Spark releases which includes the version 3.3.2)
 
-You must download the installer or download a tgz file which finishes with (bin-hadoop3.tgz), indicating that the Spark version uses the version 3 of Apache Hadoop. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory on your local machine to store the tgz file. It's recommended to always check its integrity by verifying its signature. Don't forget to properly set the environment variable SPARK_HOME and add its bin folder to PATH.
+You must download the installer or download a tgz file which finishes with (bin-hadoop3.tgz), indicating that the Spark version uses the version 3 of Apache Hadoop. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory to store the tgz file. It's recommended to always check its integrity by verifying its signature. Don't forget to properly set the environment variable SPARK_HOME and add its bin folder to PATH.
 
-### To install Java on your local machine (version 11), using the link below
+### To install Java (version 11), using the link below
 https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
 Or use the command line
@@ -38,7 +47,7 @@ choco install openjdk11
 java --version
 ```
 
-### To install Python on your local machine (version 3.10 recommended to avoid compatibility issues)
+### To install Python (version 3.10 recommended to avoid compatibility issues)
 https://www.python.org/downloads/
 
 ### Check Python version in your local machine to ensure that it was correctly installed
@@ -46,7 +55,7 @@ https://www.python.org/downloads/
 python --version
 ```
 
-### If pip is not automatically installed on your local machine after installing Python
+### If pip is not automatically installed after installing Python
 Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux).
 
 Then run the following command
@@ -56,7 +65,7 @@ python ./get-pip.py
 
 Finally, ensure that the PATH environment variables contains the folder where the "pip" file is located. 
 
-### Install the necessary Python packages (and all their dependencies) on your local machine (in root directory)
+### Install the necessary Python packages (and all their dependencies) (in root directory)
 ```
 pip install -r ./requirements.txt
 ```
@@ -104,6 +113,7 @@ brew apt install sbt
 choco install sbt
 ``` 
 
+Then, to avoid conflicts, you can uninstall this python virtual environment.
 
 ### To install Apache Kafka
 
@@ -148,7 +158,7 @@ cd <kafka_path>
 
 These instructions to install Apache KRaft are also available on these sites below:
 
-&emsp; On Windows 10 or above
+&emsp; On Windows 10 or above (contains additional necessary steps not described on this README file, such as installing WSL)
 ```
 https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-windows-without-zookeeper-kraft-mode/
 ```
