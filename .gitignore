@@ -9,6 +9,7 @@ temp_models/*
 # Logs
 logs*
 stderr*
+errors*
 
 # Artifacts
 artifacts/*
