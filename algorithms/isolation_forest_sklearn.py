@@ -36,14 +36,17 @@ class IsolationForest:
         self.__numTrees = self.__set_num_trees(df_train.count())
         
         # NOTE: uncomment to print the number of trees for model training
-        #print("numTrees:", self.__numTrees)
+        print("numTrees:", self.__numTrees)
 
         # Build Java IsolationForest Estimator
         # n_neighbors is the number of neighbors used to calculate the distance from the current point to those neighbors
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
         # speeds up the process
         # random_state is the seed
-        self.__model = IF(n_estimators=self.__numTrees, n_jobs=-1, random_state=seed, contamination=0.1)
+        self.__model = IF(n_estimators=self.__numTrees, 
+                          n_jobs=-1, 
+                          random_state=seed, 
+                          contamination=0.05)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
@@ -57,7 +60,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(100 + int(num_training_samples // 5), 7000)
+        return min(2000 + int(num_training_samples // 3.5), 30000)
 
     """
     Fits the Isolation Forest model using training data.

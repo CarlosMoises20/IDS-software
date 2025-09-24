@@ -100,8 +100,6 @@ class MessageClassification:
             local_path_columns = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/train_columns.json"
 
             train_columns = mlflow.artifacts.load_dict(local_path_columns)
-            
-            print(train_columns)
 
             # retrieve the model of StandardScaler used on pre-processing for scaling. This model must always exist
             scaler_model = mlflow.spark.load_model(f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/scaler_model")

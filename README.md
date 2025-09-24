@@ -22,14 +22,14 @@ https://spark.apache.org/downloads.html (go to the "Archived releases" section o
 
 You must download the installer or download a tgz file which finishes with (bin-hadoop3.tgz), indicating that the Spark version uses the version 3 of Apache Hadoop. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory to store the tgz file. It's recommended to always check its integrity by verifying its signature. Don't forget to properly set the environment variable SPARK_HOME and add its bin folder to PATH.
 
-### To install Java (version 11), using the link below
+### To install Java (version 11), use the link below
 https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
 Or use the command line
 
 &emsp; 3a - On Linux
 ```
-sudo apt install openjdk-11-jdk
+sudo apt install openjdk-11-jdk -y
 ``` 
 
 &emsp; 3b - On MacOS
@@ -43,7 +43,7 @@ choco install openjdk11
 ``` 
 
 ### Check Java version in your local machine to ensure that it was correctly installed
- ```
+```
 java --version
 ```
 
@@ -56,14 +56,14 @@ python --version
 ```
 
 ### If pip is not automatically installed after installing Python
-Download this file here: https://bootstrap.pypa.io/get-pip.py (using curl on Windows or wget on Linux).
+Download this file here: https://bootstrap.pypa.io/get-pip.py
 
 Then run the following command
 ```python
 python ./get-pip.py
 ```
 
-Finally, ensure that the PATH environment variables contains the folder where the "pip" file is located. 
+Finally, ensure that the PATH environment variable contains the folder where the "pip" file is located. 
 
 ### Install the necessary Python packages (and all their dependencies) (in root directory)
 ```
@@ -83,7 +83,7 @@ Go to the link https://git-scm.com/downloads
 git clone https://github.com/linkedin/isolation-forest
 ```
 
-Install python virtual environment with this command:
+Install python virtual environment with this command (you can do this in an isolated environment to avoid conflicts with your current Python installation):
 
 ```
 sudo apt install python3.10-venv
@@ -113,21 +113,21 @@ brew apt install sbt
 choco install sbt
 ``` 
 
-Then, to avoid conflicts, you can uninstall this python virtual environment.
+Then, if you installed this on the same machine than your other Python installation, to avoid conflicts, you can uninstall this python virtual environment.
 
 ### To install Apache Kafka
 
-You must install Scala first (version 2.12) as previously indicated. Then, ensure Java JDK 11 is properly installed on yout local machine, since its also a pre-requisite to install Apache Kafka (whether on Windows, Mac or Linux), and its installation instructions are above in this file.
+You must install Scala first (version 2.12) as previously indicated. Then, ensure Java JDK 11 is properly installed on your local machine, since it's also required to install Apache Kafka (whether on Windows, Mac or Linux), and its installation instructions are above in this file.
 
-Then go to the link https://kafka.apache.org/downloads and install the Kafka latest version on your local machine. Use the binary version and choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the one indicated on the site and unzip the file. One of the solutions to unzip the .tgz file is to execute the following command (example for Kafka version 3.9.1):
+Then go to the link https://kafka.apache.org/downloads and install the Kafka latest version on your local machine. Use the binary version and choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the one indicated on the site and unzip the file. One of the solutions to unzip the .tgz file is to execute the following command (example for Kafka version 3.9.1). For example, on Linux, you can run this command below:
 
 ```
-tar -xvzf kafka_2.12-3.9.1.tgz
+tar -xzf kafka_2.12-3.9.1.tgz
 ```
 
 Also make sure to properly define the environment variable to point it to the Kafka installation directory (KAFKA_HOME).
 
-If you install Kafka on Windows, you will have to previously install WSL2 on your machine.
+Remember that if you install Kafka on Windows, you will have to previously install WSL2 on your machine.
 
 After installing Kafka, you will want to start Apache KRaft, which removes Kafka dependency from Zookeeper, simplifying Kafka architecture. To do so, whether on Windows (10 or above), Mac or Linux, you will have to perform the following steps:
 
@@ -138,25 +138,25 @@ cd <kafka_path>
 
 &emsp; Generate a new ID for your cluster running this command. The return of this command will be a generated UUID, which will be used in the next command (&lt;uuid&gt;) 
 ```
-~/bin/kafka-storage.sh random-uuid
+bin/kafka-storage.sh random-uuid
 ```
 
 &emsp; Format your storage directory that is in the log.dirs in the config/kraft/server.properties, since the default directory is "/tmp/kraft-combined-logs".
 ```
-~/bin/kafka-storage.sh format -t <uuid> -c ~/config/kraft/server.properties
+bin/kafka-storage.sh format -t <uuid> -c config/kraft/server.properties
 ```
 
 &emsp; Finally, you can launch the broker itself in daemon mode by running this command. This is necessary to Spark to connect with Kafka to consume the LoRa messages coming from the UDP socket and stored on the created Kafka topic.
 ```
-~/bin/kafka-server-start.sh ~/config/kraft/server.properties
+bin/kafka-server-start.sh config/kraft/server.properties
 ```
 
 &emsp; To stop the application, use Ctrl + C to force it. But when you start it again, it's a good practice to previously stop any running Kafka process, executing the command below.
 ```
-~/bin/kafka-server-stop.sh ~/config/kraft/server.properties
+bin/kafka-server-stop.sh config/kraft/server.properties
 ```
 
-These instructions to install Apache KRaft are also available on these sites below:
+These instructions to install Apache KRaft are also available on these links below:
 
 &emsp; On Windows 10 or above (contains additional necessary steps not described on this README file, such as installing WSL)
 ```

@@ -46,7 +46,7 @@ class HBOS:
         # num_bins is the number of used bins for each feature, alpha is a regularizer that prevents overflow
         # and tol is a parameter which decides the flexibility while dealing with the samples falling outside the bins
         # contamination (by default 0.1) is the expected outlier rate in training dataset
-        model = HBOSModel(n_bins=num_bins)
+        model = HBOSModel(n_bins=num_bins, contamination=0.05)
         
         features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         
@@ -81,7 +81,9 @@ class HBOS:
     
     """
     def evaluate(self, Y_pred):
-        Y_true = self.__df_test[self.__labelCol].values     # Extract the real / expected labels of the test dataset
+        
+        # Extract the real / expected labels of the test dataset
+        Y_true = self.__df_test.select(self.__labelCol).rdd.map(lambda x: x[0]).collect()     
 
         # Confusion matrix
         tn, fp, fn, tp = confusion_matrix(y_true=Y_true, y_pred=Y_pred).ravel().tolist()
