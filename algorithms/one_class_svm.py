@@ -49,10 +49,10 @@ class OneClassSVM:
         # kernel='rbf' allows to learn non-linear relationships and detect rare outliers; there's no other solution for kernel
         # gamma = 'scale' allows the model to adapt to the data variance
         # 'tol': tolerance value that decides how small the gradient in the optimization algorithm has to be to consider that
-        # it converged; a smaller 'tol' will result in a more accurate training, but also slower
+        # it converged; a smaller 'tol' will result in a more accurate training, but also resource-demanding
         # NU is the upper bound of the contamination rate in the dataset
         # NU is also the lower bound of the fraction of support vectors
-        model = OCSVM(tol=1e-10, nu=0.1)
+        model = OCSVM(tol=1e-12, nu=0.05)
 
         return model.fit(features)
 

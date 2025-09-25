@@ -45,8 +45,7 @@ class IsolationForest:
         # random_state is the seed
         self.__model = IF(n_estimators=self.__numTrees, 
                           n_jobs=-1, 
-                          random_state=seed, 
-                          contamination=0.05)
+                          random_state=seed, contamination=0.05)
 
     """
     This function adjusts the number of trees in training according to the size of the training dataset
@@ -60,7 +59,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(2000 + int(num_training_samples // 3.5), 30000)
+        return min(8000 + round(num_training_samples / 1.5), 27000)
 
     """
     Fits the Isolation Forest model using training data.

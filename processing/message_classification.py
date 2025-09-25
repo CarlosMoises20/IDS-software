@@ -328,7 +328,8 @@ class MessageClassification:
             mlflow.set_tag("DevAddr", dev_addr)
             mlflow.set_tag("MessageType", dtype_name)
             
-            mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
+            if transform_models["StdScaler"]:
+                mlflow.spark.log_model(spark_model=transform_models["StdScaler"], artifact_path="scaler_model")
 
             # Log PCA model used for stream processing if it exists
             if transform_models["PCA"]:

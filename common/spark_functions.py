@@ -5,6 +5,7 @@ from pyspark.sql import SparkSession
 from pyspark.sql.types import *
 from pyspark.sql.functions import col, lit, when, monotonically_increasing_id
 from pyspark.sql.types import StructType
+from functools import reduce
 
 """
 Auxiliary function to create a spark session to be used during code execution
@@ -33,8 +34,9 @@ def create_spark_session():
                             .config("spark.sql.codegen.wholeStage", "false") \
                             .getOrCreate()
     
-    print("master:", spark_session.sparkContext.master)
-    print("UI Web URI:", spark_session.sparkContext.uiWebUrl)
+    # NOTE you can uncomment this if you want
+    #print("master:", spark_session.sparkContext.master)
+    #print("UI Web URI:", spark_session.sparkContext.uiWebUrl)
 
     return spark_session
 
@@ -46,6 +48,8 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     
     # Select the first N logs directly with no sorting
     df_to_modify = df_test.limit(num_intrusions)
+    
+    params = [p for p in params if p in df_train.columns]
 
     # Add row index
     df_indexed = df_to_modify.withColumn("row_number", monotonically_increasing_id())
@@ -70,7 +74,7 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # While there is no abnormal values different than values existing on training dataset,
     # try another abnormal values of PHYPayloadLen
     while not filtered_target_values:
-        target_values[PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES] = [random.randint(200, 10000) for _ in range(5)]
+        target_values[2] = [random.randint(200, 10000) for _ in range(5)]
 
         # Filter only values not in training dataset
         filtered_target_values = {
@@ -82,7 +86,7 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
         filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
 
     # NOTE: uncomment if you want this print
-    #print("filtered target values:", filtered_target_values)
+    print("filtered target values:", filtered_target_values)
     
     # Sample params randomly for each intrusion sample
     sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)
@@ -97,18 +101,14 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # Apply modifications
     for param in set(sampled_params):
         updates = {i: v for i, p, v in intrusion_inserts if p == param}
-        df_indexed = df_indexed.withColumn(
-            param,
-            when(col("row_number").isin(list(updates.keys())), 
-                 when(col("row_number").isNotNull(), 
-                      lit(None)  # placeholder that gets overwritten
-                 )).otherwise(col(param))
+        
+        cond_expr = reduce(
+            lambda param, value: when(col("row_number") == value[0], lit(value[1])).otherwise(param),
+            updates.items(),
+            col(param)
         )
-        for i, v in updates.items():
-            df_indexed = df_indexed.withColumn(
-                param,
-                when(col("row_number") == i, lit(v)).otherwise(col(param))
-            )
+        
+        df_indexed = df_indexed.withColumn(param, cond_expr)
 
     # Mark packets as intrusive
     df_indexed = df_indexed.withColumn("intrusion", lit(1))
@@ -122,6 +122,9 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
 
     # Print the dataframe
     df_final.groupBy("intrusion").count().show()
+    
+    # NOTE: uncomment if you want to print all rows with manually inserted intrusions
+    #df_final.filter(col("intrusion") == 1).show()
 
     return df_final.drop("row_number")
 

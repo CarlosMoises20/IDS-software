@@ -4,7 +4,7 @@ from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
 from pyspark.sql.types import DoubleType, LongType, StringType, StructType, StructField
-from common.constants import SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES
+from common.constants import *
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from common.spark_functions import modify_device_dataset
 from pyspark.ml.feature import Imputer
@@ -147,7 +147,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
     # Calls function 'train_test_split' to verify if there are at least 'n_limit' samples on the dataset
     # to split for training and testing and get a effective model
-    n_limit = 5000 if stream_processing else 50
+    n_limit = 10000 if stream_processing else 50
 
     # Number of samples of the model dataset
     n_samples = df_model.count()
@@ -192,16 +192,28 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         n_train_samples = df_model_train.count()        # Number of training samples
         n_test_samples = df_model_test.count()          # Number of testing samples
 
-        # ensure that, regardless of the size of the test dataset, we always insert between 1 and 2000 intrusions,
-        # and the number of intrusions is higher in larger datasets
-        num_intrusions = max(1, min(round(0.4 * n_test_samples), 200))
+        # ensure that, regardless of the size of the test dataset, the number of intrusions is higher in larger datasets, as expected
+        if n_test_samples < 100:
+            num_intrusions = max(1, round((1/3) * n_test_samples))
+        else:
+            num_intrusions = round(0.1 * n_test_samples)
+        """elif 100 <= n_test_samples < 1000:
+            num_intrusions = round(0.15 * n_test_samples)
+        elif 1000 <= n_test_samples < 4500:
+            num_intrusions = round(0.05 * n_test_samples)
+        else:
+            num_intrusions = round(0.03 * n_test_samples)"""
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
-                                            df_test=df_model_test,
-                                            params=["SF", "BW", "PHYPayloadLen"], 
-                                            target_values=[SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES],
-                                            num_intrusions=num_intrusions)
+                                                df_test=df_model_test,
+                                                params=["SF", "BW", "PHYPayloadLen", "rssi", "lsnr", "codr", 
+                                                        "rfch", "FCtrl", "MHDR", "MIC"], 
+                                                target_values=[SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES,
+                                                            RSSI_ESTIMATED_INTERVAL, LSNR_ESTIMATED_INTERVAL,
+                                                            CODR_ESTIMATED_INTERVAL, RFCH_VALUES, FCTRL_VALUES, 
+                                                            MHDR_VALUES, MIC_VALUES],
+                                                num_intrusions=num_intrusions)
 
         # NOTE: comment these lines to not print the number of training and testing samples for the device
         print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {n_train_samples}')

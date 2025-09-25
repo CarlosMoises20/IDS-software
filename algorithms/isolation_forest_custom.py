@@ -54,8 +54,8 @@ class IsolationForest:
     
     """
     def __init__(self, spark_session, df_train, df_test, featuresCol,
-                 predictionCol, labelCol, maxFeatures=1.0, seed=42, 
-                 contamination=0.1, contaminationErrorRate=0.9):
+                 predictionCol, labelCol, maxFeatures=1.0, maxSamples=1.0, seed=42, 
+                 contamination=0.05, contaminationErrorRate=0.999):
         
         self.__spark_session = spark_session
         self.__df_train = df_train
@@ -63,9 +63,7 @@ class IsolationForest:
         self.__predictionCol = predictionCol
         self.__featuresCol = featuresCol
         self.__labelCol = labelCol
-        self.__N = df_train.count()
-        self.__maxSamples = 0.3 if self.__N >= 50 else 1.0    # if N is between 15 and 49 samples, 1.0; otherwise, it's 0.3
-        self.__numTrees = self.__set_num_trees(self.__N)
+        self.__numTrees = self.__set_num_trees(df_train.count())
         
         # NOTE: uncomment this line to print the number of trees used for model training 
         #print("numTrees:", self.__numTrees)
@@ -74,7 +72,7 @@ class IsolationForest:
         # bootstrap set to False indicates that the sampling is not made with replacement, i.e., does not contain replied samples 
         self.__model = spark_session._jvm.com.linkedin.relevance.isolationforest.IsolationForest() \
                 .setNumEstimators(self.__numTrees) \
-                .setMaxSamples(self.__maxSamples) \
+                .setMaxSamples(maxSamples) \
                 .setBootstrap(False) \
                 .setMaxFeatures(float(maxFeatures)) \
                 .setFeaturesCol(featuresCol) \
@@ -89,7 +87,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(100 + int(num_training_samples // 5), 1800)
+        return min(100 + int(num_training_samples // 3), 3000)
 
     """
     Fits the Isolation Forest model using training data.

@@ -34,4 +34,11 @@ SPARK_JARS = [
 '''LORAWAN PARAMETERS VALUES'''
 SF_LIST = [7, 8, 9, 10, 11, 12]
 BW_LIST = [125, 250, 500]
-PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES = [random.randint(200, 10000) for _ in range(5)]
+PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES = [random.randint(200, 10000) for _ in range(7)]
+RSSI_ESTIMATED_INTERVAL = [round(random.uniform(-130, -20), 1) for _ in range(7)]
+LSNR_ESTIMATED_INTERVAL = [round(random.uniform(-20, -10), 1) for _ in range(7)]
+CODR_ESTIMATED_INTERVAL = [round(random.uniform(0, 1), 1) for _ in range(5)]
+RFCH_VALUES = [random.randint(0, 30) for _ in range(7)]
+FCTRL_VALUES = [random.randint(0, 255) for _ in range(10)]
+MHDR_VALUES = [random.randint(0, 255) for _ in range(10)]
+MIC_VALUES = [random.randint(0, 4294967296) for _ in range(10)]

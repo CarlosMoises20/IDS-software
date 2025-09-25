@@ -64,7 +64,7 @@ class DataPreProcessing(ABC):
         if df_test is not None:
             df_test = scaler_model.transform(df_test)
         
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
+        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
 
             ### PCA (Principal Component Analysis)
                 
@@ -89,7 +89,7 @@ class DataPreProcessing(ABC):
             # Prints the chosen value for k
             print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        elif model_type == ModelType.HBOS:
+        elif model_type in [ModelType.HBOS, ModelType.IF_SKLEARN]:
 
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
