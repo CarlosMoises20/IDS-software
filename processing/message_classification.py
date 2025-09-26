@@ -752,17 +752,15 @@ class MessageClassification:
                         dev_addr=dev_addr, dataset_type=dataset_type, model_type=self.__ml_algorithm
                     )
 
-                    df_model = None
+                    # Get the training dataset that was saved on MLFlow, with samples from static dataset and also from gateway
+                    df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
+                                                                    dataset_type=dataset_type,
+                                                                    datasets_format=datasets_format)
 
                     # If there is not previous model saved on MLFlow, try to create one
                     # If there is not enough samples to create the model, it won't be created, and
                     # the result will be a tuple of None objects 
                     if model is None:
-
-                        # Get the training dataset that was saved on MLFlow, with samples from static dataset and also from gateway
-                        df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
-                                                                            dataset_type=dataset_type,
-                                                                            datasets_format=datasets_format)
                         
                         # if there is no previous training dataset stored on MLFlow, retrieve from static datasets
                         if df_model is None:
@@ -821,7 +819,7 @@ class MessageClassification:
                             ) and (c not in ["DevAddr"])
                         ]
 
-                        columns_names = list(set(stored_df_model_columns + non_null_columns_device))
+                        columns_names = list(set(stored_df_model_columns + non_null_columns_device - "features"))
 
                         # NOTE uncomment if necessary
                         #df_bind = df_model.unionByName(df_device, allowMissingColumns=True)

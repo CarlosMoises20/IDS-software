@@ -1,5 +1,5 @@
 
-import time
+import time, math
 from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
@@ -193,16 +193,8 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         n_test_samples = df_model_test.count()          # Number of testing samples
 
         # ensure that, regardless of the size of the test dataset, the number of intrusions is higher in larger datasets, as expected
-        if n_test_samples < 100:
-            num_intrusions = max(1, round((1/3) * n_test_samples))
-        else:
-            num_intrusions = round(0.1 * n_test_samples)
-        """elif 100 <= n_test_samples < 1000:
-            num_intrusions = round(0.15 * n_test_samples)
-        elif 1000 <= n_test_samples < 4500:
-            num_intrusions = round(0.05 * n_test_samples)
-        else:
-            num_intrusions = round(0.03 * n_test_samples)"""
+        frac = 0.03 + 0.3 / (1 + (n_test_samples / 20))
+        num_intrusions = max(1, round(frac * n_test_samples))            
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
