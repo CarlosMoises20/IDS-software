@@ -1,5 +1,5 @@
 
-import time, math
+import time
 from common.auxiliary_functions import format_time
 from common.spark_functions import get_boolean_attributes_names, train_test_split
 from pyspark.sql.functions import when, col, lit, expr, length, regexp_extract, udf, sum
@@ -164,13 +164,13 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         return None, None, None
 
     # Remove columns where ALL rows are NULL
-    # Columns of device dataset where NOT all values are null, except "features", "DevAddr" and "intrusion", are maintained in the dataset
+    # Columns of device dataset where NOT all values are null, except "DevAddr" and "intrusion", are maintained in the dataset
     # These columns are used to replace the NULL values with the mean
     non_null_columns = [
         c for c in df_model.columns
         if (
             (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-        ) and c not in ["features", "DevAddr", "intrusion"]
+        ) and c not in ["DevAddr", "intrusion"]
     ]
     
     # replace NULL and empty values with the mean on numeric attributes with missing values, because these are values
@@ -194,7 +194,7 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
 
         # ensure that, regardless of the size of the test dataset, the number of intrusions is higher in larger datasets, as expected
         frac = 0.03 + 0.3 / (1 + (n_test_samples / 20))
-        num_intrusions = max(1, round(frac * n_test_samples))            
+        num_intrusions = max(1, min(round(frac * n_test_samples), 12))            
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
@@ -219,11 +219,6 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
     
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')
-
-    # NOTE: uncomment these lines to print the training dataset after being pre-processed
-    #print("Model df after pre-processing")
-    #df_train_result = result[0]
-    #df_train_result.show()
 
     return result
 

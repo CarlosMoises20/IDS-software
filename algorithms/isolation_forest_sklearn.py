@@ -59,7 +59,7 @@ class IsolationForest:
     
     """
     def __set_num_trees(self, num_training_samples):
-        return min(5000 + round(num_training_samples / 1.5), 20000)
+        return min(2000 + round(num_training_samples / 1.5), 15000)
 
     """
     Fits the Isolation Forest model using training data.

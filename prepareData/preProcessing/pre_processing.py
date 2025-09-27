@@ -89,7 +89,7 @@ class DataPreProcessing(ABC):
             # Prints the chosen value for k
             print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        elif model_type in [ModelType.HBOS, ModelType.IF_SKLEARN]:
+        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
 
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
@@ -149,25 +149,22 @@ class DataPreProcessing(ABC):
     of the algorithm that is being used 
     
     """
-    def features_assembler_stream(df, df_model, columns_names, model_type, transform_models, 
+    def features_assembler_stream(df, df_model, columns_names, model_type, transform_models,
                                   new_schema=False, explained_variance_threshold=0.99):
-
-        # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
-        column_names = list(set(columns_names) - set(["features", "feat", "scaled", "DevAddr", "intrusion"]))
         
-        assembler = VectorAssembler(inputCols=column_names, outputCol="feat", handleInvalid="keep")
-        df = assembler.transform(df)
-
         if not new_schema: 
+            
+            assembler = VectorAssembler(inputCols=df.columns, outputCol="feat")
+            df = assembler.transform(df)
 
             scaler_model = transform_models["StdScaler"]
             df = scaler_model.transform(df)
 
-            if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
+            if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
                 pca_model = transform_models["PCA"]
                 df = pca_model.transform(df)
 
-            elif model_type == ModelType.HBOS:
+            elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
                 V = transform_models["SVD"]
 
                 # Manually applies the transformation feat * V to obtain the new reduced vectors
@@ -183,6 +180,9 @@ class DataPreProcessing(ABC):
                 df = df.withColumnRenamed("scaled", "features")
 
             return df.drop("feat", "scaled")
+
+        assembler = VectorAssembler(inputCols=columns_names, outputCol="feat")
+        df = assembler.transform(df)
         
         # if a new schema is created
         df_model = assembler.transform(df_model)
@@ -191,10 +191,10 @@ class DataPreProcessing(ABC):
         scaler_model = scaler.fit(df_model)
         df = scaler_model.transform(df)
 
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF, ModelType.IF_SKLEARN]:
+        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
             
             # Fit PCA using the train dataset    
-            pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
+            pca = PCA(k=len(columns_names), inputCol="scaled", outputCol="features")
             pca_model = pca.fit(df_model)
             explained_variance = pca_model.explainedVariance.cumsum()
 
@@ -210,13 +210,13 @@ class DataPreProcessing(ABC):
 
             transform_models["PCA"] = pca_final_model
 
-        elif model_type == ModelType.HBOS:
+        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
 
             # Applies SVD (maximum k = número de colunas)
-            k_max = len(column_names)
+            k_max = len(columns_names)
             svd = mat.computeSVD(k_max)
 
             # Calculates cumulated explained variance (according to the singular values)
@@ -277,7 +277,7 @@ class DataPreProcessing(ABC):
             pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
             transform_models["PCA"] = pca.fit(df_normals)
 
-        elif model_type == ModelType.HBOS:
+        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_normals.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
