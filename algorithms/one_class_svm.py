@@ -52,7 +52,7 @@ class OneClassSVM:
         # it converged; a smaller 'tol' will result in a more accurate training, but also resource-demanding
         # NU is the upper bound of the contamination rate in the dataset
         # NU is also the lower bound of the fraction of support vectors
-        model = OCSVM(tol=1e-10, nu=0.3)
+        model = OCSVM(tol=1e-10, nu=0.1)
 
         return model.fit(features)
 

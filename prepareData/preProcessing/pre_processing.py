@@ -154,7 +154,9 @@ class DataPreProcessing(ABC):
         
         if not new_schema: 
             
-            assembler = VectorAssembler(inputCols=df.columns, outputCol="feat")
+            column_names = list(set(df.columns) - set(["DevAddr", "intrusion"]))
+            
+            assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
             df = assembler.transform(df)
 
             scaler_model = transform_models["StdScaler"]

@@ -809,7 +809,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "DevAddr", "intrusion", "scaled", "features"])
+                            ) and (c not in ["feat", "scaled", "features"])
                         ] 
                         
                         print("Non null columns:", non_null_columns)
@@ -828,7 +828,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "DevAddr", "intrusion", "scaled", "features"])
+                            ) and (c not in ["feat", "scaled", "features"])
                         ] 
                         
                         # if there is a column on 'df_device' that is missing that is not missing in the model dataset, and if
@@ -842,8 +842,8 @@ class MessageClassification:
 
                         print("columns names:", df_device.columns)
                         print("stored df columns:", df_model.columns)
-                        
-                        print("New column on df_device:", set(df_device.columns).issubset(set(df_model.columns)))
+  
+                        cnames = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
                         
                         if set(df_device.columns).issubset(set(df_model.columns)):
 
@@ -851,7 +851,7 @@ class MessageClassification:
                             # to transform the features of the dataframe
                             df_device = DataPreProcessing.features_assembler_stream(df=df_device,
                                                                                     df_model=df_model,
-                                                                                    columns_names=non_null_columns,
+                                                                                    columns_names=cnames,
                                                                                     model_type=self.__ml_algorithm,
                                                                                     transform_models=transform_models)
                             
@@ -861,7 +861,7 @@ class MessageClassification:
                             # to transform the features of the dataframe
                             df_device = DataPreProcessing.features_assembler_stream(df=df_device,
                                                                                     df_model=df_model,
-                                                                                    columns_names=non_null_columns,
+                                                                                    columns_names=cnames,
                                                                                     model_type=self.__ml_algorithm,
                                                                                     transform_models=transform_models,
                                                                                     new_schema=True)
