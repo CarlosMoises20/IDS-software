@@ -36,7 +36,7 @@ class DataPreProcessing(ABC):
 
     """
     @staticmethod
-    def features_assembler(df_train, df_test, model_type, explained_variance_threshold=0.99):
+    def features_assembler(df_train, df_test, with_feature_scaling, with_feature_reduction, explained_variance_threshold=0.99):
 
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df_train.schema)) - set(["DevAddr", "intrusion"]))
@@ -55,16 +55,26 @@ class DataPreProcessing(ABC):
         and this scaling ensures that an attribute isn't considered by the model more important just because its variance or scale
         is higher or lower; instead, all features contribute equally to distance-based computations and model training;
         
-        """
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
-        scaler_model = scaler.fit(df_train)
+        """    
+        if with_feature_scaling:
+        
+            scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+            scaler_model = scaler.fit(df_train)
 
-        df_train = scaler_model.transform(df_train)
+            df_train = scaler_model.transform(df_train)
+            
+            if df_test is not None:
+                df_test = scaler_model.transform(df_test)
+                
+            print("Scaling applied")
         
-        if df_test is not None:
-            df_test = scaler_model.transform(df_test)
+        else:
+            df_train = df_train.withColumnRenamed("feat", "scaled")
+            
+            if df_test is not None:
+                df_test = df_test.withColumnRenamed("feat", "scaled")
         
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+        if with_feature_reduction == "PCA":
 
             ### PCA (Principal Component Analysis)
                 
@@ -89,7 +99,7 @@ class DataPreProcessing(ABC):
             # Prints the chosen value for k
             print(f"Optimal number of PCA components: {k_optimal} (explaining {explained_variance[k_optimal-1]*100:.2f}% of the variance)")
 
-        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
+        elif with_feature_reduction == "SVD":
 
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_train.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
@@ -149,8 +159,8 @@ class DataPreProcessing(ABC):
     of the algorithm that is being used 
     
     """
-    def features_assembler_stream(df, df_model, columns_names, model_type, transform_models,
-                                  new_schema=False, explained_variance_threshold=0.99):
+    def features_assembler_stream(df, df_model, columns_names, transform_models, with_feature_scaling,
+                                  with_feature_reduction, new_schema=False, explained_variance_threshold=0.99):
         
         if not new_schema: 
             
@@ -158,15 +168,16 @@ class DataPreProcessing(ABC):
             
             assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
             df = assembler.transform(df)
+            
+            if with_feature_scaling:
+                scaler_model = transform_models["StdScaler"]
+                df = scaler_model.transform(df)
 
-            scaler_model = transform_models["StdScaler"]
-            df = scaler_model.transform(df)
-
-            if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+            if with_feature_reduction == "PCA":
                 pca_model = transform_models["PCA"]
                 df = pca_model.transform(df)
 
-            elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
+            elif with_feature_reduction == "SVD":
                 V = transform_models["SVD"]
 
                 # Manually applies the transformation feat * V to obtain the new reduced vectors
@@ -181,7 +192,7 @@ class DataPreProcessing(ABC):
             else:
                 df = df.withColumnRenamed("scaled", "features")
 
-            return df.drop("feat", "scaled")
+            return df.drop("feat", "scaled"), df_model.drop("feat", "scaled")
 
         assembler = VectorAssembler(inputCols=columns_names, outputCol="feat")
         df = assembler.transform(df)
@@ -189,11 +200,17 @@ class DataPreProcessing(ABC):
         # if a new schema is created
         df_model = assembler.transform(df_model)
         
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
-        scaler_model = scaler.fit(df_model)
-        df = scaler_model.transform(df)
+        if with_feature_scaling:
+            scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+            scaler_model = scaler.fit(df_model)
+            df_model = scaler_model.transform(df_model)
+            df = scaler_model.transform(df)
+            
+        else:
+            df_model = df_model.withColumnRenamed("feat", "scaled")
+            df = df.withColumnRenamed("feat", "scaled")
 
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+        if with_feature_reduction == "PCA":
             
             # Fit PCA using the train dataset    
             pca = PCA(k=len(columns_names), inputCol="scaled", outputCol="features")
@@ -212,7 +229,7 @@ class DataPreProcessing(ABC):
 
             transform_models["PCA"] = pca_final_model
 
-        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
+        elif with_feature_reduction == "SVD":
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_model.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)
@@ -250,22 +267,25 @@ class DataPreProcessing(ABC):
         else:
             df = df.withColumnRenamed("scaled", "features")
 
-        return df.drop("feat", "scaled")
+        return df.drop("feat", "scaled"), df_model.drop("feat", "scaled")
 
 
     
-    def fit_transform_models_on_stream(df_normals, model_type, transform_models, explained_variance_threshold=0.99):
+    def fit_transform_models_on_stream(df_normals, with_feature_scaling, with_feature_reduction, 
+                                       transform_models, explained_variance_threshold=0.99):
         
         # Asseble all attributes except DevAddr, intrusion and prediction that will not be used for model training, only to identify the model
         column_names = list(set(get_all_attributes_names(df_normals.schema)) - set(["DevAddr", "intrusion", "feat", "scaled", "features"]))
 
         assembler = VectorAssembler(inputCols=column_names, outputCol="feat")
         df_normals = assembler.transform(df_normals)
+        
+        if with_feature_scaling:
 
-        scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
-        transform_models["StdScaler"] = scaler.fit(df_normals)
+            scaler = StandardScaler(inputCol="feat", outputCol="scaled", withMean=True, withStd=True)
+            transform_models["StdScaler"] = scaler.fit(df_normals)
 
-        if model_type in [ModelType.IF_CUSTOM, ModelType.LOF]:
+        if with_feature_reduction == "PCA":
 
             # Fit PCA using the train dataset    
             pca = PCA(k=len(column_names), inputCol="scaled", outputCol="features")
@@ -279,7 +299,7 @@ class DataPreProcessing(ABC):
             pca = PCA(k=k_optimal, inputCol="scaled", outputCol="features")
             transform_models["PCA"] = pca.fit(df_normals)
 
-        elif model_type in [ModelType.HBOS, ModelType.OCSVM]:
+        elif with_feature_reduction == "SVD":
             ### SVD (Singular Value Decomposition): Converts for appropriate format for RowMatrix
             rdd_vectors = df_normals.select("scaled").rdd.map(lambda row: MLLibVectors.dense(row["scaled"]))
             mat = RowMatrix(rdd_vectors)

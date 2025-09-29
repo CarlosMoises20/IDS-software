@@ -19,6 +19,12 @@ if __name__ == '__main__':
     parser.add_argument('--skip_dataset_generation_if_exists', type=str, choices=['True', 'False'], default='True',
                         help='Whether to skip model generation if it already exists')
     
+    parser.add_argument('--with_feature_scaling', type=str, choices=['True', 'False'], default='True',
+                        help='Whether to apply feature scaling or pre-processing or not')
+    
+    parser.add_argument('--with_feature_reduction', type=str, choices=['PCA', 'SVD', 'None'], default='SVD',
+                        help='Whether to apply feature reduction (and specify if PCA or SVD) or not')
+    
     parser.add_argument('--ml_algorithm', type=str, 
                         choices=['lof', 'if_custom', 'if_sklearn', 'hbos', 'ocsvm'],
                         default='ocsvm',
@@ -28,6 +34,8 @@ if __name__ == '__main__':
     datasets_format = args.datasets_format.lower()
     skip_if_exists = (args.skip_dataset_generation_if_exists == 'True')
     ml_algorithm = args.ml_algorithm
+    with_feature_scaling = (args.with_feature_scaling == 'True')
+    with_feature_reduction = args.with_feature_reduction
 
     spark_session = create_spark_session()
 
@@ -42,7 +50,9 @@ if __name__ == '__main__':
 
     # Initialize class used for network intrusion detection
     mc = MessageClassification(spark_session=spark_session,
-                               ml_algorithm=ml_algorithm)
+                               ml_algorithm=ml_algorithm,
+                               with_feature_scaling=with_feature_scaling,
+                               with_feature_reduction=with_feature_reduction)
 
     # Call the function that will listen LoRaWAN messages from a gateway in real time and process them
     mc.classify_new_incoming_messages(datasets_format=datasets_format)

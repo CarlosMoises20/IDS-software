@@ -45,8 +45,9 @@ class HBOS:
 
         # num_bins is the number of used bins for each feature, alpha is a regularizer that prevents overflow
         # and tol is a parameter which decides the flexibility while dealing with the samples falling outside the bins
-        # contamination (by default 0.1) is the expected outlier rate in training dataset
-        model = HBOSModel(n_bins=num_bins, contamination=0.05)
+        # contamination is a parameter used to define the threshold in the decision function used to classify new instances,
+        # and it represents the expected outlier rate in the dataset
+        model = HBOSModel(n_bins=num_bins, tol=1e-20, contamination=0.2)
         
         features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         

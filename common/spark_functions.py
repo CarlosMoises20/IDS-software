@@ -61,11 +61,15 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
         param: set(df_train.select(param).distinct().rdd.map(lambda r: r[0]).collect())
         for param in params
     }
+    
+    # Target values in Frame Counter are one of the found values in training, because a frame counter reset has to 
+    # be considered an intrusion
+    target_values[-1] = existing_values["FCnt"]
 
     # Filter only values not in training dataset
     filtered_target_values = {
-        param: [val for val in values if val not in existing_values[param]]
-        for param, values in zip(params, target_values)
+        param: [val for val in values if val not in existing_values[param]] 
+        for param, values in zip(params, target_values) if param != "FCnt"
     }
 
     # Remove any params that have no remaining intrusion values
@@ -74,29 +78,37 @@ def modify_device_dataset(df_train, df_test, params, target_values, num_intrusio
     # While there is no abnormal values different than values existing on training dataset,
     # try another abnormal values of PHYPayloadLen
     while not filtered_target_values:
-        target_values[2] = [random.randint(200, 10000) for _ in range(5)]
+        target_values[2] = [random.randint(200, 10000) for _ in range(8)]
+        target_values[3] = [random.randint(200, 10000) for _ in range(8)]
+        target_values[-2] = [random.randint(200, 10000) for _ in range(8)]
 
         # Filter only values not in training dataset
         filtered_target_values = {
             param: [val for val in values if val not in existing_values[param]]
-            for param, values in zip(params, target_values)
+            for param, values in zip(params, target_values) if param != "FCnt"
         }
 
         # Remove any params that have no remaining intrusion values
         filtered_target_values = {k: v for k, v in filtered_target_values.items() if v}
 
     # NOTE: uncomment if you want this print
-    print("filtered target values:", filtered_target_values)
+    #print("filtered target values:", filtered_target_values)
     
-    # Sample params randomly for each intrusion sample
-    sampled_params = random.choices(list(filtered_target_values.keys()), k=num_intrusions)
-
-    # Assign a random value from the corresponding valid list to each sample
+    filtered_keys = list(filtered_target_values.keys())
+    
+    # NOTE: uncomment if you want this print
+    #print("filtered keys:", filtered_keys)
+    
+    # Ensure that there is always inserted intrusions for every parameters
+    sampled_params = [filtered_keys[i % len(filtered_keys)] for i in range(num_intrusions)]
+    
     intrusion_inserts = []
-    for i in range(num_intrusions):
-        param = sampled_params[i]
+    for i, param in enumerate(sampled_params):
         value = random.choice(filtered_target_values[param])
         intrusion_inserts.append((i, param, value))
+        
+    # NOTE: uncomment if you want this print
+    #print("intrusion inserts:", intrusion_inserts)
 
     # Apply modifications
     for param in set(sampled_params):

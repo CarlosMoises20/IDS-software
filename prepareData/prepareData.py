@@ -136,12 +136,11 @@ a specific device
     df_model: the dataframe with the messages for the device
     dataset_type: the type of messages in the dataframe (RXPK or TXPK)
     dev_addr: the DevAddr of the messages of the dataframe
-    model_type: the algorithm that will be used to create the "features" column that will be used by ML models for training
     stream_processing (default=False): flag that indicates if the function is being called when receiving messages in real time (True)
                                         or only to create the models (False)
 
 """
-def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_processing=False):
+def prepare_df_for_device(df_model, dataset_type, dev_addr, with_feature_scaling, with_feature_reduction, stream_processing=False):
 
     start_time = time.time()
 
@@ -193,29 +192,35 @@ def prepare_df_for_device(df_model, dataset_type, dev_addr, model_type, stream_p
         n_test_samples = df_model_test.count()          # Number of testing samples
 
         # ensure that, regardless of the size of the test dataset, the number of intrusions is higher in larger datasets, as expected
-        frac = 0.03 + 0.3 / (1 + (n_test_samples / 20))
-        num_intrusions = max(1, min(round(frac * n_test_samples), 80))            
+        num_intrusions = max(1, min(round(0.2 * n_test_samples), 30))         
 
         # Introduce manual intrusions on the test dataset, to test if the model can detect them during testing
         df_model_test = modify_device_dataset(df_train=df_model_train,
                                                 df_test=df_model_test,
-                                                params=["SF", "BW", "PHYPayloadLen", "rssi", "lsnr", "codr", 
-                                                        "rfch", "FCtrl", "MHDR", "MIC"], 
+                                                params=["SF", "BW", "PHYPayloadLen", "powe", "rssi", "lsnr", "codr", 
+                                                        "rfch", "FCtrl", "MHDR", "MIC", "FPort", "freq", "size", "FOpts", "FCnt"], 
                                                 target_values=[SF_LIST, BW_LIST, PHY_PAYLOAD_LEN_LIST_ABNORMAL_VALUES,
-                                                            RSSI_ESTIMATED_INTERVAL, LSNR_ESTIMATED_INTERVAL,
-                                                            CODR_ESTIMATED_INTERVAL, RFCH_VALUES, FCTRL_VALUES, 
-                                                            MHDR_VALUES, MIC_VALUES],
+                                                               POWE_ABNORMAL_VALUES, RSSI_ESTIMATED_INTERVAL, LSNR_ESTIMATED_INTERVAL,
+                                                                CODR_ESTIMATED_INTERVAL, RFCH_VALUES, FCTRL_VALUES, 
+                                                                MHDR_VALUES, MIC_VALUES, FPORT_VALUES, FREQ_VALUES,
+                                                                SIZE_ABNORMAL_VALUES, FOPTS_VALUES, None],
                                                 num_intrusions=num_intrusions)
 
         # NOTE: comment these lines to not print the number of training and testing samples for the device
         print(f'Number of {dataset_type.value["name"].upper()} training samples for device {dev_addr}: {n_train_samples}')
         print(f'Number of {dataset_type.value["name"].upper()} testing samples for device {dev_addr}: {n_test_samples}')
 
-        result = DataPreProcessing.features_assembler(df_model_train, df_model_test, model_type)
+        result = DataPreProcessing.features_assembler(df_train=df_model_train, 
+                                                      df_test=df_model_test, 
+                                                      with_feature_scaling=with_feature_scaling,
+                                                      with_feature_reduction=with_feature_reduction)
     
     # If messages are being received in real time, use all samples for training to accelerate the training
     else:
-        result = DataPreProcessing.features_assembler(df_model, None, model_type)
+        result = DataPreProcessing.features_assembler(df_train=df_model, 
+                                                      df_test=None, 
+                                                      with_feature_scaling=with_feature_scaling,
+                                                      with_feature_reduction=with_feature_reduction)
     
     # Print the total time of pre-processing
     print(f'Total time of pre-processing in device {dev_addr} and {dataset_type.value["name"].upper()}: {format_time(end_time - start_time)} \n')

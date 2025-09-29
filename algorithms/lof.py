@@ -46,11 +46,10 @@ class LOF:
         # n_jobs set to -1 indicates that the number of jobs running in parallel is the number of the processors of the machine, which
         # speeds up the processing
         # novelty set to True indicates that we want to detect specially unknown anomalies.
-        # 'p' set to 1 means that the metric used to calculate the distance between the points is the Manhattan distance 
+        # 'p' set to 2 (by default) means that the metric used to calculate the distance between the points is the standard Euclidean distance 
         model = LOFModel(n_neighbors=self.__k, 
                          n_jobs=-1,
-                         novelty=True,
-                         p=2)
+                         novelty=True)
         
         # convert the assembled features from the Spark dataset into an adequate format for the sklearn-based LOF model
         features = np.array(self.__df_train.select(self.__featuresCol).rdd.map(lambda x: x[0]).collect())
