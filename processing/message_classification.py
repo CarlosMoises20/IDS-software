@@ -832,7 +832,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "scaled", "features", "DevAddr", "intrusion"])
+                            ) and (c not in ["DevAddr", "intrusion"])
                         ] 
                         
                         print("Non null columns:", non_null_columns)
@@ -851,7 +851,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "scaled", "features", "DevAddr", "intrusion"])
+                            ) and (c not in ["DevAddr", "intrusion"])
                         ] 
                         
                         # if there is a column on 'df_device' that is missing that is not missing in the model dataset, and if

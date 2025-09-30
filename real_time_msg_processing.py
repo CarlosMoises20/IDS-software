@@ -19,15 +19,15 @@ if __name__ == '__main__':
     parser.add_argument('--skip_dataset_generation_if_exists', type=str, choices=['True', 'False'], default='True',
                         help='Whether to skip model generation if it already exists')
     
-    parser.add_argument('--with_feature_scaling', type=str, choices=['True', 'False'], default='True',
+    parser.add_argument('--with_feature_scaling', type=str, choices=['True', 'False'], default='False',
                         help='Whether to apply feature scaling or pre-processing or not')
     
-    parser.add_argument('--with_feature_reduction', type=str, choices=['PCA', 'SVD', 'None'], default='SVD',
+    parser.add_argument('--with_feature_reduction', type=str, choices=['PCA', 'SVD', 'None'], default='None',
                         help='Whether to apply feature reduction (and specify if PCA or SVD) or not')
     
     parser.add_argument('--ml_algorithm', type=str, 
                         choices=['lof', 'if_custom', 'if_sklearn', 'hbos', 'ocsvm'],
-                        default='ocsvm',
+                        default='hbos',
                         help='ML Algorithm to choose to create the ML models')
     
     args = parser.parse_args()

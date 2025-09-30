@@ -172,6 +172,9 @@ class DataPreProcessing(ABC):
             if with_feature_scaling:
                 scaler_model = transform_models["StdScaler"]
                 df = scaler_model.transform(df)
+                
+            else:
+                df = df.withColumnRenamed("feat", "scaled")
 
             if with_feature_reduction == "PCA":
                 pca_model = transform_models["PCA"]
