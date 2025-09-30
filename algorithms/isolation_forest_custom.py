@@ -55,7 +55,7 @@ class IsolationForest:
     """
     def __init__(self, spark_session, df_train, df_test, featuresCol,
                  predictionCol, labelCol, maxFeatures=1.0, maxSamples=1.0, seed=42, 
-                 contamination=0.05, contaminationErrorRate=0.999):
+                 contamination=0.18, contaminationErrorRate=0.99):
         
         self.__spark_session = spark_session
         self.__df_train = df_train

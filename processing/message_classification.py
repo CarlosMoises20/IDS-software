@@ -182,7 +182,7 @@ class MessageClassification:
     parameter
     
     """
-    def __load_train_dataset_from_mlflow(self, dev_addr, dataset_type, datasets_format):
+    def __load_train_dataset_from_mlflow(self, dev_addr, dataset_type, datasets_format, schema):
         
         # get name of dataset type (example: DatasetType.RXPK -> "rxpk")
         dtype_name = dataset_type.value["name"]
@@ -210,13 +210,13 @@ class MessageClassification:
             return None
 
         print("Train dataset found on path", path)
-
+        
         # Load the train dataset according to its format (JSON or PARQUET)
         if datasets_format == "json":
-            df = self.__spark_session.read.json(path)
+            df = self.__spark_session.read.schema(schema).json(path)
         else:
-            df = self.__spark_session.read.parquet(path)
-        
+            df = self.__spark_session.read.schema(schema).parquet(path)
+    
         return df
 
     """
@@ -255,9 +255,11 @@ class MessageClassification:
             
             art_path = f'./mlruns/{self.__experiment_id}/{old_run_id}/artifacts/{artifact_path}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
             
+            if os.path.exists(art_path):
+                shutil.rmtree(art_path)
+            
             if datasets_format == "json":
                 df_to_save.write.mode("overwrite").json(art_path)
-            
             else:
                 df_to_save.write.mode("overwrite").parquet(art_path)
                 
@@ -760,7 +762,10 @@ class MessageClassification:
                     # Get the training dataset that was saved on MLFlow, with samples from static dataset and also from gateway
                     df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
                                                                     dataset_type=dataset_type,
-                                                                    datasets_format=datasets_format)
+                                                                    datasets_format=datasets_format,
+                                                                    schema=df_device.schema)
+                    
+                    df_result = df_model
 
                     # If there is not previous model saved on MLFlow, try to create one
                     # If there is not enough samples to create the model, it won't be created, and
@@ -827,7 +832,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_model.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "scaled", "features"])
+                            ) and (c not in ["feat", "scaled", "features", "DevAddr", "intrusion"])
                         ] 
                         
                         print("Non null columns:", non_null_columns)
@@ -846,7 +851,7 @@ class MessageClassification:
                             if (
                                 # Check if NOT all values are null
                                 (df_bind.agg(sum(when(col(c).isNotNull(), 1).otherwise(0))).first()[0] or 0) > 0
-                            ) and (c not in ["feat", "scaled", "features"])
+                            ) and (c not in ["feat", "scaled", "features", "DevAddr", "intrusion"])
                         ] 
                         
                         # if there is a column on 'df_device' that is missing that is not missing in the model dataset, and if

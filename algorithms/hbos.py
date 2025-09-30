@@ -47,7 +47,7 @@ class HBOS:
         # and tol is a parameter which decides the flexibility while dealing with the samples falling outside the bins
         # contamination is a parameter used to define the threshold in the decision function used to classify new instances,
         # and it represents the expected outlier rate in the dataset
-        model = HBOSModel(n_bins=num_bins, tol=1e-20, contamination=0.2)
+        model = HBOSModel(n_bins=num_bins, tol=1e-20, contamination=1/3)
         
         features = np.array(self.__df_train.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         

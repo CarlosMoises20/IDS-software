@@ -2,7 +2,7 @@
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
 
-Firstly, for Windows users, it's recommended to install WSL, using the following command:
+Firstly, for Windows users, it's recommended to use WSL, executing the following command to install a Linux environment (for example, Ubuntu):
 
 ```
 wsl --install
@@ -10,14 +10,14 @@ wsl --install
 
 After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages to run this solution, avoiding possible conflicts with your local machine.
 
-### To install Apache Hadoop (use version 3, for example 3.4.0)
+### To install Apache Hadoop (version 3 recommended, for example 3.4.0)
 
 https://hadoop.apache.org/releases.html
 
 Go to "Downloads" and click on the link on HTTP. Then, verify the integrity of the tgz file, extract the file and store the extracted folder on any directory. Finally, set HADOOP_HOME according to the directory you have chosen, and add the bin folder to PATH. You can also download the installer instead. 
 
 
-### To install Apache Spark (use version 3.3.2)
+### To install Apache Spark (version 3.3.2 recommended)
 https://spark.apache.org/downloads.html (go to the "Archived releases" section or similar to find a link with older Spark releases which includes the version 3.3.2)
 
 You must download the installer or download a tgz file which finishes with (bin-hadoop3.tgz), indicating that the Spark version uses the version 3 of Apache Hadoop. Then, you must follow the instructions on the site (such as verifying the integrity of the file) and choose a directory to store the tgz file. It's recommended to always check its integrity by verifying its signature. Don't forget to properly set the environment variable SPARK_HOME and add its bin folder to PATH.
@@ -158,7 +158,7 @@ bin/kafka-server-stop.sh config/kraft/server.properties
 
 These instructions to install Apache KRaft are also available on these links below:
 
-&emsp; On Windows 10 or above (contains additional necessary steps not described on this README file, such as installing WSL)
+&emsp; On Windows 10 or above
 ```
 https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-windows-without-zookeeper-kraft-mode/
 ```
@@ -191,18 +191,37 @@ To run Spark jobs with PySpark, you need to set the environment variables PYSPAR
 
 In addition, you should set PYTHONPATH to include the python subdirectory of SPARK_HOME as well as the py4j-(version).zip file inside SPARK_HOME/python/lib. This ensures that the Spark workers can properly use Py4J to connect Python with the JVM, avoiding related errors.
 
-### If you want to generate the input datasets in separate, with data pre-processing included run the following command (in root directory). You can also define in what format you want to generate the input datasets (JSON or PARQUET), and if you want to skip dataset generation if it already exists. PARQUET allows a faster processing but JSON allows you to see the content in a legible format.
+### If you want to generate the input datasets in separate
+
+It includes data pre-processing included run the command below.
+
+--dataset_format: in what format you want to generate the input datasets (JSON or PARQUET); PARQUET allows a faster processing but JSON allows you to see the content in a legible format.
+
+--skip_dataset_generation_if_exists: if you want to skip dataset generation if it already exists (True) or not (False)
+
 ```python3
 python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
 ```
 
 
-### Create models based on specific devices (train and test) whose DevAddr can specified on the command line (example of DevAddr: "26012619"; don't forget the quotes), and save it as an MLFlow artifact (in root directory); if DevAddr's are not specified, all devices' address will be used as default
+### Create models based on specific devices (train and test) whose DevAddr can specified on the command line, and save it as an MLFlow artifact (in root directory)
+
+--dev_addr: DevAddr of devices from which you want to create models (example of DevAddr: "26012619"; don't forget the quotes); if DevAddr's are not specified, all devices' address will be used as default
+
+--dataset_format: in what format you want to generate the input datasets (JSON or PARQUET); PARQUET allows a faster processing but JSON allows you to see the content in a legible format.
+
+--skip_dataset_generation_if_exists: if you want to skip dataset generation if it already exists (True) or not (False)
+
+--with_feature_scaling: if you want to apply feature scaling on data pre-processing (True) or not (False)
+
+--with_feature_reduction: if you want to apply feature reduction or not; if you want, you can choose between PCA and SVD. Otherwise, type "None"
+
 ```python3
-python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by default, all devices' DevAddr) --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
+python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by default, all devices' DevAddr) --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True) --with_feature_scaling ("True" or "False"; by default "True") --with_feature_reduction ("PCA", "SVD" or "None"; by default "SVD")
 ``` 
 
 ### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
+
  ```python3
-python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True)
+python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True) --with_feature_scaling ("True" or "False"; by default "True") --with_feature_reduction ("PCA", "SVD" or "None"; by default "SVD")
 ```
