@@ -839,7 +839,6 @@ class MessageClassification:
                         
                         imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
                         df_model = imputer.fit(df_model).transform(df_model)
-                        df_model = df_model.select(non_null_columns)
                         
                         df_model.show(truncate=False)
                     
@@ -858,7 +857,7 @@ class MessageClassification:
                         # the model exists, that NULL column of df_device is replaced with the mean according to df_model
                         imputer = Imputer(inputCols=non_null_columns, outputCols=non_null_columns, strategy="mean")
                         imputer_model = imputer.fit(df_bind)
-                        df_model_imputed = imputer_model.transform(df_model)
+                        df_model = imputer_model.transform(df_model)
                         df_device = imputer_model.transform(df_device)
                         
                         df_device = df_device.select(non_null_columns)
@@ -928,7 +927,6 @@ class MessageClassification:
                         # Retrain the model with normal instances if they exist, and then store the new model on MLFlow
                         if not df_normals.isEmpty():
                             
-                            df_model = df_model_imputed
                             df_result = df_normals.unionByName(df_model, allowMissingColumns=True)
                             
                             print("Re-training model")
