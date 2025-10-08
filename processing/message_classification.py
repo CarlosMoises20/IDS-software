@@ -718,7 +718,7 @@ class MessageClassification:
         # This function will be executed for each batch of one or more messages received by Spark
         def process_batch(df, batch_id):
             
-            print(f'\n=== Batch with ID {batch_id}')
+            print(f'\n=== Batch with ID {batch_id} ===')
 
             df.show(truncate=False)
 
