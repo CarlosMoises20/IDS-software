@@ -1,7 +1,7 @@
 
 from prepareData.preProcessing.pre_processing import DataPreProcessing
 from pyspark.sql.functions import expr, col, explode, when, col, size, lit, from_json
-from pyspark.sql.types import StructType, ArrayType, StringType, StructField, FloatType, LongType, DoubleType, IntegerType
+from pyspark.sql.types import StructType, ArrayType, StringType, StructField, LongType, DoubleType
 from common.constants import *
 
 

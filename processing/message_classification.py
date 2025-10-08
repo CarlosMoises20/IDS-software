@@ -1,6 +1,5 @@
 
-import time, mlflow, shutil, os, json, cloudpickle, threading, datetime
-from zoneinfo import ZoneInfo
+import time, mlflow, shutil, os, json, cloudpickle, threading
 from pyspark.sql import Row
 from pyspark.sql.types import IntegerType
 import mlflow.sklearn
@@ -718,9 +717,8 @@ class MessageClassification:
 
         # This function will be executed for each batch of one or more messages received by Spark
         def process_batch(df, batch_id):
-
-            # TODO date is only for testing, remove it for final version to avoid confusions with timezone in different countries
-            print(f'\n=== Batch with ID {batch_id}; Date: {datetime.datetime.now(ZoneInfo("Europe/Lisbon")).strftime("%d-%m-%Y %H:%M:%S")} (Lisbon Time) ===')
+            
+            print(f'\n=== Batch with ID {batch_id}')
 
             df.show(truncate=False)
 
@@ -775,7 +773,7 @@ class MessageClassification:
                         # if there is no previous training dataset stored on MLFlow, retrieve from static datasets
                         if df_model is None:
 
-                            print(f"Still no store training dataset for device {dev_addr} in RXPK. Creating the first from static datasets")
+                            print(f"Still no stored training dataset for device {dev_addr} in RXPK. Creating the first from static datasets")
 
                             # for JSON format
                             if datasets_format == "json":

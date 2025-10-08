@@ -9,7 +9,6 @@ from pyspark.sql import functions as F
 from common.spark_functions import get_all_attributes_names
 from pyspark.ml.feature import StandardScaler, VectorAssembler, PCA
 from pyspark.ml.linalg import DenseVector as MLDenseVector
-from common.model_type import ModelType
 import base64
 
 """
