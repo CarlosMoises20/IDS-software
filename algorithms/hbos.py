@@ -67,7 +67,7 @@ class HBOS:
     """
     def predict(self, model):
         # convert dataset to pandas to be compatible with pyod-based HBOS model 
-        features = np.array(self.__df_test.select(self.__featuresCol, self.__labelCol).toPandas()[self.__featuresCol].tolist())
+        features = np.array(self.__df_test.select(self.__featuresCol).toPandas()[self.__featuresCol].tolist())
         return model.predict(features)
 
     """

@@ -356,6 +356,7 @@ class MessageClassification:
             ## FOR sklearn MODELS (OCSVM, HBOS, LOF, sklearn-based IF)
             if model_type.value["type"] == "sklearn":
                 mlflow.sklearn.log_model(sk_model=model, name="model")
+                print("New sklearn model stored")
 
             ## FOR pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
@@ -371,12 +372,13 @@ class MessageClassification:
 
                 # Remove from original path
                 os.remove(model_path)
+                
+                print("New PyOD model stored")
 
             else:
                 print("Model type must be sklearn, pyod or spark to be saved on MLFlow!")
                 return
 
-            print("New model stored")
 
             ### Log evaluation metrics on the MLFlow run
             if matrix:
@@ -906,7 +908,9 @@ class MessageClassification:
                         # Bind messages with corresponding predictions
                         rows_with_preds = [Row(**row.asDict(), prediction=int(pred)) for row, pred in zip(original_rows, y_pred)]
                         
-                        predictions = np.array([0 if pred == 1 else 1 for pred in y_pred])
+                        # in PyOD models (HBOS), 0's are inliers and 1's are outliers
+                        # in sklearn models (Isolation Forest, One-Class SVM and LOF), 1's are inliers and -1's are outliers
+                        predictions = [0 if pred == 1 else 1 for pred in y_pred] if self.__ml_algorithm.value["type"] == "sklearn" else y_pred
                         
                         # NOTE: This prints the number of anomalies and normal messages detected, which is not recommended to uncomment
                         print(f"Number of anomalies detected: {(predictions == 1).sum()}")
