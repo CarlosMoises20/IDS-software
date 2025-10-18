@@ -9,7 +9,7 @@ However, if you want to use Windows, it's recommended (but not mandatory) to use
 wsl --install
 ```
 
-After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages described below to run this solution, avoiding possible conflicts with your local machine.
+After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages described below to run this solution, avoiding possible conflicts with packages previously installed your local machine.
 
 ### To install Apache Hadoop (version 3 recommended, for example 3.4.0)
 
