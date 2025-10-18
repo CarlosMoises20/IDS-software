@@ -1,14 +1,15 @@
 # IDS-Software
 This repository contains the base software implementation for the Intrusion Detection System for LoRaWAN Networks, developed during the final project of MSc in Informatic and Computers Engineering, by the student Carlos Tavares (number 48725) of ISEL Lisbon School Engineering, in 2024/25 school year
 
+This implementation was mainly tested on a Ubuntu virtual machine with 64 GB of RAM and 8 CPUs.
 
-Firstly, for Windows users, it's recommended to use WSL, executing the following command to install a Linux environment (for example, Ubuntu):
+However, if you want to use Windows, it's recommended (but not mandatory) to use WSL, executing the following command:
 
 ```
 wsl --install
 ```
 
-After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages to run this solution, avoiding possible conflicts with your local machine.
+After WSL being installed, you will define your username and password. This allows you to have an isolated environment where you can install all necessary packages described below to run this solution, avoiding possible conflicts with your local machine.
 
 ### To install Apache Hadoop (version 3 recommended, for example 3.4.0)
 
