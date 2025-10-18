@@ -221,8 +221,10 @@ python .\generate_input_datasets.py --dataset_format ("json" or "parquet"; by de
 python .\create_models.py --dev_addr {DevAddr 1} {DevAddr 2} ... {DevAddr N} (by default, all devices' DevAddr) --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True) --with_feature_scaling ("True" or "False"; by default "True") --with_feature_reduction ("PCA", "SVD" or "None"; by default "SVD")
 ``` 
 
-### Run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory)
+### To run the IDS to receive and process new LoRaWAN messages in real time (stream processing) (in root directory), this command was executed
 
  ```python3
 python .\real_time_msg_processing.py --dataset_format ("json" or "parquet"; by default is "parquet") --skip_dataset_generation_if_exists ("True" or "False"; by default is True) --with_feature_scaling ("True" or "False"; by default "True") --with_feature_reduction ("PCA", "SVD" or "None"; by default "SVD")
 ```
+
+NOTE: this last command won't work anymore since the gateway was configured to only send messages to the virtual machine where the IDS was tested, and not in another machine; however, the other commands will still work properly
