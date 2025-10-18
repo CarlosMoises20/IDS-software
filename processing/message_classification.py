@@ -137,7 +137,7 @@ class MessageClassification:
                     with open(model_path, "rb") as f:
                         model = cloudpickle.load(f)
                 else:
-                    print("Model does not exist!")
+                    print("Model does not exist on path", model_path)
 
             # Model where spark-based PCA model must be stored, if it exists
             pca_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/pca_model"
@@ -148,7 +148,7 @@ class MessageClassification:
             if os.path.exists(pca_path):
                 pca_model = mlflow.spark.load_model(pca_path)
             else:
-                print("PCA model does not exist")
+                print("PCA model does not exist on path", pca_path)
 
             # Model where SVD matrix must be stored, if it exists
             svd_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/svd_model/svd_matrix.npy"
@@ -159,14 +159,14 @@ class MessageClassification:
             if os.path.exists(svd_path):
                 svd_matrix = np.load(svd_path, allow_pickle=True)
             else:
-                print("SVD model does not exist")
+                print("SVD model does not exist on path", svd_path)
             
         except:
             pass
 
         # NOTE you can uncomment these lines if you want these prints
-        print("model:", model)
-        print("scaler model:", scaler_model)
+        #print("model:", model)
+        #print("scaler model:", scaler_model)
         #print("PCA model:", pca_model)
         #print("SVD matrix:", svd_matrix)
 
@@ -205,7 +205,7 @@ class MessageClassification:
 
         # If the train dataset does not exist on the indicated path, return None
         if not os.path.exists(path):
-            print("Train dataset does not exist")
+            print("Train dataset does not exist on path", path)
             return None
 
         print("Train dataset found on path", path)
@@ -814,9 +814,9 @@ class MessageClassification:
                         n_model_samples = df_model.count()
 
                         if n_model_samples == 1:
-                            print("Loaded dataset or static dataset, with", n_model_samples, "sample")
+                            print("Loaded MLFlow dataset or static dataset, with", n_model_samples, "sample")
                         else:
-                            print("Loaded dataset or static dataset, with", n_model_samples, "samples")
+                            print("Loaded MLFlow dataset or static dataset, with", n_model_samples, "samples")
                             
                         df_model.show(truncate=False)
 
@@ -861,9 +861,6 @@ class MessageClassification:
                         df_device = imputer_model.transform(df_device)
                         
                         df_device = df_device.select(non_null_columns)
-
-                        print("columns names:", df_device.columns)
-                        print("stored df columns:", df_model.columns)
   
                         cnames = list(set(non_null_columns) - set(["DevAddr", "intrusion"]))
                         
@@ -979,7 +976,7 @@ class MessageClassification:
             
             # if there are no RXPK messages, skip the batch processing and keep listening new messages
             else:
-                print("Batch with no RXPK messages.")
+                print("Batch with no RXPK messages")
                 return
 
         # Read stream from Kafka server that listens messages from UDP server
