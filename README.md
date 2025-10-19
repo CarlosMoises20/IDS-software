@@ -28,7 +28,7 @@ https://www.oracle.com/java/technologies/javase/jdk11-archive-downloads.html
 
 Or use the command line
 
-&emsp; 3a - On Linux
+&emsp; 3a - On Linux (Ubuntu)
 ```
 sudo apt install openjdk-11-jdk -y
 ``` 
@@ -49,7 +49,12 @@ java --version
 ```
 
 ### To install Python (version 3.10 recommended to avoid compatibility issues)
-https://www.python.org/downloads/
+
+Go to https://www.python.org/downloads/. In Linux (Ubuntu), you can run the following command:
+```python3
+sudo apt update && sudo apt install python3.10 -y
+```
+
 
 ### Check Python version in your local machine to ensure that it was correctly installed
  ```python3
@@ -84,8 +89,7 @@ Go to the link https://git-scm.com/downloads
 git clone https://github.com/linkedin/isolation-forest
 ```
 
-Install python virtual environment with this command (you can do this in an isolated environment to avoid conflicts with your current Python installation):
-
+Install python virtual environment with this command (you can do this in an isolated environment to avoid conflicts with your current Python installation). Example in Linux (Ubuntu):
 ```
 sudo apt install python3.10-venv
 ```
@@ -96,7 +100,7 @@ And then follow only the steps on the corresponding README file, adding that you
 
 3 - Install sbt package
 
-&emsp; 3a - On Linux
+&emsp; 3a - On Linux (Ubuntu)
 ```
 echo "deb https://dl.bintray.com/sbt/debian /" | sudo tee -a /etc/apt/sources.list.d/sbt.list
 sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 2EE0EA64E40A89B84B2DF73499E82A75642AC823
@@ -120,7 +124,7 @@ Then, if you installed this on the same machine than your other Python installat
 
 You must install Scala first (version 2.12) as previously indicated. Then, ensure Java JDK 11 is properly installed on your local machine, since it's also required to install Apache Kafka (whether on Windows, Mac or Linux), and its installation instructions are above in this file.
 
-Then go to the link https://kafka.apache.org/downloads and install the Kafka latest version on your local machine. Use the binary version and choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the one indicated on the site and unzip the file. One of the solutions to unzip the .tgz file is to execute the following command (example for Kafka version 3.9.1). For example, on Linux, you can run this command below:
+Then go to the link https://kafka.apache.org/downloads and install the Kafka latest version on your local machine. Use the binary version and choose the latest version that has support for Scala 2.12, and then after downloading it, check its integrity by verifying if its ASC or SHA512 signature matches the one indicated on the site and unzip the file. One of the solutions to unzip the .tgz file is to execute the following command (example for Kafka version 3.9.1). For example, on Linux (Ubuntu), you can run this command below:
 
 ```
 tar -xzf kafka_2.12-3.9.1.tgz
@@ -169,7 +173,7 @@ https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-windows-without-
 https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-mac-without-zookeeper-kraft-mode/
 ```
 
-&emsp; On Linux
+&emsp; On Linux (Ubuntu)
 ```
 https://learn.conduktor.io/kafka/how-to-install-apache-kafka-on-linux-without-zookeeper-kraft-mode/
 ```
