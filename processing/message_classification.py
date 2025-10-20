@@ -186,7 +186,7 @@ class MessageClassification:
     parameter
     
     """
-    def __load_train_dataset_from_mlflow(self, dev_addr, dataset_type, datasets_format, schema):
+    def __load_train_dataset_from_mlflow(self, dev_addr, dataset_type, datasets_format):
         
         # get name of dataset type (example: DatasetType.RXPK -> "rxpk")
         dtype_name = dataset_type.value["name"]
@@ -217,9 +217,9 @@ class MessageClassification:
         
         # Load the train dataset according to its format (JSON or PARQUET)
         if datasets_format == "json":
-            df = self.__spark_session.read.schema(schema).json(path)
+            df = self.__spark_session.read.json(path)
         else:
-            df = self.__spark_session.read.schema(schema).parquet(path)
+            df = self.__spark_session.read.parquet(path)
     
         return df
 
@@ -775,8 +775,7 @@ class MessageClassification:
                     # Get the training dataset that was saved on MLFlow, with samples from static dataset and also from gateway
                     df_model = self.__load_train_dataset_from_mlflow(dev_addr=dev_addr,
                                                                     dataset_type=dataset_type,
-                                                                    datasets_format=datasets_format,
-                                                                    schema=df_device.schema)
+                                                                    datasets_format=datasets_format)
                     
                     df_result = df_model
 
