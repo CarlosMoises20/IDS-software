@@ -96,9 +96,14 @@ class MessageClassification:
         model, model_id, scaler_model, pca_model, svd_matrix = None, None, None, None, None
         
         try:
+            
+            scaler_path = f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/scaler_model"
 
-            # retrieve the model of StandardScaler used on pre-processing for scaling. This model must always exist
-            scaler_model = mlflow.spark.load_model(f"./mlruns/{self.__experiment_id}/{run_id}/artifacts/scaler_model")
+            if self.__with_feature_scaling and os.path.exists(scaler_path):
+                # retrieve the model of StandardScaler used on pre-processing for scaling. This model must always exist
+                scaler_model = mlflow.spark.load_model(scaler_path)
+            else:
+                print("Scaler model does not exist in path", scaler_path)
 
             # for sklearn models
             if model_type.value["type"] == "sklearn":
@@ -145,7 +150,7 @@ class MessageClassification:
             # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
             # Without this if/else block, the try/catch block would stop to run
             # on the load_model function and not loading the other models
-            if os.path.exists(pca_path):
+            if os.path.exists(pca_path) and self.__with_feature_reduction == "PCA":
                 pca_model = mlflow.spark.load_model(pca_path)
             else:
                 print("PCA model does not exist on path", pca_path)
@@ -156,7 +161,7 @@ class MessageClassification:
             # This if/else block ensures that the load_model does not throw exception if the model path does not exist 
             # Without this if/else block, the try/catch block would stop to run
             # on the load_model function and not printing the message to indicate the user that the model does not exist
-            if os.path.exists(svd_path):
+            if os.path.exists(svd_path) and self.__with_feature_reduction == "SVD":
                 svd_matrix = np.load(svd_path, allow_pickle=True)
             else:
                 print("SVD model does not exist on path", svd_path)
@@ -254,16 +259,24 @@ class MessageClassification:
             
             art_path = f'./mlruns/{self.__experiment_id}/{old_run_id}/artifacts/{artifact_path}/lorawan_dataset_{dev_addr}_train.{datasets_format}'
             
+            # A temporary name for the file to be written, to avoid cache conflicts
+            temp_path = art_path + "_temp"
+            
+            if datasets_format == "json":
+                df_to_save.write.mode("overwrite").json(temp_path)
+            else:
+                df_to_save.write.mode("overwrite").parquet(temp_path)
+            
+            # Removing the previous dataset to avoid duplicated content
             if os.path.exists(art_path):
                 shutil.rmtree(art_path)
             
-            if datasets_format == "json":
-                df_to_save.write.mode("overwrite").json(art_path)
-            else:
-                df_to_save.write.mode("overwrite").parquet(art_path)
+            # Rename the file after removing previous dataset
+            os.rename(temp_path, art_path)
                 
             print("Added new dataset from existing run")
-                   
+             
+        # When a run is created, there is no previous cache      
         else:
             
             if datasets_format == "json":
@@ -821,10 +834,10 @@ class MessageClassification:
                         df_model.show(truncate=False)
 
 
-                    # If the models are created, use the actual sample to train the model
-                    if model and transform_models:
+                    # If the model is created, use the actual sample to train the model
+                    if model:
                         
-                        print("Models exist!")
+                        print("Model exists!")
                         
                         # Remove columns from the string list that are not used to impute possible missing values of the new packet
                         non_null_columns = [
