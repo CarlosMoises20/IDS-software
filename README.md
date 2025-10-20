@@ -190,7 +190,7 @@ https://repo1.maven.org/maven2/org/apache/spark/spark-token-provider-kafka-0-10_
 https://repo1.maven.org/maven2/org/apache/commons/commons-pool2/2.12.1/commons-pool2-2.12.1.jar
 
 
-# Additional necessary enviromnent variables
+### Additional necessary enviromnent variables
 
 To run Spark jobs with PySpark, you need to set the environment variables PYSPARK_PYTHON and PYSPARK_DRIVER_PYTHON so they point to the Python interpreter you want to use (for example, python3).
 
