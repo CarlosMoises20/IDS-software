@@ -344,7 +344,7 @@ class MessageClassification:
         # This allows to start the run associated to the DevAddr and MessageType or create a run if there is no previous associated run
         with mlflow.start_run(run_name=f'Model_Device_{dev_addr}_{dtype_name}', 
                               experiment_id=self.__experiment_id,
-                              run_id=old_run_id):
+                              run_id=old_run_id) as active_run:
             
             # Set tags that will identify the run on MLFlow: DevAddr (device address) and MessageType (RXPK or TXPK)
             mlflow.set_tag("DevAddr", dev_addr)
@@ -369,7 +369,7 @@ class MessageClassification:
             ## FOR sklearn MODELS (OCSVM, HBOS, LOF, sklearn-based IF)
             if model_type.value["type"] == "sklearn":
                 mlflow.sklearn.log_model(sk_model=model, name="model")
-                print("New sklearn model stored")
+                print("New sklearn model stored in MLFlow run with id", active_run.info.run_id)
 
             ## FOR pyod models (HBOS)
             elif model_type.value["type"] == "pyod":
@@ -386,7 +386,7 @@ class MessageClassification:
                 # Remove from original path
                 os.remove(model_path)
                 
-                print("New PyOD model stored")
+                print("New PyOD model stored in MLFlow run with id", active_run.info.run_id)
 
             else:
                 print("Model type must be sklearn, pyod or spark to be saved on MLFlow!")
