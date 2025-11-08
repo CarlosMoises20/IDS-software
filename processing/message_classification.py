@@ -389,7 +389,7 @@ class MessageClassification:
                 print("New PyOD model stored in MLFlow run with id", active_run.info.run_id)
 
             else:
-                print("Model type must be sklearn, pyod or spark to be saved on MLFlow!")
+                print("Model type must be sklearn or pyod to be saved on MLFlow!")
                 return
 
 
@@ -461,6 +461,12 @@ class MessageClassification:
             accuracy = report["Accuracy"]
             f1_score_class_1 = report["F1-Score (class 1 -> anomaly)"]
             recall_class_1 = report["Recall (class 1 -> anomaly)"]
+            
+            # NOTE: comment this if you don't want to save the model to later check its size (this is done because this algorithm's model
+            # is not saved on MLFlow, which would make the implementation more robust)
+            save_path = f'./temp_models/{model_type.value["acronym"]}_{dev_addr}_{dataset_type.value["name"]}'
+            os.makedirs('./temp_models', exist_ok=True)
+            model.write().overwrite().save(save_path)
 
         ### One-Class SVM
         elif model_type.value["name"] == "One-Class Support Vector Machine":

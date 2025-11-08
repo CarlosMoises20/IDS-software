@@ -13,6 +13,7 @@ SPARK_DRIVER_MEMORY = "40g"                    # Memory available for the Spark 
 SPARK_EXECUTOR_CORES = os.cpu_count() - 1      # Number of cores for Spark is set as the number of CPU cores of local machine, to speed up processing
 SPARK_PROCESSING_NUM_PARTITIONS = "2500"       # Number of Spark partitions for parallel processing
 SPARK_AUTO_BROADCAST_JOIN_THRESHOLD = "-1"     # By setting this to -1, broadcasting is disabled, removing the maximum size of a table broadcasted to all worker nodes when performing a join; this speeds up performance
+SPARK_JARS_PACKAGES = "org.apache.spark:spark-avro_2.12:3.3.2"
 
 '''UDP SOCKET'''
 UDP_IP = "0.0.0.0"

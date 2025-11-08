@@ -27,6 +27,7 @@ def create_spark_session():
                             .config("spark.executor.memory", SPARK_EXECUTOR_MEMORY) \
                             .config("spark.sql.shuffle.partitions", SPARK_PROCESSING_NUM_PARTITIONS)  \
                             .config("spark.jars", ",".join(SPARK_JARS)) \
+                            .config("spark.jars.packages", SPARK_JARS_PACKAGES) \
                             .config("spark.sql.ansi.enabled", "false") \
                             .config("spark.sql.autoBroadcastJoinThreshold", SPARK_AUTO_BROADCAST_JOIN_THRESHOLD) \
                             .config("spark.sql.parquet.enableVectorizedReader", "false") \
